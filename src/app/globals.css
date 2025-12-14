@@ -1,26 +1,275 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Semantic Token System
+ * ---------------------
+ * All colors are defined as semantic tokens.
+ * Components must use tokens, never hard-coded colors.
+ *
+ * Surface hierarchy:
+ *   background < surface < surface-muted < surface-raised
+ *
+ * Text hierarchy:
+ *   text-primary (85-90%) > text-secondary (60-70%) > text-muted (40-50%)
+ */
 
 @theme inline {
+  /* Core semantic tokens */
   --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-surface-raised: var(--surface-raised);
+  --color-border: var(--border);
+  --color-border-muted: var(--border-muted);
+
+  /* Text tokens */
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+
+  /* Accent tokens */
+  --color-accent: var(--accent);
+  --color-accent-muted: var(--accent-muted);
+  --color-accent-subtle: var(--accent-subtle);
+  --color-focus: var(--focus);
+
+  /* Status tokens */
+  --color-success: var(--success);
+  --color-success-muted: var(--success-muted);
+  --color-warning: var(--warning);
+  --color-warning-muted: var(--warning-muted);
+  --color-danger: var(--danger);
+  --color-danger-muted: var(--danger-muted);
+
+  /* Section accent tokens (for form sections) */
+  --color-section-cool: var(--section-cool);
+  --color-section-cool-muted: var(--section-cool-muted);
+  --color-section-cool-bg: var(--section-cool-bg);
+  --color-section-cool-border: var(--section-cool-border);
+  --color-section-warm: var(--section-warm);
+  --color-section-warm-muted: var(--section-warm-muted);
+  --color-section-warm-bg: var(--section-warm-bg);
+  --color-section-warm-border: var(--section-warm-border);
+
+  /* Legacy compatibility (shadcn components) */
+  --color-foreground: var(--text-primary);
+  --color-card: var(--surface);
+  --color-card-foreground: var(--text-primary);
+  --color-popover: var(--surface-raised);
+  --color-popover-foreground: var(--text-primary);
+  --color-primary: var(--accent);
+  --color-primary-foreground: var(--accent-foreground);
+  --color-secondary: var(--surface-muted);
+  --color-secondary-foreground: var(--text-primary);
+  --color-muted: var(--surface-muted);
+  --color-muted-foreground: var(--text-muted);
+  --color-accent-foreground: var(--text-primary);
+  --color-destructive: var(--danger);
+  --color-input: var(--border);
+  --color-ring: var(--focus);
+
+  /* Fonts */
+  --font-sans: var(--font-inter);
   --font-mono: var(--font-geist-mono);
+
+  /* Radius */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* ============================================
+   LIGHT MODE
+   ============================================ */
+:root {
+  --radius: 0.375rem;
+
+  /* Surface hierarchy (light → dark) */
+  --background: #fafafa;
+  --surface: #ffffff;
+  --surface-muted: #f5f5f5;
+  --surface-raised: #ffffff;
+
+  /* Borders */
+  --border: #e5e5e5;
+  --border-muted: #ebebeb;
+
+  /* Text hierarchy */
+  --text-primary: #171717;
+  --text-secondary: #525252;
+  --text-muted: #a3a3a3;
+
+  /* Accent: Cardinal Red */
+  --accent: #8C1515;
+  --accent-muted: #a33a3a;
+  --accent-subtle: rgba(140, 21, 21, 0.08);
+  --accent-foreground: #ffffff;
+  --focus: #8C1515;
+
+  /* Status colors */
+  --success: #16a34a;
+  --success-muted: rgba(22, 163, 74, 0.12);
+  --warning: #ca8a04;
+  --warning-muted: rgba(202, 138, 4, 0.12);
+  --danger: #dc2626;
+  --danger-muted: rgba(220, 38, 38, 0.12);
+
+  /* Section accents */
+  --section-cool: #2d6a7a;
+  --section-cool-muted: #4a8a9a;
+  --section-cool-bg: rgba(45, 106, 122, 0.06);
+  --section-cool-border: rgba(45, 106, 122, 0.15);
+  --section-warm: #8a6040;
+  --section-warm-muted: #a07850;
+  --section-warm-bg: rgba(138, 96, 64, 0.06);
+  --section-warm-border: rgba(138, 96, 64, 0.15);
+}
+
+/* ============================================
+   DARK MODE
+   ============================================ */
+.dark {
+  /* Surface hierarchy (dark → light) */
+  --background: #0a0a0a;
+  --surface: #141414;
+  --surface-muted: #1a1a1a;
+  --surface-raised: #1f1f1f;
+
+  /* Borders (slightly lighter than surfaces) */
+  --border: #2a2a2a;
+  --border-muted: #222222;
+
+  /* Text hierarchy
+     Primary: ~87% white
+     Secondary: ~65% white
+     Muted: ~45% white
+  */
+  --text-primary: #e0e0e0;
+  --text-secondary: #a6a6a6;
+  --text-muted: #737373;
+
+  /* Accent: Cardinal Red (slightly brighter for dark bg) */
+  --accent: #a52a2a;
+  --accent-muted: #8C1515;
+  --accent-subtle: rgba(165, 42, 42, 0.15);
+  --accent-foreground: #ffffff;
+  --focus: #a52a2a;
+
+  /* Status colors (adjusted for dark mode) */
+  --success: #22c55e;
+  --success-muted: rgba(34, 197, 94, 0.15);
+  --warning: #eab308;
+  --warning-muted: rgba(234, 179, 8, 0.15);
+  --danger: #ef4444;
+  --danger-muted: rgba(239, 68, 68, 0.15);
+
+  /* Section accents (desaturated for dark mode) */
+  --section-cool: #5b8a9a;
+  --section-cool-muted: #3d5c66;
+  --section-cool-bg: rgba(91, 138, 154, 0.10);
+  --section-cool-border: rgba(91, 138, 154, 0.20);
+  --section-warm: #b08968;
+  --section-warm-muted: #8a6b50;
+  --section-warm-bg: rgba(176, 137, 104, 0.10);
+  --section-warm-border: rgba(176, 137, 104, 0.20);
+}
+
+/* ============================================
+   BASE STYLES
+   ============================================ */
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-text-primary;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Focus ring utility */
+  .focus-ring {
+    @apply outline-none ring-2 ring-focus ring-offset-2 ring-offset-background;
+  }
+
+  /* Hide number input spinners */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+
+  /* Grid items stretch to fill cells */
+  .grid > * {
+    justify-self: stretch;
+    align-self: stretch;
+  }
+
+  /* Ensure all form controls stretch */
+  .grid input,
+  .grid select,
+  .grid [data-slot="select-trigger"] {
+    width: 100%;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ============================================
+   COMPONENT UTILITIES
+   ============================================ */
+@layer components {
+  /* Surface variants */
+  .surface {
+    @apply bg-surface text-text-primary;
+  }
+
+  .surface-muted {
+    @apply bg-surface-muted text-text-primary;
+  }
+
+  .surface-raised {
+    @apply bg-surface-raised text-text-primary;
+  }
+
+  /* Input base styles */
+  .input-base {
+    @apply bg-surface border-border text-text-primary;
+    @apply placeholder:text-text-muted;
+    @apply hover:border-border focus:border-accent focus:ring-1 focus:ring-accent/30;
+    @apply transition-colors;
+  }
+
+  /* Card base styles */
+  .card-base {
+    @apply bg-surface border border-border rounded-lg;
+  }
+}
+
+/* ============================================
+   SELECT/DROPDOWN HARD OVERRIDES
+   Ensures opaque backgrounds - cannot regress
+   ============================================ */
+[data-slot="select-trigger"] {
+  background-color: var(--surface-muted) !important;
+  opacity: 1 !important;
+  backdrop-filter: none !important;
+}
+
+[data-slot="select-content"] {
+  background-color: var(--surface) !important;
+  opacity: 1 !important;
+  backdrop-filter: none !important;
+}
+
+[data-slot="dropdown-menu-content"] {
+  background-color: var(--surface) !important;
+  opacity: 1 !important;
+  backdrop-filter: none !important;
 }
