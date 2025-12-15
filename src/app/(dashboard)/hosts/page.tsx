@@ -358,9 +358,8 @@ export default function HostsPage() {
                 <Table>
                   <TableHeader>
                     <TableRow className="hover:bg-transparent border-neutral-200 dark:border-white/6">
-                      <TableHead>ID</TableHead>
-                      <TableHead>System Name</TableHead>
-                      <TableHead>IP Address</TableHead>
+                      <TableHead>Host Name</TableHead>
+                      <TableHead>Tags</TableHead>
                       <TableHead>State</TableHead>
                       <TableHead>Lock</TableHead>
                       <TableHead>Cores</TableHead>
@@ -371,22 +370,36 @@ export default function HostsPage() {
                   </TableHeader>
                   <TableBody>
                     {roomHosts.map((host, index) => {
-                      const stickerId = host.name.split(' ')[0].split('.')[0];
-                      const match = host.name.match(/\(([^)]+)\)/);
-                      const systemName = match ? match[1] : host.name;
                       const isLocked = host.lockState === "LOCKED";
                       const isNimbyLocked = host.lockState === "NIMBY_LOCKED";
                       const isUp = host.state === "UP";
-                      
+
                       return (
                         <TableRow
                           key={host.id}
                           className="hover:bg-neutral-50 dark:hover:bg-white/3 transition-all duration-200 group"
                           style={{ animationDelay: `${index * 30}ms` }}
                         >
-                          <TableCell className="font-medium text-text-primary">{stickerId}</TableCell>
-                          <TableCell className="font-mono text-xs text-text-muted">{systemName}</TableCell>
-                          <TableCell className="font-mono text-xs text-text-muted">{host.ipAddress || "-"}</TableCell>
+                          <TableCell className="font-mono text-sm text-text-primary">{host.name}</TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap gap-1 max-w-48">
+                              {(host.tags || []).slice(0, 3).map((tag) => (
+                                <Badge
+                                  key={tag}
+                                  variant="outline"
+                                  className="text-[10px] px-1.5 py-0 bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20"
+                                >
+                                  {tag}
+                                </Badge>
+                              ))}
+                              {(host.tags || []).length > 3 && (
+                                <span className="text-[10px] text-text-muted">+{(host.tags || []).length - 3}</span>
+                              )}
+                              {(host.tags || []).length === 0 && (
+                                <span className="text-xs text-text-muted">-</span>
+                              )}
+                            </div>
+                          </TableCell>
                           <TableCell>
                             <Badge variant="outline" className={cn(stateColors[host.state])}>
                               {host.state}
