@@ -94,6 +94,8 @@ export interface Host {
   idleCores: number;
   memory: number;
   idleMemory: number;
+  swap: number;
+  freeSwap: number;
   gpuMemory?: number;
   idleGpuMemory?: number;
   gpus?: number;

@@ -50,6 +50,8 @@ interface Host {
   idleCores: number;
   memory: number;
   idleMemory: number;
+  swap: number;
+  freeSwap: number;
   gpuMemory?: number;
   idleGpuMemory?: number;
   gpus?: number;
@@ -463,8 +465,8 @@ export default function HostsPage() {
                       <TableHead>Tags</TableHead>
                       <TableHead>State</TableHead>
                       <TableHead>Lock</TableHead>
-                      <TableHead>Cores</TableHead>
-                      <TableHead>Memory</TableHead>
+                      <TableHead>Load</TableHead>
+                      <TableHead>Mem/Swap</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -522,13 +524,16 @@ export default function HostsPage() {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            <div className="w-24">
-                              <UsageBar used={host.idleCores} total={host.cores} label="Cores" />
-                            </div>
+                            <span className={cn(
+                              "text-sm font-medium",
+                              host.load > 80 ? "text-danger" : host.load > 50 ? "text-warning" : "text-text-muted"
+                            )}>
+                              {host.load}%
+                            </span>
                           </TableCell>
                           <TableCell>
-                            <div className="w-24">
-                              <UsageBar used={host.idleMemory} total={host.memory} label="Mem" isMemory />
+                            <div className="text-xs text-text-muted space-y-0.5">
+                              <div>{formatMemory(host.memory)} / {formatMemory(host.swap)}</div>
                             </div>
                           </TableCell>
                           <TableCell>
@@ -577,18 +582,14 @@ export default function HostsPage() {
                                     <Button
                                       variant="ghost"
                                       size="icon"
-                                      className={cn(
-                                        iconButton.retry,
-                                        !isUp && "text-neutral-400 dark:text-white/20 cursor-not-allowed hover:bg-transparent hover:text-neutral-400 dark:hover:text-white/20"
-                                      )}
-                                      onClick={() => handleHostAction(host.id, "reboot")}
-                                      disabled={!isUp}
+                                      className="text-neutral-400 dark:text-white/20 cursor-not-allowed hover:bg-transparent hover:text-neutral-400 dark:hover:text-white/20"
+                                      disabled
                                     >
                                       <Power className="h-4 w-4" />
                                     </Button>
                                   </TooltipTrigger>
                                   <TooltipContent side="top">
-                                    Reboot Host
+                                    Reboot (coming soon)
                                   </TooltipContent>
                                 </Tooltip>
                               </div>
