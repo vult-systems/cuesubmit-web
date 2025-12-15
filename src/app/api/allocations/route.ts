@@ -29,7 +29,7 @@ export async function GET() {
     const result = await getAllocations();
 
     // Extract allocations from response
-    let allocations = [];
+    let allocations: unknown[] = [];
     if (Array.isArray(result)) {
       allocations = result;
     } else if (result && typeof result === "object") {
