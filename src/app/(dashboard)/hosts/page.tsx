@@ -556,7 +556,7 @@ export default function HostsPage() {
                                       className={cn(
                                         isLocked || isNimbyLocked ? iconButton.activate : iconButton.lock
                                       )}
-                                      onClick={() => handleHostAction(host.id, isLocked || isNimbyLocked ? "unlock" : "lock")}
+                                      onClick={() => handleHostAction(host.id, isLocked || isNimbyLocked ? "unlock" : "lock", { hostName: host.name })}
                                     >
                                       {isLocked || isNimbyLocked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
                                     </Button>

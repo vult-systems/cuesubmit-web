@@ -25,7 +25,8 @@ export async function POST(
 
     const { id } = await params;
     const body = await request.json();
-    const { action, tags, allocationId, state } = body;
+    const { action, tags, allocationId, state, hostName } = body;
+    console.log(`[DEBUG] Host action: ${action} for host id=${id}, name=${hostName}`);
 
     // Check permissions based on action
     if (["lock", "unlock"].includes(action)) {
@@ -43,10 +44,10 @@ export async function POST(
 
     switch (action) {
       case "lock":
-        await lockHost(id);
+        await lockHost(id, hostName);
         break;
       case "unlock":
-        await unlockHost(id);
+        await unlockHost(id, hostName);
         break;
       case "reboot":
         await rebootHost(id);
