@@ -85,7 +85,17 @@ export async function POST(
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Host action failed:", error);
-    const message = error instanceof Error ? error.message : "Host action failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    // Include gateway error details if available
+    let message = "Host action failed";
+    let details = "";
+    if (error instanceof Error) {
+      message = error.message;
+      // Check for GatewayError details
+      if ("details" in error && typeof (error as { details?: string }).details === "string") {
+        details = (error as { details: string }).details;
+        console.error("Gateway details:", details);
+      }
+    }
+    return NextResponse.json({ error: message, details }, { status: 500 });
   }
 }
