@@ -206,11 +206,13 @@ export async function getHost(hostId: string): Promise<{ host: Host }> {
 }
 
 export async function lockHost(hostId: string): Promise<void> {
-  await gatewayCall('host.HostInterface', 'Lock', { host: { id: hostId } });
+  // OpenCue REST Gateway expects just the id field directly
+  await gatewayCall('host.HostInterface', 'Lock', { id: hostId });
 }
 
 export async function unlockHost(hostId: string): Promise<void> {
-  await gatewayCall('host.HostInterface', 'Unlock', { host: { id: hostId } });
+  // OpenCue REST Gateway expects just the id field directly
+  await gatewayCall('host.HostInterface', 'Unlock', { id: hostId });
 }
 
 export async function rebootHost(hostId: string): Promise<void> {

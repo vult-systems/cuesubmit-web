@@ -352,6 +352,16 @@ export default function HostsPage() {
       return acc;
     }, {} as Record<string, Host[]>);
 
+    // Sort hosts within each group by their display_id
+    for (const group in grouped) {
+      grouped[group].sort((a, b) => {
+        const aId = hostMetadata[a.id]?.display_id || "";
+        const bId = hostMetadata[b.id]?.display_id || "";
+        // Natural sort to handle numbers correctly (AD400-2 before AD400-10)
+        return aId.localeCompare(bId, undefined, { numeric: true, sensitivity: "base" });
+      });
+    }
+
     // Sort groups alphabetically, but put "Unassigned" at the end
     return Object.entries(grouped).sort(([a], [b]) => {
       if (a === "Unassigned") return 1;
