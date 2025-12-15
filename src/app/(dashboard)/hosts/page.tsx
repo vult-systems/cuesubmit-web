@@ -2,15 +2,6 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
-  ColumnDef,
-  flexRender,
-  getCoreRowModel,
-  useReactTable,
-  getSortedRowModel,
-  SortingState,
-  getFilteredRowModel,
-} from "@tanstack/react-table";
-import {
   Table,
   TableBody,
   TableCell,
@@ -18,8 +9,23 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Tooltip,
   TooltipContent,
@@ -28,7 +34,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { RefreshCw, Lock, Unlock, Search, Power, PowerOff } from "lucide-react";
+import { RefreshCw, Lock, Unlock, Search, Power, Settings, Tag, X, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { iconButton } from "@/lib/icon-button-styles";
@@ -117,11 +123,24 @@ function UsageBar({ used, total, label, isMemory = false }: { used: number; tota
 import { accentColorList } from "@/lib/accent-colors";
 import { GroupedSection } from "@/components/grouped-section";
 
+interface Allocation {
+  id: string;
+  name: string;
+  tag: string;
+  facility: string;
+}
+
 export default function HostsPage() {
   const [hosts, setHosts] = useState<Host[]>([]);
+  const [allocations, setAllocations] = useState<Allocation[]>([]);
   const [loading, setLoading] = useState(true);
-  const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
+
+  // Host edit dialog state
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [selectedHost, setSelectedHost] = useState<Host | null>(null);
+  const [newTag, setNewTag] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const fetchHosts = useCallback(async () => {
     try {
@@ -140,193 +159,100 @@ export default function HostsPage() {
     }
   }, []);
 
+  const fetchAllocations = useCallback(async () => {
+    try {
+      const response = await fetch("/api/allocations");
+      const data = await response.json();
+      if (response.ok) {
+        setAllocations(data.allocations || []);
+      }
+    } catch (error) {
+      console.error("Failed to fetch allocations:", error);
+    }
+  }, []);
+
   useEffect(() => {
     fetchHosts();
+    fetchAllocations();
     const interval = setInterval(fetchHosts, 15000); // Auto-refresh every 15s
     return () => clearInterval(interval);
-  }, [fetchHosts]);
+  }, [fetchHosts, fetchAllocations]);
 
-  const handleHostAction = async (hostId: string, action: string) => {
+  const handleHostAction = async (hostId: string, action: string, extraData?: Record<string, unknown>) => {
     try {
       const response = await fetch(`/api/hosts/${hostId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ action, ...extraData }),
       });
 
       const data = await response.json();
       if (response.ok) {
         toast.success(`Host ${action} successful`);
         fetchHosts();
+        return true;
       } else {
         toast.error(data.error || `Failed to ${action} host`);
+        return false;
       }
     } catch (error) {
       console.error(`Host ${action} failed:`, error);
       toast.error(`Failed to ${action} host`);
+      return false;
     }
   };
 
-  const columns: ColumnDef<Host>[] = [
-    {
-      id: "stickerId",
-      header: "ID",
-      cell: ({ row }) => {
-        const name = row.original.name;
-        // Extract the sticker ID (part before the space/parenthesis, e.g., "AD400-01" from "AD400-01 (SYSTEMNAME)")
-        const stickerId = name.split(' ')[0].split('.')[0];
-        return (
-          <div className="font-medium text-text-primary">{stickerId}</div>
-        );
-      },
-    },
-    {
-      id: "systemName",
-      header: "System Name",
-      cell: ({ row }) => {
-        const name = row.original.name;
-        // Extract system name from parentheses, e.g., "SYSTEMNAME" from "AD400-01 (SYSTEMNAME)"
-        const match = name.match(/\(([^)]+)\)/);
-        const systemName = match ? match[1] : name;
-        return (
-          <div className="font-mono text-xs text-text-muted">{systemName}</div>
-        );
-      },
-    },
-    {
-      accessorKey: "ipAddress",
-      header: "IP Address",
-      cell: ({ row }) => (
-        <span className="font-mono text-xs text-text-muted">
-          {row.getValue("ipAddress") || "-"}
-        </span>
-      ),
-    },
-    {
-      accessorKey: "alloc",
-      header: "Room",
-      cell: ({ row }) => (
-        <span className="text-xs text-text-muted uppercase">
-          {row.getValue("alloc") || "-"}
-        </span>
-      ),
-    },
-    {
-      accessorKey: "state",
-      header: "State",
-      cell: ({ row }) => {
-        const state = row.getValue<string>("state");
-        return (
-          <Badge variant="outline" className={cn(stateColors[state])}>
-            {state}
-          </Badge>
-        );
-      },
-    },
-    {
-      accessorKey: "lockState",
-      header: "Lock",
-      cell: ({ row }) => {
-        const lockState = row.getValue<string>("lockState");
-        return (
-          <Badge variant="outline" className={cn(lockStateColors[lockState])}>
-            {lockState}
-          </Badge>
-        );
-      },
-    },
-    {
-      id: "cores",
-      header: "Cores",
-      cell: ({ row }) => {
-        const host = row.original;
-        return (
-          <div className="w-24">
-            <UsageBar used={host.idleCores} total={host.cores} label="Cores" />
-          </div>
-        );
-      },
-    },
-    {
-      id: "memory",
-      header: "Memory",
-      cell: ({ row }) => {
-        const host = row.original;
-        return (
-          <div className="w-24">
-            <UsageBar used={host.idleMemory} total={host.memory} label="Memory" isMemory />
-          </div>
-        );
-      },
-    },
-    {
-      accessorKey: "load",
-      header: "Load",
-      cell: ({ row }) => {
-        const load = row.getValue<number>("load") / 100;
-        return (
-          <span className={cn(
-            "text-sm",
-            load > 0.8 ? "text-danger" : load > 0.5 ? "text-warning" : "text-text-muted"
-          )}>
-            {load.toFixed(2)}
-          </span>
-        );
-      },
-    },
-    {
-      id: "actions",
-      header: "Actions",
-      cell: ({ row }) => {
-        const host = row.original;
-        const isLocked = host.lockState === "LOCKED";
-        const isUp = host.state === "UP";
-        return (
-          <TooltipProvider delayDuration={300}>
-            <div className="flex items-center gap-1">
-              {/* Lock/Unlock */}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className={isLocked ? iconButton.lock : iconButton.activate}
-                    onClick={() => handleHostAction(host.id, isLocked ? "unlock" : "lock")}
-                  >
-                    {isLocked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top">
-                  {isLocked ? "Unlock Host" : "Lock Host"}
-                </TooltipContent>
-              </Tooltip>
+  const openEditDialog = (host: Host) => {
+    setSelectedHost(host);
+    setNewTag("");
+    setEditDialogOpen(true);
+  };
 
-              {/* Reboot */}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className={cn(
-                      iconButton.retry,
-                      !isUp && "text-neutral-400 dark:text-white/20 cursor-not-allowed hover:bg-transparent hover:text-neutral-400 dark:hover:text-white/20"
-                    )}
-                    onClick={() => handleHostAction(host.id, "reboot")}
-                    disabled={!isUp}
-                  >
-                    <Power className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top">
-                  Reboot Host
-                </TooltipContent>
-              </Tooltip>
-            </div>
-          </TooltipProvider>
-        );
-      },
-    },
-  ];
+  const handleAddTag = async () => {
+    if (!selectedHost || !newTag.trim()) return;
+
+    setSaving(true);
+    const success = await handleHostAction(selectedHost.id, "addTags", { tags: [newTag.trim()] });
+    if (success) {
+      // Update local state
+      setSelectedHost({
+        ...selectedHost,
+        tags: [...(selectedHost.tags || []), newTag.trim()]
+      });
+      setNewTag("");
+    }
+    setSaving(false);
+  };
+
+  const handleRemoveTag = async (tag: string) => {
+    if (!selectedHost) return;
+
+    setSaving(true);
+    const success = await handleHostAction(selectedHost.id, "removeTags", { tags: [tag] });
+    if (success) {
+      // Update local state
+      setSelectedHost({
+        ...selectedHost,
+        tags: (selectedHost.tags || []).filter(t => t !== tag)
+      });
+    }
+    setSaving(false);
+  };
+
+  const handleSetAllocation = async (allocationId: string) => {
+    if (!selectedHost) return;
+
+    setSaving(true);
+    const success = await handleHostAction(selectedHost.id, "setAllocation", { allocationId });
+    if (success) {
+      const allocation = allocations.find(a => a.id === allocationId);
+      setSelectedHost({
+        ...selectedHost,
+        alloc: allocation?.name || ""
+      });
+    }
+    setSaving(false);
+  };
 
   // Group hosts by room (alloc)
   const hostsByRoom = useMemo(() => {
@@ -498,6 +424,21 @@ export default function HostsPage() {
                                     <Button
                                       variant="ghost"
                                       size="icon"
+                                      className={iconButton.settings}
+                                      onClick={() => openEditDialog(host)}
+                                    >
+                                      <Settings className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top">
+                                    Edit Host
+                                  </TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
                                       className={cn(
                                         isLocked || isNimbyLocked ? iconButton.activate : iconButton.lock
                                       )}
@@ -546,6 +487,125 @@ export default function HostsPage() {
       <p className="text-text-muted/50 text-xs">
         Auto-refreshing every 15s
       </p>
+
+      {/* Host Edit Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold text-text-primary">
+              Edit Host
+            </DialogTitle>
+            <DialogDescription className="text-text-muted text-sm">
+              {selectedHost?.name}
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedHost && (
+            <div className="space-y-6 py-4">
+              {/* Tags Section */}
+              <div className="space-y-3">
+                <Label className="text-text-muted text-xs font-medium flex items-center gap-2">
+                  <Tag className="h-3.5 w-3.5" />
+                  Tags
+                </Label>
+                <div className="flex flex-wrap gap-2">
+                  {(selectedHost.tags || []).length === 0 ? (
+                    <span className="text-text-muted text-xs">No tags</span>
+                  ) : (
+                    (selectedHost.tags || []).map((tag) => (
+                      <Badge
+                        key={tag}
+                        variant="outline"
+                        className="bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20 pr-1"
+                      >
+                        {tag}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-4 w-4 ml-1 hover:bg-sky-500/20 rounded-full"
+                          onClick={() => handleRemoveTag(tag)}
+                          disabled={saving}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </Badge>
+                    ))
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Add new tag..."
+                    value={newTag}
+                    onChange={(e) => setNewTag(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleAddTag();
+                    }}
+                    className="h-8 text-xs bg-white dark:bg-white/3 border-neutral-200 dark:border-white/8 rounded-lg"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={handleAddTag}
+                    disabled={saving || !newTag.trim()}
+                    className="h-8 px-3 text-xs"
+                  >
+                    <Plus className="h-3.5 w-3.5 mr-1" />
+                    Add
+                  </Button>
+                </div>
+              </div>
+
+              {/* Allocation Section */}
+              {allocations.length > 0 && (
+                <div className="space-y-3">
+                  <Label className="text-text-muted text-xs font-medium">
+                    Allocation (Room)
+                  </Label>
+                  <Select
+                    value={allocations.find(a => a.name === selectedHost.alloc)?.id || ""}
+                    onValueChange={handleSetAllocation}
+                    disabled={saving}
+                  >
+                    <SelectTrigger className="h-8 text-xs bg-white dark:bg-white/3 border-neutral-200 dark:border-white/8 rounded-lg">
+                      <SelectValue placeholder="Select allocation..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {allocations.map((alloc) => (
+                        <SelectItem key={alloc.id} value={alloc.id}>
+                          {alloc.name.toUpperCase()}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Host Info */}
+              <div className="space-y-2 pt-4 border-t border-neutral-200 dark:border-white/8">
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="text-text-muted">State:</div>
+                  <div className="font-medium">{selectedHost.state}</div>
+                  <div className="text-text-muted">Lock State:</div>
+                  <div className="font-medium">{selectedHost.lockState}</div>
+                  <div className="text-text-muted">Cores:</div>
+                  <div className="font-medium">{selectedHost.cores - selectedHost.idleCores}/{selectedHost.cores} in use</div>
+                  <div className="text-text-muted">Memory:</div>
+                  <div className="font-medium">
+                    {formatMemory(selectedHost.memory - selectedHost.idleMemory)}/{formatMemory(selectedHost.memory)} in use
+                  </div>
+                  {selectedHost.gpuMemory > 0 && (
+                    <>
+                      <div className="text-text-muted">GPU Memory:</div>
+                      <div className="font-medium">
+                        {formatMemory(selectedHost.gpuMemory - selectedHost.idleGpuMemory)}/{formatMemory(selectedHost.gpuMemory)} in use
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
