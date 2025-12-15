@@ -48,6 +48,9 @@ launcher/app/node_modules/
 launcher/app/.next/
 launcher/zig-out/
 launcher/logs/
+
+# Reference content
+opencue/
 logs/
 launcher/.zig-cache/
 launcher/Queue.app/
