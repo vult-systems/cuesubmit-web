@@ -9,6 +9,7 @@ services:
       - JWT_SECRET=REDACTED_SECRET
       - SESSION_SECRET=change-this-to-random-32-chars
       - DATABASE_PATH=/app/data/cuesubmit.db
+      - ADMIN_INITIAL_PASSWORD=${ADMIN_INITIAL_PASSWORD:-REDACTED_PASSWORD}
     volumes:
       - cuesubmit-data:/app/data
 
