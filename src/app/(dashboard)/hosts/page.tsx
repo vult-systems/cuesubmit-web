@@ -130,9 +130,18 @@ interface Allocation {
   facility: string;
 }
 
+interface HostMetadata {
+  opencue_host_id: string;
+  display_id: string | null;
+  system_name: string | null;
+  notes: string | null;
+  updated_at: string;
+}
+
 export default function HostsPage() {
   const [hosts, setHosts] = useState<Host[]>([]);
   const [allocations, setAllocations] = useState<Allocation[]>([]);
+  const [hostMetadata, setHostMetadata] = useState<Record<string, HostMetadata>>({});
   const [loading, setLoading] = useState(true);
   const [globalFilter, setGlobalFilter] = useState("");
 
@@ -173,12 +182,30 @@ export default function HostsPage() {
     }
   }, []);
 
+  const fetchHostMetadata = useCallback(async () => {
+    try {
+      const response = await fetch("/api/host-metadata");
+      const data = await response.json();
+      if (response.ok) {
+        // Convert array to map keyed by opencue_host_id
+        const metadataMap: Record<string, HostMetadata> = {};
+        for (const m of data.metadata || []) {
+          metadataMap[m.opencue_host_id] = m;
+        }
+        setHostMetadata(metadataMap);
+      }
+    } catch (error) {
+      console.error("Failed to fetch host metadata:", error);
+    }
+  }, []);
+
   useEffect(() => {
     fetchHosts();
     fetchAllocations();
+    fetchHostMetadata();
     const interval = setInterval(fetchHosts, 15000); // Auto-refresh every 15s
     return () => clearInterval(interval);
-  }, [fetchHosts, fetchAllocations]);
+  }, [fetchHosts, fetchAllocations, fetchHostMetadata]);
 
   const handleHostAction = async (hostId: string, action: string, extraData?: Record<string, unknown>) => {
     try {
@@ -207,11 +234,10 @@ export default function HostsPage() {
   const openEditDialog = (host: Host) => {
     setSelectedHost(host);
     setNewTag("");
-    // Extract existing ID and System Name from tags
-    const idTag = (host.tags || []).find(t => t.startsWith("id:"));
-    const nameTag = (host.tags || []).find(t => t.startsWith("name:"));
-    setEditId(idTag ? idTag.replace("id:", "") : "");
-    setEditSystemName(nameTag ? nameTag.replace("name:", "") : "");
+    // Load existing metadata from local database
+    const metadata = hostMetadata[host.id];
+    setEditId(metadata?.display_id || "");
+    setEditSystemName(metadata?.system_name || "");
     setEditDialogOpen(true);
   };
 
@@ -261,58 +287,34 @@ export default function HostsPage() {
     setSaving(false);
   };
 
-  const handleSaveId = async () => {
+  const handleSaveMetadata = async () => {
     if (!selectedHost) return;
 
     setSaving(true);
-    const currentIdTag = (selectedHost.tags || []).find(t => t.startsWith("id:"));
-
-    // Remove old id tag if exists
-    if (currentIdTag) {
-      await handleHostAction(selectedHost.id, "removeTags", { tags: [currentIdTag] });
-    }
-
-    // Add new id tag if not empty
-    if (editId.trim()) {
-      const newIdTag = `id:${editId.trim()}`;
-      await handleHostAction(selectedHost.id, "addTags", { tags: [newIdTag] });
-      setSelectedHost({
-        ...selectedHost,
-        tags: [...(selectedHost.tags || []).filter(t => !t.startsWith("id:")), newIdTag]
+    try {
+      const response = await fetch(`/api/host-metadata/${selectedHost.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          display_id: editId.trim() || null,
+          system_name: editSystemName.trim() || null,
+        }),
       });
-    } else {
-      setSelectedHost({
-        ...selectedHost,
-        tags: (selectedHost.tags || []).filter(t => !t.startsWith("id:"))
-      });
-    }
-    setSaving(false);
-  };
 
-  const handleSaveSystemName = async () => {
-    if (!selectedHost) return;
-
-    setSaving(true);
-    const currentNameTag = (selectedHost.tags || []).find(t => t.startsWith("name:"));
-
-    // Remove old name tag if exists
-    if (currentNameTag) {
-      await handleHostAction(selectedHost.id, "removeTags", { tags: [currentNameTag] });
-    }
-
-    // Add new name tag if not empty
-    if (editSystemName.trim()) {
-      const newNameTag = `name:${editSystemName.trim()}`;
-      await handleHostAction(selectedHost.id, "addTags", { tags: [newNameTag] });
-      setSelectedHost({
-        ...selectedHost,
-        tags: [...(selectedHost.tags || []).filter(t => !t.startsWith("name:")), newNameTag]
-      });
-    } else {
-      setSelectedHost({
-        ...selectedHost,
-        tags: (selectedHost.tags || []).filter(t => !t.startsWith("name:"))
-      });
+      const data = await response.json();
+      if (response.ok) {
+        toast.success("Host metadata saved");
+        // Update local state
+        setHostMetadata(prev => ({
+          ...prev,
+          [selectedHost.id]: data.metadata
+        }));
+      } else {
+        toast.error(data.error || "Failed to save metadata");
+      }
+    } catch (error) {
+      console.error("Failed to save host metadata:", error);
+      toast.error("Failed to save metadata");
     }
     setSaving(false);
   };
@@ -320,11 +322,17 @@ export default function HostsPage() {
   // Group hosts by room (alloc)
   const hostsByRoom = useMemo(() => {
     const filtered = globalFilter
-      ? hosts.filter(h => 
-          h.name.toLowerCase().includes(globalFilter.toLowerCase()) ||
-          h.alloc?.toLowerCase().includes(globalFilter.toLowerCase()) ||
-          h.ipAddress?.toLowerCase().includes(globalFilter.toLowerCase())
-        )
+      ? hosts.filter(h => {
+          const metadata = hostMetadata[h.id];
+          const searchLower = globalFilter.toLowerCase();
+          return (
+            h.name.toLowerCase().includes(searchLower) ||
+            h.alloc?.toLowerCase().includes(searchLower) ||
+            h.ipAddress?.toLowerCase().includes(searchLower) ||
+            metadata?.display_id?.toLowerCase().includes(searchLower) ||
+            metadata?.system_name?.toLowerCase().includes(searchLower)
+          );
+        })
       : hosts;
     
     const grouped = filtered.reduce((acc, host) => {
@@ -336,7 +344,7 @@ export default function HostsPage() {
     
     // Sort rooms alphabetically
     return Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b));
-  }, [hosts, globalFilter]);
+  }, [hosts, globalFilter, hostMetadata]);
 
   // Room color mapping
   const roomColorMap = useMemo(() => {
@@ -438,15 +446,14 @@ export default function HostsPage() {
                       const isNimbyLocked = host.lockState === "NIMBY_LOCKED";
                       const isUp = host.state === "UP";
 
-                      // Look for ID tag (e.g., "id:AD400-01") and system name tag (e.g., "name:WORKSTATION1")
-                      const idTag = (host.tags || []).find(t => t.startsWith("id:"));
-                      const nameTag = (host.tags || []).find(t => t.startsWith("name:"));
-                      const hostId = idTag ? idTag.replace("id:", "") : "-";
-                      const systemName = nameTag ? nameTag.replace("name:", "") : "-";
+                      // Get local metadata for this host
+                      const metadata = hostMetadata[host.id];
+                      const displayId = metadata?.display_id || "-";
+                      const systemName = metadata?.system_name || "-";
                       // OpenCue's host.name is the IP address
                       const ipAddress = host.name;
-                      // Filter out id: and name: tags for display
-                      const displayTags = (host.tags || []).filter(t => !t.startsWith("id:") && !t.startsWith("name:"));
+                      // All tags are displayed (no more id:/name: prefix filtering)
+                      const displayTags = host.tags || [];
 
                       return (
                         <TableRow
@@ -454,7 +461,7 @@ export default function HostsPage() {
                           className="hover:bg-neutral-50 dark:hover:bg-white/3 transition-all duration-200 group"
                           style={{ animationDelay: `${index * 30}ms` }}
                         >
-                          <TableCell className="font-medium text-text-primary">{hostId}</TableCell>
+                          <TableCell className="font-medium text-text-primary">{displayId}</TableCell>
                           <TableCell className="font-mono text-xs text-text-muted">{systemName}</TableCell>
                           <TableCell className="font-mono text-xs text-text-muted">{ipAddress}</TableCell>
                           <TableCell>
@@ -585,50 +592,36 @@ export default function HostsPage() {
               {/* ID and System Name Section */}
               <div className="space-y-3">
                 <Label className="text-text-muted text-xs font-medium">
-                  Host Identification
+                  Host Identification (Local Reference)
                 </Label>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label className="text-text-muted text-[10px]">ID (e.g., AD400-01)</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        placeholder="Enter ID..."
-                        value={editId}
-                        onChange={(e) => setEditId(e.target.value)}
-                        className="h-8 text-xs bg-white dark:bg-white/3 border-neutral-200 dark:border-white/8 rounded-lg"
-                      />
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={handleSaveId}
-                        disabled={saving}
-                        className="h-8 px-2 text-xs"
-                      >
-                        Save
-                      </Button>
-                    </div>
+                    <Input
+                      placeholder="Enter ID..."
+                      value={editId}
+                      onChange={(e) => setEditId(e.target.value)}
+                      className="h-8 text-xs bg-white dark:bg-white/3 border-neutral-200 dark:border-white/8 rounded-lg"
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-text-muted text-[10px]">System Name</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        placeholder="Enter name..."
-                        value={editSystemName}
-                        onChange={(e) => setEditSystemName(e.target.value)}
-                        className="h-8 text-xs bg-white dark:bg-white/3 border-neutral-200 dark:border-white/8 rounded-lg"
-                      />
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={handleSaveSystemName}
-                        disabled={saving}
-                        className="h-8 px-2 text-xs"
-                      >
-                        Save
-                      </Button>
-                    </div>
+                    <Input
+                      placeholder="Enter name..."
+                      value={editSystemName}
+                      onChange={(e) => setEditSystemName(e.target.value)}
+                      className="h-8 text-xs bg-white dark:bg-white/3 border-neutral-200 dark:border-white/8 rounded-lg"
+                    />
                   </div>
                 </div>
+                <Button
+                  size="sm"
+                  onClick={handleSaveMetadata}
+                  disabled={saving}
+                  className="h-8 px-3 text-xs"
+                >
+                  {saving ? "Saving..." : "Save Identification"}
+                </Button>
               </div>
 
               {/* Tags Section */}
