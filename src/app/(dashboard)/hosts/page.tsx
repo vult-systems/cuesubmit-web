@@ -140,6 +140,8 @@ export default function HostsPage() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedHost, setSelectedHost] = useState<Host | null>(null);
   const [newTag, setNewTag] = useState("");
+  const [editId, setEditId] = useState("");
+  const [editSystemName, setEditSystemName] = useState("");
   const [saving, setSaving] = useState(false);
 
   const fetchHosts = useCallback(async () => {
@@ -205,6 +207,11 @@ export default function HostsPage() {
   const openEditDialog = (host: Host) => {
     setSelectedHost(host);
     setNewTag("");
+    // Extract existing ID and System Name from tags
+    const idTag = (host.tags || []).find(t => t.startsWith("id:"));
+    const nameTag = (host.tags || []).find(t => t.startsWith("name:"));
+    setEditId(idTag ? idTag.replace("id:", "") : "");
+    setEditSystemName(nameTag ? nameTag.replace("name:", "") : "");
     setEditDialogOpen(true);
   };
 
@@ -249,6 +256,62 @@ export default function HostsPage() {
       setSelectedHost({
         ...selectedHost,
         alloc: allocation?.name || ""
+      });
+    }
+    setSaving(false);
+  };
+
+  const handleSaveId = async () => {
+    if (!selectedHost) return;
+
+    setSaving(true);
+    const currentIdTag = (selectedHost.tags || []).find(t => t.startsWith("id:"));
+
+    // Remove old id tag if exists
+    if (currentIdTag) {
+      await handleHostAction(selectedHost.id, "removeTags", { tags: [currentIdTag] });
+    }
+
+    // Add new id tag if not empty
+    if (editId.trim()) {
+      const newIdTag = `id:${editId.trim()}`;
+      await handleHostAction(selectedHost.id, "addTags", { tags: [newIdTag] });
+      setSelectedHost({
+        ...selectedHost,
+        tags: [...(selectedHost.tags || []).filter(t => !t.startsWith("id:")), newIdTag]
+      });
+    } else {
+      setSelectedHost({
+        ...selectedHost,
+        tags: (selectedHost.tags || []).filter(t => !t.startsWith("id:"))
+      });
+    }
+    setSaving(false);
+  };
+
+  const handleSaveSystemName = async () => {
+    if (!selectedHost) return;
+
+    setSaving(true);
+    const currentNameTag = (selectedHost.tags || []).find(t => t.startsWith("name:"));
+
+    // Remove old name tag if exists
+    if (currentNameTag) {
+      await handleHostAction(selectedHost.id, "removeTags", { tags: [currentNameTag] });
+    }
+
+    // Add new name tag if not empty
+    if (editSystemName.trim()) {
+      const newNameTag = `name:${editSystemName.trim()}`;
+      await handleHostAction(selectedHost.id, "addTags", { tags: [newNameTag] });
+      setSelectedHost({
+        ...selectedHost,
+        tags: [...(selectedHost.tags || []).filter(t => !t.startsWith("name:")), newNameTag]
+      });
+    } else {
+      setSelectedHost({
+        ...selectedHost,
+        tags: (selectedHost.tags || []).filter(t => !t.startsWith("name:"))
       });
     }
     setSaving(false);
@@ -366,7 +429,6 @@ export default function HostsPage() {
                       <TableHead>Lock</TableHead>
                       <TableHead>Cores</TableHead>
                       <TableHead>Memory</TableHead>
-                      <TableHead>GPU</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -433,15 +495,6 @@ export default function HostsPage() {
                             <div className="w-24">
                               <UsageBar used={host.idleMemory} total={host.memory} label="Mem" isMemory />
                             </div>
-                          </TableCell>
-                          <TableCell>
-                            {host.gpuMemory && host.gpuMemory > 0 ? (
-                              <div className="w-24">
-                                <UsageBar used={host.idleGpuMemory || 0} total={host.gpuMemory} label="GPU" isMemory />
-                              </div>
-                            ) : (
-                              <span className="text-xs text-text-muted">-</span>
-                            )}
                           </TableCell>
                           <TableCell>
                             <TooltipProvider delayDuration={200}>
@@ -529,6 +582,55 @@ export default function HostsPage() {
 
           {selectedHost && (
             <div className="space-y-6 py-4">
+              {/* ID and System Name Section */}
+              <div className="space-y-3">
+                <Label className="text-text-muted text-xs font-medium">
+                  Host Identification
+                </Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-text-muted text-[10px]">ID (e.g., AD400-01)</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Enter ID..."
+                        value={editId}
+                        onChange={(e) => setEditId(e.target.value)}
+                        className="h-8 text-xs bg-white dark:bg-white/3 border-neutral-200 dark:border-white/8 rounded-lg"
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleSaveId}
+                        disabled={saving}
+                        className="h-8 px-2 text-xs"
+                      >
+                        Save
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-text-muted text-[10px]">System Name</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Enter name..."
+                        value={editSystemName}
+                        onChange={(e) => setEditSystemName(e.target.value)}
+                        className="h-8 text-xs bg-white dark:bg-white/3 border-neutral-200 dark:border-white/8 rounded-lg"
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleSaveSystemName}
+                        disabled={saving}
+                        className="h-8 px-2 text-xs"
+                      >
+                        Save
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* Tags Section */}
               <div className="space-y-3">
                 <Label className="text-text-muted text-xs font-medium flex items-center gap-2">
@@ -619,14 +721,6 @@ export default function HostsPage() {
                   <div className="font-medium">
                     {formatMemory(selectedHost.memory - selectedHost.idleMemory)}/{formatMemory(selectedHost.memory)} in use
                   </div>
-                  {(selectedHost.gpuMemory ?? 0) > 0 && (
-                    <>
-                      <div className="text-text-muted">GPU Memory:</div>
-                      <div className="font-medium">
-                        {formatMemory((selectedHost.gpuMemory ?? 0) - (selectedHost.idleGpuMemory ?? 0))}/{formatMemory(selectedHost.gpuMemory ?? 0)} in use
-                      </div>
-                    </>
-                  )}
                 </div>
               </div>
             </div>

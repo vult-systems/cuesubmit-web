@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc:*)",
+      "Bash(npm run lint:*)",
+      "Bash(powershell -Command \"cd C:\\Repos\\cuesubmit-web; npx tsc --noEmit 2>&1 | Select-Object -First 50\")",
+      "Bash(powershell -Command \"Remove-Item ''C:\\Repos\\cuesubmit-web\\data\\cuesubmit.db'' -ErrorAction SilentlyContinue; Write-Host ''Database deleted''\")",
+      "Bash(powershell:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Bash(git -C C:Reposcuesubmit-web status)",
+      "Bash(git -C C:Reposcuesubmit-web diff --stat)",
+      "Bash(git -C C:Reposcuesubmit-web log --oneline -5)"
+    ]
+  }
+}
