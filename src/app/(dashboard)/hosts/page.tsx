@@ -221,7 +221,10 @@ export default function HostsPage() {
         fetchHosts();
         return true;
       } else {
-        toast.error(data.error || `Failed to ${action} host`);
+        const errorMsg = data.error || `Failed to ${action} host`;
+        const details = data.details ? ` - ${data.details}` : "";
+        toast.error(errorMsg + details);
+        console.error("Host action error:", data);
         return false;
       }
     } catch (error) {
