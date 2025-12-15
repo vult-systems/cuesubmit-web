@@ -592,11 +592,11 @@ export default function HostsPage() {
                   <div className="font-medium">
                     {formatMemory(selectedHost.memory - selectedHost.idleMemory)}/{formatMemory(selectedHost.memory)} in use
                   </div>
-                  {selectedHost.gpuMemory > 0 && (
+                  {(selectedHost.gpuMemory ?? 0) > 0 && (
                     <>
                       <div className="text-text-muted">GPU Memory:</div>
                       <div className="font-medium">
-                        {formatMemory(selectedHost.gpuMemory - selectedHost.idleGpuMemory)}/{formatMemory(selectedHost.gpuMemory)} in use
+                        {formatMemory((selectedHost.gpuMemory ?? 0) - (selectedHost.idleGpuMemory ?? 0))}/{formatMemory(selectedHost.gpuMemory ?? 0)} in use
                       </div>
                     </>
                   )}
