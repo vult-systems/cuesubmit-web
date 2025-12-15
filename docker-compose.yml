@@ -6,6 +6,7 @@ services:
     network_mode: host
     environment:
       - CUEWEB_MODE=online
+      - CUEWEB_API_BASE=http://127.0.0.1:8448
       - REST_GATEWAY_URL=http://127.0.0.1:8448
       - JWT_SECRET=REDACTED_SECRET
       - SESSION_SECRET=REDACTED_SECRET
