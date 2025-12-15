@@ -77,6 +77,8 @@ function mapOpenCueHost(h: OpenCueHost): Host {
     idleCores: h.idle_cores || 0,
     memory: h.total_memory || h.memory || 0,
     idleMemory: h.free_memory || h.idle_memory || 0,
+    swap: h.total_swap || 0,
+    freeSwap: h.free_swap || 0,
     gpuMemory: h.total_gpu_memory || h.gpu_memory || 0,
     idleGpuMemory: h.free_gpu_memory || h.idle_gpu_memory || 0,
     gpus: h.gpus || 0,
@@ -154,6 +156,10 @@ function generateMockHosts(): Host[] {
       // Load
       const load = state === "UP" ? Math.floor(Math.random() * 100) : 0;
       
+      // Swap (8GB or 16GB)
+      const swap = Math.random() > 0.5 ? 16000000000 : 8000000000;
+      const freeSwap = state === "UP" ? Math.floor(Math.random() * swap) : 0;
+
       hosts.push({
         id: `host-${room.toLowerCase()}-${machineNum}`,
         name: `${name} (${systemName})`,
@@ -165,6 +171,8 @@ function generateMockHosts(): Host[] {
         idleCores,
         memory,
         idleMemory,
+        swap,
+        freeSwap,
         gpuMemory,
         idleGpuMemory,
         gpus,
