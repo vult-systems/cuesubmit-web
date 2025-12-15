@@ -319,8 +319,18 @@ export default function HostsPage() {
     setSaving(false);
   };
 
-  // Group hosts by room (alloc)
-  const hostsByRoom = useMemo(() => {
+  // Helper to extract group prefix from ID (e.g., "AD400" from "AD400-01")
+  const getGroupFromId = useCallback((hostId: string) => {
+    const metadata = hostMetadata[hostId];
+    const displayId = metadata?.display_id;
+    if (!displayId) return "Unassigned";
+    // Extract prefix before the hyphen (e.g., "AD400" from "AD400-01")
+    const parts = displayId.split("-");
+    return parts[0] || "Unassigned";
+  }, [hostMetadata]);
+
+  // Group hosts by ID prefix (e.g., AD400, AD404)
+  const hostsByGroup = useMemo(() => {
     const filtered = globalFilter
       ? hosts.filter(h => {
           const metadata = hostMetadata[h.id];
@@ -334,26 +344,30 @@ export default function HostsPage() {
           );
         })
       : hosts;
-    
+
     const grouped = filtered.reduce((acc, host) => {
-      const room = host.alloc || "Unassigned";
-      if (!acc[room]) acc[room] = [];
-      acc[room].push(host);
+      const group = getGroupFromId(host.id);
+      if (!acc[group]) acc[group] = [];
+      acc[group].push(host);
       return acc;
     }, {} as Record<string, Host[]>);
-    
-    // Sort rooms alphabetically
-    return Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b));
-  }, [hosts, globalFilter, hostMetadata]);
 
-  // Room color mapping
-  const roomColorMap = useMemo(() => {
-    const rooms = [...new Set(hosts.map(h => h.alloc || "Unassigned"))].sort();
-    return rooms.reduce((acc, room, index) => {
-      acc[room] = accentColorList[index % accentColorList.length];
+    // Sort groups alphabetically, but put "Unassigned" at the end
+    return Object.entries(grouped).sort(([a], [b]) => {
+      if (a === "Unassigned") return 1;
+      if (b === "Unassigned") return -1;
+      return a.localeCompare(b);
+    });
+  }, [hosts, globalFilter, hostMetadata, getGroupFromId]);
+
+  // Group color mapping
+  const groupColorMap = useMemo(() => {
+    const groups = [...new Set(hosts.map(h => getGroupFromId(h.id)))].sort();
+    return groups.reduce((acc, group, index) => {
+      acc[group] = accentColorList[index % accentColorList.length];
       return acc;
     }, {} as Record<string, { border: string; pill: string }>);
-  }, [hosts]);
+  }, [hosts, getGroupFromId]);
 
   // Summary stats
   const upHosts = hosts.filter((h) => h.state === "UP").length;
@@ -395,7 +409,7 @@ export default function HostsPage() {
         </div>
       </div>
 
-      {/* Grouped by Room */}
+      {/* Grouped by ID prefix */}
       {loading ? (
         <div className="rounded-xl border border-neutral-200/80 dark:border-white/6 bg-white/80 dark:bg-neutral-950/60 backdrop-blur-xl p-8">
           <div className="flex flex-col items-center gap-3">
@@ -403,7 +417,7 @@ export default function HostsPage() {
             <span className="text-text-muted text-sm">Loading hosts...</span>
           </div>
         </div>
-      ) : hostsByRoom.length === 0 ? (
+      ) : hostsByGroup.length === 0 ? (
         <div className="rounded-xl border border-neutral-200/80 dark:border-white/6 bg-white/80 dark:bg-neutral-950/60 backdrop-blur-xl p-8">
           <div className="flex flex-col items-center gap-2">
             <span className="text-text-muted">No hosts found</span>
@@ -412,18 +426,18 @@ export default function HostsPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {hostsByRoom.map(([room, roomHosts]) => {
-            const colors = roomColorMap[room];
-            const roomUpHosts = roomHosts.filter(h => h.state === "UP").length;
-            const roomTotalCores = roomHosts.reduce((sum, h) => sum + h.cores, 0);
-            const roomUsedCores = roomHosts.reduce((sum, h) => sum + (h.cores - h.idleCores), 0);
-            
+          {hostsByGroup.map(([group, groupHosts]) => {
+            const colors = groupColorMap[group];
+            const groupUpHosts = groupHosts.filter(h => h.state === "UP").length;
+            const groupTotalCores = groupHosts.reduce((sum, h) => sum + h.cores, 0);
+            const groupUsedCores = groupHosts.reduce((sum, h) => sum + (h.cores - h.idleCores), 0);
+
             return (
               <GroupedSection
-                key={room}
-                title={room.toUpperCase()}
-                badge={`${roomHosts.length} hosts`}
-                stats={`${roomUpHosts} up • ${roomUsedCores}/${roomTotalCores} cores`}
+                key={group}
+                title={group}
+                badge={`${groupHosts.length} hosts`}
+                stats={`${groupUpHosts} up • ${groupUsedCores}/${groupTotalCores} cores`}
                 accentColors={colors}
               >
                 <Table>
@@ -441,7 +455,7 @@ export default function HostsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {roomHosts.map((host, index) => {
+                    {groupHosts.map((host, index) => {
                       const isLocked = host.lockState === "LOCKED";
                       const isNimbyLocked = host.lockState === "NIMBY_LOCKED";
                       const isUp = host.state === "UP";
