@@ -95,6 +95,12 @@ export async function POST(
       if ("details" in error && typeof (error as { details?: string }).details === "string") {
         details = (error as { details: string }).details;
         console.error("Gateway details:", details);
+
+        // Check for RQD communication errors and provide friendlier message
+        if (details.includes("RqdClientException") || details.includes("failed to lock host") || details.includes("failed to unlock host")) {
+          message = "Cannot reach RQD daemon on this host";
+          details = "The host may be down, sleeping, or RQD is not running. Lock/unlock requires the host to be UP and responsive.";
+        }
       }
     }
     return NextResponse.json({ error: message, details }, { status: 500 });

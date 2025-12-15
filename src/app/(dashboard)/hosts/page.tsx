@@ -71,8 +71,9 @@ const stateColors: Record<string, string> = {
 
 const lockStateColors: Record<string, string> = {
   OPEN: "bg-success/15 dark:bg-success/10 text-success border-success/30 dark:border-success/20",
-  LOCKED: "bg-danger/15 dark:bg-danger/10 text-danger border-danger/30 dark:border-danger/20",
+  LOCKED: "bg-warning/15 dark:bg-warning/10 text-warning border-warning/30 dark:border-warning/20",
   NIMBY_LOCKED: "bg-warning/15 dark:bg-warning/10 text-warning border-warning/30 dark:border-warning/20",
+  UNKNOWN: "bg-surface-muted text-text-muted border-border",
 };
 
 function formatMemory(bytes: number): string {
@@ -554,15 +555,20 @@ export default function HostsPage() {
                                       variant="ghost"
                                       size="icon"
                                       className={cn(
-                                        isLocked || isNimbyLocked ? iconButton.activate : iconButton.lock
+                                        isLocked || isNimbyLocked ? iconButton.activate : iconButton.lock,
+                                        !isUp && "text-neutral-400 dark:text-white/20 cursor-not-allowed hover:bg-transparent hover:text-neutral-400 dark:hover:text-white/20"
                                       )}
                                       onClick={() => handleHostAction(host.id, isLocked || isNimbyLocked ? "unlock" : "lock", { hostName: host.name })}
+                                      disabled={!isUp}
                                     >
                                       {isLocked || isNimbyLocked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
                                     </Button>
                                   </TooltipTrigger>
                                   <TooltipContent side="top">
-                                    {isLocked || isNimbyLocked ? "Unlock Host" : "Lock Host"}
+                                    {isUp
+                                      ? (isLocked || isNimbyLocked ? "Unlock Host" : "Lock Host")
+                                      : "Host must be UP to lock/unlock"
+                                    }
                                   </TooltipContent>
                                 </Tooltip>
                                 <Tooltip>

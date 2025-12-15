@@ -205,8 +205,10 @@ export async function getHost(hostId: string): Promise<{ host: Host }> {
   return gatewayCall('host.HostInterface', 'GetHost', { id: hostId });
 }
 
+// LockState enum: OPEN=0, LOCKED=1, NIMBY_LOCKED=2
 export async function lockHost(hostId: string, hostName?: string): Promise<void> {
-  // OpenCue Lock may need host name for some operations
+  // The Lock method tries to communicate with RQD, which fails if RQD isn't running
+  // Try different approaches to find one that works
   const hostRef: { id?: string; name?: string } = { id: hostId };
   if (hostName) {
     hostRef.name = hostName;
@@ -216,7 +218,7 @@ export async function lockHost(hostId: string, hostName?: string): Promise<void>
 }
 
 export async function unlockHost(hostId: string, hostName?: string): Promise<void> {
-  // OpenCue Unlock may need host name for some operations
+  // The Unlock method tries to communicate with RQD, which fails if RQD isn't running
   const hostRef: { id?: string; name?: string } = { id: hostId };
   if (hostName) {
     hostRef.name = hostName;
