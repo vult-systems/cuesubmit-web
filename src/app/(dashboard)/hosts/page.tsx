@@ -555,13 +555,14 @@ export default function HostsPage() {
                                       variant="ghost"
                                       size="icon"
                                       className={cn(
-                                        isLocked || isNimbyLocked ? iconButton.activate : iconButton.lock,
+                                        // Color based on current state: OPEN=green, LOCKED=yellow
+                                        isLocked || isNimbyLocked ? iconButton.lock : iconButton.activate,
                                         !isUp && "text-neutral-400 dark:text-white/20 cursor-not-allowed hover:bg-transparent hover:text-neutral-400 dark:hover:text-white/20"
                                       )}
                                       onClick={() => handleHostAction(host.id, isLocked || isNimbyLocked ? "unlock" : "lock", { hostName: host.name })}
                                       disabled={!isUp}
                                     >
-                                      {isLocked || isNimbyLocked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+                                      {isLocked || isNimbyLocked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
                                     </Button>
                                   </TooltipTrigger>
                                   <TooltipContent side="top">
