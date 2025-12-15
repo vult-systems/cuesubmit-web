@@ -7,7 +7,7 @@ services:
     environment:
       - REST_GATEWAY_URL=http://127.0.0.1:8448
       - JWT_SECRET=your-production-secret-32chars
-      - SESSION_SECRET=change-this-to-random-32-chars
+      - SESSION_SECRET=cuesubmit-session-secret-key-32ch
       - DATABASE_PATH=/app/data/cuesubmit.db
       - ADMIN_INITIAL_PASSWORD=${ADMIN_INITIAL_PASSWORD:-admin123}
     volumes:
