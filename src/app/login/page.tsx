@@ -74,7 +74,7 @@ export default function LoginPage() {
             />
           </div>
           <CardTitle className="text-3xl font-semibold text-text-primary tracking-tight animate-fade-up animate-delay-100">
-            Render Manager
+            Queue
           </CardTitle>
           <CardDescription className="text-text-muted text-sm mt-2 animate-fade-up animate-delay-200">
             Sign in to submit and monitor render jobs
