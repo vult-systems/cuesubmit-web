@@ -358,7 +358,9 @@ export default function HostsPage() {
                 <Table>
                   <TableHeader>
                     <TableRow className="hover:bg-transparent border-neutral-200 dark:border-white/6">
-                      <TableHead>Host Name</TableHead>
+                      <TableHead>ID</TableHead>
+                      <TableHead>System Name</TableHead>
+                      <TableHead>IP Address</TableHead>
                       <TableHead>Tags</TableHead>
                       <TableHead>State</TableHead>
                       <TableHead>Lock</TableHead>
@@ -374,16 +376,28 @@ export default function HostsPage() {
                       const isNimbyLocked = host.lockState === "NIMBY_LOCKED";
                       const isUp = host.state === "UP";
 
+                      // Look for ID tag (e.g., "id:AD400-01") and system name tag (e.g., "name:WORKSTATION1")
+                      const idTag = (host.tags || []).find(t => t.startsWith("id:"));
+                      const nameTag = (host.tags || []).find(t => t.startsWith("name:"));
+                      const hostId = idTag ? idTag.replace("id:", "") : "-";
+                      const systemName = nameTag ? nameTag.replace("name:", "") : "-";
+                      // OpenCue's host.name is the IP address
+                      const ipAddress = host.name;
+                      // Filter out id: and name: tags for display
+                      const displayTags = (host.tags || []).filter(t => !t.startsWith("id:") && !t.startsWith("name:"));
+
                       return (
                         <TableRow
                           key={host.id}
                           className="hover:bg-neutral-50 dark:hover:bg-white/3 transition-all duration-200 group"
                           style={{ animationDelay: `${index * 30}ms` }}
                         >
-                          <TableCell className="font-mono text-sm text-text-primary">{host.name}</TableCell>
+                          <TableCell className="font-medium text-text-primary">{hostId}</TableCell>
+                          <TableCell className="font-mono text-xs text-text-muted">{systemName}</TableCell>
+                          <TableCell className="font-mono text-xs text-text-muted">{ipAddress}</TableCell>
                           <TableCell>
-                            <div className="flex flex-wrap gap-1 max-w-48">
-                              {(host.tags || []).slice(0, 3).map((tag) => (
+                            <div className="flex flex-wrap gap-1 max-w-32">
+                              {displayTags.slice(0, 2).map((tag) => (
                                 <Badge
                                   key={tag}
                                   variant="outline"
@@ -392,10 +406,10 @@ export default function HostsPage() {
                                   {tag}
                                 </Badge>
                               ))}
-                              {(host.tags || []).length > 3 && (
-                                <span className="text-[10px] text-text-muted">+{(host.tags || []).length - 3}</span>
+                              {displayTags.length > 2 && (
+                                <span className="text-[10px] text-text-muted">+{displayTags.length - 2}</span>
                               )}
-                              {(host.tags || []).length === 0 && (
+                              {displayTags.length === 0 && (
                                 <span className="text-xs text-text-muted">-</span>
                               )}
                             </div>
