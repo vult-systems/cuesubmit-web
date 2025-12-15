@@ -292,8 +292,42 @@ cp -r ../../.next/static .next/static
 
 ## Current State (December 2025)
 
+### Production Deployment
+
+**Server:** `REDACTED_IP` (Linux)
+**URL:** `http://REDACTED_IP:3000`
+**Location:** `/home/perforce/cuesubmit-web`
+
+**Running Services:**
+| Container | Image | Port | Status |
+|-----------|-------|------|--------|
+| `cuesubmit-web` | `cuesubmit-web-cuesubmit-web` | 3000 | ✅ Running |
+| `opencue-rest-gateway` | `opencue/rest-gateway:latest` | 8448 | ✅ Running |
+
+**To update the deployed app:**
+```bash
+cd /home/perforce/cuesubmit-web
+git pull
+sudo docker compose build
+sudo docker compose up -d
+```
+
+**To view logs:**
+```bash
+sudo docker logs cuesubmit-web
+```
+
+**Pending:**
+- [ ] Auth setup (currently using local SQLite auth, OAuth planned)
+
+---
+
 ### Recently Implemented
 
+- **Docker production deployment** (December 2025)
+  - Multi-stage Dockerfile for optimized image
+  - docker-compose.yml with host networking
+  - SQLite data persisted via Docker volume
 - **Windows standalone build support** (Zig 0.15.2)
   - Fixed `std.process.argsWithAllocator` for Windows compatibility
   - Fixed node.exe path resolution on Windows
