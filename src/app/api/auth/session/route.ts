@@ -1,11 +1,13 @@
-import { NextResponse } from 'next/server';
-import { getCurrentUser } from '@/lib/auth/session';
+import { NextRequest, NextResponse } from 'next/server';
+import { getIronSession } from 'iron-session';
+import { SessionData, sessionOptions } from '@/lib/auth/session';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
+    const response = NextResponse.json({ isLoggedIn: false });
+    const session = await getIronSession<SessionData>(request, response, sessionOptions);
 
-    if (!user) {
+    if (!session.isLoggedIn) {
       return NextResponse.json(
         { isLoggedIn: false },
         { status: 200 }
@@ -15,10 +17,10 @@ export async function GET() {
     return NextResponse.json({
       isLoggedIn: true,
       user: {
-        id: user.userId,
-        username: user.username,
-        role: user.role,
-        fullName: user.fullName,
+        id: session.userId,
+        username: session.username,
+        role: session.role,
+        fullName: session.fullName,
       },
     });
   } catch (error) {

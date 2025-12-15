@@ -38,38 +38,38 @@ function SelectTrigger({
       data-size={size}
       className={cn(
         // Layout: full width, flex
-        "flex w-full min-w-0 items-center justify-between gap-2 rounded-md px-3 py-2 text-sm whitespace-nowrap transition-all outline-none",
-        // OPAQUE background - no transparency
-        "!bg-surface-muted !opacity-100",
+        "flex w-full min-w-0 items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-xs whitespace-nowrap transition-all duration-200 outline-none",
+        // Background (theme-aware) - same as Input
+        "bg-transparent",
         // Border + text
-        "border border-border text-text-primary",
-        // Placeholder styling
-        "data-[placeholder]:text-text-muted",
+        "border border-neutral-200 dark:border-white/10 text-text-primary",
+        // Placeholder styling - match Input
+        "data-placeholder:text-text-muted",
         // Icon styling
         "[&_svg:not([class*='text-'])]:text-text-muted",
-        // Hover: increase border contrast
-        "hover:border-text-muted/50",
-        // Focus: accent ring
-        "focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent/30",
-        // Open state: accent border
-        "data-[state=open]:border-accent data-[state=open]:ring-2 data-[state=open]:ring-accent/30",
+        // Hover - same as Input
+        "hover:border-neutral-300 dark:hover:border-white/15 hover:bg-black/2 dark:hover:bg-white/3",
+        // Focus - same as Input
+        "focus-visible:border-neutral-400 dark:focus-visible:border-white/20 focus-visible:bg-black/2 dark:focus-visible:bg-white/3 focus-visible:ring-2 focus-visible:ring-neutral-200 dark:focus-visible:ring-white/8",
+        // Open state
+        "data-[state=open]:border-neutral-400 dark:data-[state=open]:border-white/20 data-[state=open]:ring-2 data-[state=open]:ring-neutral-200 dark:data-[state=open]:ring-white/8",
         // Error state
-        "aria-invalid:border-danger aria-invalid:ring-danger/20",
+        "aria-invalid:border-red-500/50 aria-invalid:ring-red-500/20",
         // Disabled
-        "disabled:cursor-not-allowed disabled:opacity-50",
+        "disabled:cursor-not-allowed disabled:opacity-40",
         // Size variants
-        "data-[size=default]:h-9 data-[size=sm]:h-8",
+        "data-[size=default]:h-8 data-[size=sm]:h-7",
         // Value container styling
         "*:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2",
         // Icon sizing
-        "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5",
         className
       )}
       {...props}
     >
       {children}
       <SelectPrimitive.Icon asChild>
-        <ChevronDownIcon className="size-4 opacity-50" />
+        <ChevronDownIcon className="size-3.5 opacity-50" />
       </SelectPrimitive.Icon>
     </SelectPrimitive.Trigger>
   )
@@ -87,16 +87,14 @@ function SelectContent({
       <SelectPrimitive.Content
         data-slot="select-content"
         className={cn(
-          // OPAQUE background - no transparency
-          "!bg-surface !opacity-100",
+          // Background (theme-aware) - exact match with input (no blur, no shadow)
+          "bg-white dark:bg-neutral-950/60",
           // Border + text
-          "border border-border text-text-primary",
-          // Subtle elevation
-          "shadow-lg",
+          "border border-neutral-200 dark:border-white/10 text-text-primary",
           // Animation
           "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
           // Layout
-          "relative z-50 max-h-(--radix-select-content-available-height) min-w-[8rem] origin-(--radix-select-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-md",
+          "relative z-50 max-h-(--radix-select-content-available-height) min-w-32 origin-(--radix-select-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-lg",
           position === "popper" &&
             "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
           className
@@ -108,9 +106,9 @@ function SelectContent({
         <SelectScrollUpButton />
         <SelectPrimitive.Viewport
           className={cn(
-            "p-1 bg-surface",
+            "p-1 bg-transparent",
             position === "popper" &&
-              "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)] scroll-my-1"
+              "h-(--radix-select-trigger-height) w-full min-w-(--radix-select-trigger-width) scroll-my-1"
           )}
         >
           {children}
@@ -128,7 +126,7 @@ function SelectLabel({
   return (
     <SelectPrimitive.Label
       data-slot="select-label"
-      className={cn("text-text-muted px-2 py-1.5 text-xs", className)}
+      className={cn("text-text-muted px-2 py-1 text-[10px] font-medium uppercase tracking-wider", className)}
       {...props}
     />
   )
@@ -143,30 +141,29 @@ function SelectItem({
     <SelectPrimitive.Item
       data-slot="select-item"
       className={cn(
-        // Base styling
-        "relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none",
+        // Base styling - compact
+        "relative flex w-full cursor-default items-center gap-1.5 rounded-md py-1.5 pr-6 pl-2 text-xs outline-hidden select-none transition-all duration-150",
         // Text color
-        "text-text-primary",
+        "text-text-secondary",
         // Icon color
         "[&_svg:not([class*='text-'])]:text-text-muted",
-        // Focus/hover: subtle surface highlight
-        "focus:bg-surface-muted",
+        // Focus/hover
+        "focus:bg-neutral-100 dark:focus:bg-white/8 focus:text-text-primary dark:focus:text-white",
         // Disabled
-        "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+        "data-disabled:pointer-events-none data-disabled:opacity-40",
         // Icon sizing
-        "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-        "*:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
+        "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5",
+        "*:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-1.5",
         className
       )}
       {...props}
     >
       <span
         data-slot="select-item-indicator"
-        className="absolute right-2 flex size-3.5 items-center justify-center"
+        className="absolute right-2 flex size-3 items-center justify-center"
       >
         <SelectPrimitive.ItemIndicator>
-          {/* Accent-colored checkmark for selected state */}
-          <CheckIcon className="size-4 text-accent" />
+          <CheckIcon className="size-3 text-text-primary" />
         </SelectPrimitive.ItemIndicator>
       </span>
       <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>

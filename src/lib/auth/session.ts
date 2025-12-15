@@ -1,5 +1,6 @@
 import { getIronSession, IronSession } from 'iron-session';
 import { cookies } from 'next/headers';
+import { NextResponse } from 'next/server';
 
 export interface SessionData {
   userId: string;
@@ -9,11 +10,23 @@ export interface SessionData {
   isLoggedIn: boolean;
 }
 
-const sessionOptions = {
-  password: process.env.SESSION_SECRET || 'complex_password_at_least_32_characters_long',
+// In production, SESSION_SECRET must be set. In development, use a default.
+const getSessionPassword = (): string => {
+  if (process.env.SESSION_SECRET) {
+    return process.env.SESSION_SECRET;
+  }
+  if (process.env.NODE_ENV === 'production') {
+    console.warn('WARNING: SESSION_SECRET not set in production! Using insecure default.');
+  }
+  return 'dev_only_complex_password_at_least_32_characters_long';
+};
+
+export const sessionOptions = {
+  password: getSessionPassword(),
   cookieName: 'cuesubmit_session',
   cookieOptions: {
-    secure: process.env.NODE_ENV === 'production',
+    // Only use secure cookies when explicitly using HTTPS
+    secure: process.env.USE_HTTPS === 'true',
     httpOnly: true,
     sameSite: 'lax' as const,
     maxAge: 60 * 60 * 24 * 7, // 1 week
@@ -26,17 +39,22 @@ export async function getSession(): Promise<IronSession<SessionData>> {
 }
 
 export async function getCurrentUser(): Promise<SessionData | null> {
-  const session = await getSession();
-  if (!session.isLoggedIn) {
+  try {
+    const session = await getSession();
+    if (!session.isLoggedIn) {
+      return null;
+    }
+    return {
+      userId: session.userId,
+      username: session.username,
+      role: session.role,
+      fullName: session.fullName,
+      isLoggedIn: session.isLoggedIn,
+    };
+  } catch (error) {
+    console.error('[Session] getCurrentUser error:', error);
     return null;
   }
-  return {
-    userId: session.userId,
-    username: session.username,
-    role: session.role,
-    fullName: session.fullName,
-    isLoggedIn: session.isLoggedIn,
-  };
 }
 
 export async function setSession(user: {

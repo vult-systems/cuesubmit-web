@@ -6,6 +6,8 @@ import {
   setShowDefaultMinCores,
   setShowDefaultMaxCores,
 } from "@/lib/opencue/gateway-client";
+import { config } from "@/lib/config";
+import { getOfflineShows, setOfflineShows } from "../route";
 
 export async function POST(
   request: Request,
@@ -29,6 +31,71 @@ export async function POST(
     const body = await request.json();
     const { action, value } = body;
 
+    // Handle offline mode
+    if (config.mode === "offline") {
+      const shows = getOfflineShows();
+      const showIndex = shows.findIndex(s => s.id === id);
+      
+      if (showIndex === -1) {
+        return NextResponse.json(
+          { error: "Show not found" },
+          { status: 404 }
+        );
+      }
+
+      switch (action) {
+        case "activate":
+          shows[showIndex].active = true;
+          break;
+        case "deactivate":
+          shows[showIndex].active = false;
+          break;
+        case "rename":
+          if (!value || typeof value !== "string") {
+            return NextResponse.json(
+              { error: "New name is required" },
+              { status: 400 }
+            );
+          }
+          // Check for duplicate name (excluding current show)
+          if (shows.some(s => s.id !== id && s.name.toLowerCase() === value.trim().toLowerCase())) {
+            return NextResponse.json(
+              { error: "A show with this name already exists" },
+              { status: 400 }
+            );
+          }
+          shows[showIndex].name = value.trim();
+          break;
+        case "setMinCores":
+          if (typeof value !== "number" || value < 0) {
+            return NextResponse.json(
+              { error: "Invalid min cores value" },
+              { status: 400 }
+            );
+          }
+          shows[showIndex].defaultMinCores = value;
+          break;
+        case "setMaxCores":
+          if (typeof value !== "number" || value < 0) {
+            return NextResponse.json(
+              { error: "Invalid max cores value" },
+              { status: 400 }
+            );
+          }
+          shows[showIndex].defaultMaxCores = value;
+          break;
+        default:
+          return NextResponse.json(
+            { error: "Unknown action" },
+            { status: 400 }
+          );
+      }
+
+      setOfflineShows(shows);
+      return NextResponse.json({ success: true, show: shows[showIndex] });
+    }
+
+    // Online mode
     switch (action) {
       case "activate":
         await setShowActive(id, true);
@@ -66,6 +133,58 @@ export async function POST(
     console.error("Show action failed:", error);
     return NextResponse.json(
       { error: "Show action failed" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Only admins can delete shows
+    if (user.role !== "admin") {
+      return NextResponse.json(
+        { error: "Only administrators can delete shows" },
+        { status: 403 }
+      );
+    }
+
+    const { id } = await params;
+
+    // Handle offline mode
+    if (config.mode === "offline") {
+      const shows = getOfflineShows();
+      const showIndex = shows.findIndex(s => s.id === id);
+      
+      if (showIndex === -1) {
+        return NextResponse.json(
+          { error: "Show not found" },
+          { status: 404 }
+        );
+      }
+
+      shows.splice(showIndex, 1);
+      setOfflineShows(shows);
+      return NextResponse.json({ success: true });
+    }
+
+    // In online mode, we typically wouldn't actually delete shows
+    // as OpenCue doesn't support show deletion - just deactivate
+    return NextResponse.json(
+      { error: "Show deletion is not supported in online mode. Use deactivate instead." },
+      { status: 400 }
+    );
+  } catch (error) {
+    console.error("Show deletion failed:", error);
+    return NextResponse.json(
+      { error: "Show deletion failed" },
       { status: 500 }
     );
   }
