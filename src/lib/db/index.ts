@@ -114,3 +114,9 @@ export function updateUser(id: string, updates: { role?: string; full_name?: str
     db.prepare(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`).run(...values);
   }
 }
+
+export function updateUserPassword(id: string, newPassword: string): void {
+  const db = getDb();
+  const hash = bcrypt.hashSync(newPassword, 10);
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, id);
+}
