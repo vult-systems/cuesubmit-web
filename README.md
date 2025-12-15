@@ -1,3 +1,5 @@
+# CueWeb
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
@@ -37,25 +39,71 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 
 ## CueWeb Launcher (Zig)
 
-Build (macOS host):
+### Building
+
+**Windows (native):**
+
+```powershell
+# Full build using batch script
+cd launcher
+.\build.bat
+
+# Or manually:
+cd ..
+npm run build --webpack        # Build Next.js with webpack (required for Windows)
+cd launcher
+zig build -Doptimize=ReleaseSmall
+# Then copy .next/standalone to zig-out/bin/app
+```
+
+**macOS (native):**
 
 ```bash
 cd launcher
-zig build -Doptimize=ReleaseSmall                    # macOS universal via Rosetta/arm64 host
-zig build -Doptimize=ReleaseSmall -Dtarget=x86_64-windows-gnu   # Windows 10/11 exe
-# optionally for ARM Windows
-zig build -Doptimize=ReleaseSmall -Dtarget=aarch64-windows-gnu
+./bundle.sh --full             # Full build including Next.js
+
+# Or just the Zig executable:
+zig build -Doptimize=ReleaseSmall
+```
+
+**Cross-compilation (from macOS to Windows):**
+
+```bash
+cd launcher
+zig build -Doptimize=ReleaseSmall -Dtarget=x86_64-windows-gnu
 ```
 
 Output goes to `launcher/zig-out/bin/` as `cueweb-launcher` (macOS) or `cueweb-launcher.exe` (Windows).
-For Windows cross-compiles, ensure Zig can find the `mingw` libs that ship with Zig (works out-of-box with official Zig downloads).
 
-Run (from release bundle root):
+### Platform Notes
+
+- **macOS**: Uses native WebKit WebView for a true desktop app experience
+- **Windows**: Opens the default browser (WebView2 integration planned for future)
+
+### Running
 
 ```bash
+# From the zig-out/bin directory (where cueweb-launcher.exe and app/ are located)
 ./cueweb-launcher --mode offline --port 3000
-# or, online
+
+# Online mode (requires OpenCue REST Gateway)
 ./cueweb-launcher --mode online --api-base http://<gateway-host>:<port>
 ```
 
-Config resolution: CLI flags > config.json > env vars > defaults. The launcher spawns the Next standalone server, waits for readiness, and opens the browser unless `--no-browser` is set. Logs are written to `./logs/cueweb-launcher.log`.
+### Configuration
+
+Config resolution order: CLI flags > config.json > env vars > defaults
+
+**config.json example:**
+
+```json
+{
+  "port": 3000,
+  "mode": "offline",
+  "nodePath": "node",
+  "serverEntry": "./app/server.js",
+  "openBrowser": true,
+  "urlPath": "/",
+  "logFile": "./logs/cueweb-launcher.log"
+}
+```

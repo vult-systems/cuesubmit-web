@@ -6,7 +6,7 @@ const DEFAULT_PORT: u16 = 3000;
 const DEFAULT_MODE = Mode.offline;
 const DEFAULT_NODE_PATH_WIN = "./node/node.exe";
 const DEFAULT_NODE_PATH_MAC = "./node/node";
-const DEFAULT_SERVER_ENTRY = "./app/.next/standalone/server.js";
+const DEFAULT_SERVER_ENTRY = "./app/server.js";
 const DEFAULT_OPEN_BROWSER = true;
 const DEFAULT_URL_PATH = "/";
 const DEFAULT_LOG_FILE = "./logs/cueweb-launcher.log";
@@ -74,12 +74,16 @@ pub fn main() !void {
     // Kill any existing process on the port before starting
     try killProcessOnPort(alloc, cfg.port, &logger);
 
-    var child = std.process.Child.init(&[_][]const u8{ node_path, server_entry }, alloc);
+    // Determine working directory and script filename
+    const server_dir = std.fs.path.dirname(server_entry);
+    const server_filename = std.fs.path.basename(server_entry);
+
+    var child = std.process.Child.init(&[_][]const u8{ node_path, server_filename }, alloc);
     child.stdin_behavior = .Inherit;
     child.stdout_behavior = .Inherit;
     child.stderr_behavior = .Inherit;
     // Set working directory to the app directory so Next.js can find .next
-    if (std.fs.path.dirname(server_entry)) |dir| {
+    if (server_dir) |dir| {
         child.cwd = dir;
     }
 
@@ -192,7 +196,8 @@ fn applyConfigFile(cfg: *Config, alloc: std.mem.Allocator) !void {
 }
 
 fn applyArgs(cfg: *Config, alloc: std.mem.Allocator) !void {
-    var args = std.process.args();
+    var args = try std.process.argsWithAllocator(alloc);
+    defer args.deinit();
     _ = args.next(); // exe
 
     while (args.next()) |arg| {
@@ -306,7 +311,9 @@ var TS_BUFFER: [32]u8 = undefined;
 fn resolveNodePath(preferred: []const u8, alloc: std.mem.Allocator, logger: *const Logger) ![]const u8 {
     if (fileExists(preferred)) return preferred;
 
-    if (try findInPath("node", alloc)) |found| {
+    // On Windows, look for node.exe in PATH
+    const node_name = if (builtin.os.tag == .windows) "node.exe" else "node";
+    if (try findInPath(node_name, alloc)) |found| {
         try logger.logf("node not found at '{s}', using PATH node at '{s}'", .{ preferred, found });
         return found;
     }
