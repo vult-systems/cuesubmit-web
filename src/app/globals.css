@@ -71,9 +71,8 @@
   --color-input: var(--border);
   --color-ring: var(--focus);
 
-  /* Fonts */
-  --font-sans: var(--font-inter);
-  --font-mono: var(--font-geist-mono);
+  /* Fonts - using CSS variable from layout.tsx */
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 
   /* Radius */
   --radius-sm: calc(var(--radius) - 4px);
@@ -130,52 +129,48 @@
 }
 
 /* ============================================
-   DARK MODE
+   DARK MODE - x.ai / Grok inspired
    ============================================ */
 .dark {
-  /* Surface hierarchy (dark → light) */
-  --background: #0a0a0a;
-  --surface: #141414;
-  --surface-muted: #1a1a1a;
-  --surface-raised: #1f1f1f;
+  /* Surface hierarchy - true black base */
+  --background: #000000;
+  --surface: #0a0a0a;
+  --surface-muted: #111111;
+  --surface-raised: #161616;
 
-  /* Borders (slightly lighter than surfaces) */
-  --border: #2a2a2a;
-  --border-muted: #222222;
+  /* Borders - very subtle */
+  --border: #1f1f1f;
+  --border-muted: #181818;
 
-  /* Text hierarchy
-     Primary: ~87% white
-     Secondary: ~65% white
-     Muted: ~45% white
-  */
-  --text-primary: #e0e0e0;
-  --text-secondary: #a6a6a6;
-  --text-muted: #737373;
+  /* Text hierarchy - high contrast */
+  --text-primary: #fafafa;
+  --text-secondary: #a1a1a1;
+  --text-muted: #666666;
 
-  /* Accent: Cardinal Red (slightly brighter for dark bg) */
-  --accent: #a52a2a;
-  --accent-muted: #8C1515;
-  --accent-subtle: rgba(165, 42, 42, 0.15);
-  --accent-foreground: #ffffff;
-  --focus: #a52a2a;
+  /* Accent: Clean white/blue glow */
+  --accent: #ffffff;
+  --accent-muted: #e5e5e5;
+  --accent-subtle: rgba(255, 255, 255, 0.06);
+  --accent-foreground: #000000;
+  --focus: rgba(255, 255, 255, 0.5);
 
-  /* Status colors (adjusted for dark mode) */
-  --success: #22c55e;
-  --success-muted: rgba(34, 197, 94, 0.15);
-  --warning: #eab308;
-  --warning-muted: rgba(234, 179, 8, 0.15);
-  --danger: #ef4444;
-  --danger-muted: rgba(239, 68, 68, 0.15);
+  /* Status colors (muted for dark mode) */
+  --success: #4ade80;
+  --success-muted: rgba(74, 222, 128, 0.12);
+  --warning: #fbbf24;
+  --warning-muted: rgba(251, 191, 36, 0.12);
+  --danger: #f87171;
+  --danger-muted: rgba(248, 113, 113, 0.12);
 
-  /* Section accents (desaturated for dark mode) */
-  --section-cool: #5b8a9a;
-  --section-cool-muted: #3d5c66;
-  --section-cool-bg: rgba(91, 138, 154, 0.10);
-  --section-cool-border: rgba(91, 138, 154, 0.20);
-  --section-warm: #b08968;
-  --section-warm-muted: #8a6b50;
-  --section-warm-bg: rgba(176, 137, 104, 0.10);
-  --section-warm-border: rgba(176, 137, 104, 0.20);
+  /* Section accents (subtle) */
+  --section-cool: #60a5fa;
+  --section-cool-muted: #3b82f6;
+  --section-cool-bg: rgba(96, 165, 250, 0.08);
+  --section-cool-border: rgba(96, 165, 250, 0.15);
+  --section-warm: #fbbf24;
+  --section-warm-muted: #f59e0b;
+  --section-warm-bg: rgba(251, 191, 36, 0.08);
+  --section-warm-border: rgba(251, 191, 36, 0.15);
 }
 
 /* ============================================
@@ -187,13 +182,18 @@
   }
 
   body {
-    @apply bg-background text-text-primary;
+    @apply bg-background text-text-primary antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 
-  /* Focus ring utility */
+  /* Focus ring utility - subtle glow */
   .focus-ring {
-    @apply outline-none ring-2 ring-focus ring-offset-2 ring-offset-background;
+    @apply outline-none ring-1 ring-focus ring-offset-1 ring-offset-background;
+  }
+
+  /* Smooth transitions globally */
+  a, button, input, select, textarea {
+    @apply transition-all duration-200 ease-out;
   }
 
   /* Hide number input spinners */
@@ -253,15 +253,8 @@
 }
 
 /* ============================================
-   SELECT/DROPDOWN HARD OVERRIDES
-   Ensures opaque backgrounds - cannot regress
+   SELECT/DROPDOWN STYLING
    ============================================ */
-[data-slot="select-trigger"] {
-  background-color: var(--surface-muted) !important;
-  opacity: 1 !important;
-  backdrop-filter: none !important;
-}
-
 [data-slot="select-content"] {
   background-color: var(--surface) !important;
   opacity: 1 !important;
@@ -272,4 +265,251 @@
   background-color: var(--surface) !important;
   opacity: 1 !important;
   backdrop-filter: none !important;
+}
+
+/* ============================================
+   x.ai STYLE UTILITIES & ANIMATIONS
+   ============================================ */
+@layer utilities {
+  /* Glow effect on hover */
+  .glow-hover {
+    @apply transition-all duration-500 ease-out;
+  }
+  
+  .glow-hover:hover {
+    box-shadow: 0 0 30px rgba(255, 255, 255, 0.08), 0 0 60px rgba(255, 255, 255, 0.04);
+  }
+
+  /* Subtle text glow */
+  .text-glow {
+    text-shadow: 0 0 20px rgba(255, 255, 255, 0.4);
+  }
+
+  /* Glass effect */
+  .glass {
+    @apply bg-white/60 dark:bg-surface/40 backdrop-blur-2xl border border-neutral-200/50 dark:border-white/5;
+  }
+
+  /* ========== KEYFRAME ANIMATIONS ========== */
+  
+  /* Fade up */
+  @keyframes fadeUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Fade in */
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  /* Scale in */
+  @keyframes scaleIn {
+    from {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  /* Slide in from right */
+  @keyframes slideInRight {
+    from {
+      opacity: 0;
+      transform: translateX(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  /* Slide in from left */
+  @keyframes slideInLeft {
+    from {
+      opacity: 0;
+      transform: translateX(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  /* Subtle pulse */
+  @keyframes subtlePulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+
+  /* Float */
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+  }
+
+  /* Shimmer effect */
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+
+  /* Gradient shift */
+  @keyframes gradientShift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+
+  /* ========== ANIMATION CLASSES ========== */
+  
+  .animate-fade-up {
+    animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-out forwards;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .animate-slide-in-right {
+    animation: slideInRight 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .animate-slide-in-left {
+    animation: slideInLeft 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .animate-subtle-pulse {
+    animation: subtlePulse 2s ease-in-out infinite;
+  }
+
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
+  }
+
+  .animate-shimmer {
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent);
+    background-size: 200% 100%;
+    animation: shimmer 2s infinite;
+  }
+
+  /* Staggered animation delays */
+  .animate-delay-100 { animation-delay: 100ms; }
+  .animate-delay-200 { animation-delay: 200ms; }
+  .animate-delay-300 { animation-delay: 300ms; }
+  .animate-delay-400 { animation-delay: 400ms; }
+  .animate-delay-500 { animation-delay: 500ms; }
+
+  /* ========== HOVER EFFECTS ========== */
+  
+  /* Subtle scale on hover */
+  .hover-lift {
+    @apply transition-all duration-300 ease-out;
+  }
+  
+  .hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.3);
+  }
+
+  /* Smooth border glow */
+  .border-glow {
+    @apply transition-all duration-500 ease-out;
+  }
+  
+  .dark .border-glow:hover {
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 
+                0 0 20px rgba(255, 255, 255, 0.05),
+                0 0 40px rgba(255, 255, 255, 0.02);
+  }
+
+  /* Interactive card */
+  .card-interactive {
+    @apply transition-all duration-300 ease-out cursor-pointer;
+  }
+
+  .card-interactive:hover {
+    @apply bg-surface-muted/50;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  }
+
+  /* Button shine effect */
+  .btn-shine {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-shine::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+    transition: left 0.5s ease;
+  }
+
+  .btn-shine:hover::after {
+    left: 100%;
+  }
+
+  /* Focus glow */
+  .focus-glow:focus-visible {
+    box-shadow: 0 0 0 2px var(--background), 0 0 0 4px rgba(255, 255, 255, 0.2);
+  }
+
+  /* Gradient text */
+  .text-gradient {
+    background: linear-gradient(135deg, var(--text-primary) 0%, var(--text-secondary) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Animated gradient background */
+  .bg-gradient-animated {
+    background: linear-gradient(-45deg, #000, #111, #0a0a0a, #050505);
+    background-size: 400% 400%;
+    animation: gradientShift 15s ease infinite;
+  }
+}
+
+/* ============================================
+   X-STYLE TYPOGRAPHY
+   ============================================ */
+
+/* Display/Header font - tighter, bolder */
+h1, h2, h3, h4, h5, h6,
+.font-display {
+  letter-spacing: -0.025em;
+}
+
+h1 {
+  letter-spacing: -0.035em;
+  font-weight: 700;
+}
+
+h2 {
+  letter-spacing: -0.03em;
+  font-weight: 600;
+}
+
+h3 {
+  letter-spacing: -0.025em;
+  font-weight: 600;
 }

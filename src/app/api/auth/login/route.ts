@@ -1,8 +1,10 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getIronSession } from 'iron-session';
+import { cookies } from 'next/headers';
 import { getUserByUsername, verifyPassword, updateUserLastLogin } from '@/lib/db';
-import { setSession } from '@/lib/auth/session';
+import { SessionData, sessionOptions } from '@/lib/auth/session';
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     const { username, password } = await request.json();
 
@@ -34,8 +36,15 @@ export async function POST(request: Request) {
     // Update last login
     updateUserLastLogin(user.id);
 
-    // Set session
-    await setSession(user);
+    // Set session using cookies() from next/headers
+    const cookieStore = await cookies();
+    const session = await getIronSession<SessionData>(cookieStore, sessionOptions);
+    session.userId = user.id;
+    session.username = user.username;
+    session.role = user.role;
+    session.fullName = user.full_name;
+    session.isLoggedIn = true;
+    await session.save();
 
     return NextResponse.json({
       success: true,

@@ -5,31 +5,31 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  // Base styles
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all outline-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0",
+  // Base styles - smooth transitions
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-medium transition-all duration-200 outline-none disabled:pointer-events-none disabled:opacity-40 disabled:cursor-not-allowed [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        // Primary: accent background
-        default: "bg-accent text-white hover:bg-accent-muted focus-visible:ring-2 focus-visible:ring-accent/30",
+        // Primary: inverted button (theme-aware)
+        default: "bg-neutral-900 dark:bg-white text-white dark:text-black hover:bg-neutral-800 dark:hover:bg-white/90 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-neutral-500 dark:focus-visible:ring-white/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-black",
         // Destructive: danger color
-        destructive: "bg-danger text-white hover:bg-danger/90 focus-visible:ring-2 focus-visible:ring-danger/30",
-        // Outline: bordered with hover highlight
-        outline: "border border-border bg-surface-muted text-text-primary hover:bg-surface-muted hover:border-text-muted/50 focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent/30",
-        // Secondary: muted surface
-        secondary: "bg-surface-muted text-text-primary hover:bg-surface-raised focus-visible:ring-2 focus-visible:ring-accent/30",
-        // Ghost: transparent with hover
-        ghost: "text-text-secondary hover:bg-surface-muted hover:text-text-primary focus-visible:ring-2 focus-visible:ring-accent/30",
-        // Link: text with underline
-        link: "text-accent underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-accent/30",
+        destructive: "bg-red-500 text-white hover:bg-red-400 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-red-500/30",
+        // Outline: subtle bordered (theme-aware)
+        outline: "border border-neutral-200 dark:border-white/[0.12] bg-transparent text-text-primary hover:bg-neutral-100 dark:hover:bg-white/[0.05] hover:border-neutral-300 dark:hover:border-white/[0.2] active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-neutral-200 dark:focus-visible:ring-white/20",
+        // Secondary: muted surface (theme-aware)
+        secondary: "bg-neutral-100 dark:bg-white/[0.08] text-text-primary dark:text-white hover:bg-neutral-200 dark:hover:bg-white/[0.12] active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-neutral-200 dark:focus-visible:ring-white/20",
+        // Ghost: transparent with hover (theme-aware)
+        ghost: "text-text-secondary hover:bg-neutral-100 dark:hover:bg-white/[0.05] hover:text-text-primary dark:hover:text-white focus-visible:ring-2 focus-visible:ring-neutral-200 dark:focus-visible:ring-white/20",
+        // Link: text with underline (theme-aware)
+        link: "text-text-primary underline-offset-4 hover:underline hover:text-text-secondary focus-visible:ring-2 focus-visible:ring-neutral-200 dark:focus-visible:ring-white/20",
       },
       size: {
-        default: "h-9 px-4 py-2 has-[>svg]:px-3",
-        sm: "h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5",
-        lg: "h-10 rounded-md px-6 has-[>svg]:px-4",
-        icon: "size-9",
-        "icon-sm": "size-8",
-        "icon-lg": "size-10",
+        default: "h-10 px-5 py-2",
+        sm: "h-9 rounded-lg gap-1.5 px-4",
+        lg: "h-11 rounded-xl px-6",
+        icon: "size-10 rounded-xl",
+        "icon-sm": "size-9 rounded-lg",
+        "icon-lg": "size-11 rounded-xl",
       },
     },
     defaultVariants: {

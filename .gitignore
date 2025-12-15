@@ -40,3 +40,16 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 data/
+
+# Local config files
+config.json
+launcher/config.json
+launcher/app/node_modules/
+launcher/app/.next/
+launcher/zig-out/
+launcher/logs/
+logs/
+launcher/.zig-cache/
+launcher/Queue.app/
+launcher/AppIcon.icns
+launcher/Info.plist

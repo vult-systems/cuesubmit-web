@@ -89,21 +89,33 @@ export interface Host {
   state: string;
   lockState: string;
   nimbyEnabled: boolean;
+  nimbyLocked?: boolean;
   cores: number;
   idleCores: number;
   memory: number;
   idleMemory: number;
+  gpuMemory?: number;
+  idleGpuMemory?: number;
+  gpus?: number;
+  idleGpus?: number;
   load: number;
   bootTime: number;
   pingTime: number;
+  tags?: string[];
+  alloc?: string;
+  ipAddress?: string;
 }
 
 export interface Show {
   id: string;
   name: string;
+  tag?: string;
+  description?: string;
   active: boolean;
   defaultMinCores: number;
   defaultMaxCores: number;
+  bookingEnabled?: boolean;
+  semester?: string; // e.g., "F25", "S26"
 }
 
 // Job API

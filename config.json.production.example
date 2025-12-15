@@ -1,0 +1,10 @@
+{
+  "port": 3000,
+  "mode": "online",
+  "apiBase": "http://REDACTED_IP:8088",
+  "nodePath": "/usr/local/bin/node",
+  "serverEntry": "/opt/cueweb/server.js",
+  "openBrowser": false,
+  "urlPath": "/",
+  "logFile": "/var/log/cueweb/cueweb.log"
+}

@@ -1,0 +1,10 @@
+{
+  "port": 3000,
+  "mode": "offline",
+  "apiBase": "http://REDACTED_IP:8088",
+  "nodePath": "./node/node",
+  "serverEntry": "./app/.next/standalone/server.js",
+  "openBrowser": true,
+  "urlPath": "/",
+  "logFile": "./logs/cueweb-launcher.log"
+}

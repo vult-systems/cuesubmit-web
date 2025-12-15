@@ -31,12 +31,15 @@ function initializeDatabase(db: Database.Database) {
   // Check if admin user exists, create if not
   const adminExists = db.prepare('SELECT id FROM users WHERE username = ?').get('admin');
   if (!adminExists) {
-    const hash = bcrypt.hashSync('REDACTED_PASSWORD', 10);
+    // Generate a random initial password - MUST be changed on first login in production
+    const initialPassword = process.env.ADMIN_INITIAL_PASSWORD || 'changeme_' + Math.random().toString(36).slice(2, 10);
+    const hash = bcrypt.hashSync(initialPassword, 10);
     db.prepare(`
       INSERT INTO users (id, username, password_hash, role, full_name)
       VALUES (?, ?, ?, ?, ?)
     `).run('admin-001', 'admin', hash, 'admin', 'Administrator');
-    console.log('Created default admin user (username: admin, password: REDACTED_PASSWORD)');
+    console.log('Created default admin user (username: admin)');
+    console.log('IMPORTANT: Set ADMIN_INITIAL_PASSWORD env var or change password immediately!');
   }
 }
 
