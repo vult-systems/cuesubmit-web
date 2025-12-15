@@ -213,6 +213,55 @@ export async function unlockHost(hostId: string): Promise<void> {
   await gatewayCall('host.HostInterface', 'Unlock', { host: { id: hostId } });
 }
 
+export async function rebootHost(hostId: string): Promise<void> {
+  await gatewayCall('host.HostInterface', 'Reboot', { host: { id: hostId } });
+}
+
+export async function rebootWhenIdleHost(hostId: string): Promise<void> {
+  await gatewayCall('host.HostInterface', 'RebootWhenIdle', { host: { id: hostId } });
+}
+
+export async function addHostTags(hostId: string, tags: string[]): Promise<void> {
+  await gatewayCall('host.HostInterface', 'AddTags', { host: { id: hostId }, tags });
+}
+
+export async function removeHostTags(hostId: string, tags: string[]): Promise<void> {
+  await gatewayCall('host.HostInterface', 'RemoveTags', { host: { id: hostId }, tags });
+}
+
+export async function setHostAllocation(hostId: string, allocationId: string): Promise<void> {
+  await gatewayCall('host.HostInterface', 'SetAllocation', {
+    host: { id: hostId },
+    allocation_id: allocationId
+  });
+}
+
+export async function setHostHardwareState(hostId: string, state: string): Promise<void> {
+  await gatewayCall('host.HostInterface', 'SetHardwareState', {
+    host: { id: hostId },
+    state
+  });
+}
+
+export async function setHostThreadMode(hostId: string, mode: string): Promise<void> {
+  await gatewayCall('host.HostInterface', 'SetThreadMode', {
+    host: { id: hostId },
+    mode
+  });
+}
+
+// Allocation API
+export interface Allocation {
+  id: string;
+  name: string;
+  tag: string;
+  facility: string;
+}
+
+export async function getAllocations(): Promise<{ allocations: Allocation[] }> {
+  return gatewayCall('facility.FacilityInterface', 'GetAllocations', {});
+}
+
 // Show API
 export async function getShows(): Promise<{ shows: { shows: Show[] } | Show[] }> {
   return gatewayCall('show.ShowInterface', 'GetShows', {});

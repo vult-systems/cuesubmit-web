@@ -4,10 +4,74 @@ import { getHosts, type Host } from "@/lib/opencue/gateway-client";
 import { config } from "@/lib/config";
 import { ROOMS, MACHINES_PER_ROOM, randomSystemName } from "@/lib/mock-data";
 
+// OpenCue API response has snake_case fields - map to our camelCase
+interface OpenCueHost {
+  id: string;
+  name: string;
+  alloc_name?: string;
+  nimby_enabled?: boolean;
+  has_comment?: boolean;
+  cores?: number;
+  idle_cores?: number;
+  memory?: number;
+  idle_memory?: number;
+  gpu_memory?: number;
+  idle_gpu_memory?: number;
+  total_swap?: number;
+  total_memory?: number;
+  total_gpu_memory?: number;
+  total_mcp?: number;
+  free_swap?: number;
+  free_memory?: number;
+  free_mcp?: number;
+  free_gpu_memory?: number;
+  load?: number;
+  boot_time?: number;
+  ping_time?: number;
+  os?: string;
+  tags?: string[];
+  state?: string;
+  lock_state?: string;
+  thread_mode?: string;
+  gpus?: number;
+  idle_gpus?: number;
+}
+
+// Map OpenCue snake_case to our camelCase Host interface
+function mapOpenCueHost(h: OpenCueHost): Host {
+  return {
+    id: h.id,
+    name: h.name,
+    state: h.state || "UNKNOWN",
+    lockState: h.lock_state || "UNKNOWN",
+    nimbyEnabled: h.nimby_enabled || false,
+    cores: h.cores || 0,
+    idleCores: h.idle_cores || 0,
+    memory: h.total_memory || h.memory || 0,
+    idleMemory: h.free_memory || h.idle_memory || 0,
+    gpuMemory: h.total_gpu_memory || h.gpu_memory || 0,
+    idleGpuMemory: h.free_gpu_memory || h.idle_gpu_memory || 0,
+    gpus: h.gpus || 0,
+    idleGpus: h.idle_gpus || 0,
+    load: h.load || 0,
+    bootTime: h.boot_time || 0,
+    pingTime: h.ping_time || 0,
+    tags: h.tags || [],
+    alloc: h.alloc_name || "",
+  };
+}
+
 // Helper to extract nested array from gateway response
-function extractHosts(data: { hosts: Host[] } | Host[]): Host[] {
+function extractHosts(data: unknown): OpenCueHost[] {
   if (Array.isArray(data)) return data;
-  return data.hosts || [];
+  if (data && typeof data === "object" && "hosts" in data) {
+    const hosts = (data as { hosts: unknown }).hosts;
+    if (Array.isArray(hosts)) return hosts;
+    if (hosts && typeof hosts === "object" && "hosts" in hosts) {
+      return (hosts as { hosts: OpenCueHost[] }).hosts || [];
+    }
+  }
+  return [];
 }
 
 // Mock hosts for offline mode - Lab machines
@@ -97,8 +161,10 @@ export async function GET() {
 
     const result = await getHosts();
 
-    // Gateway returns { hosts: { hosts: [...] } }
-    const hosts = extractHosts(result.hosts);
+    // Gateway returns { hosts: { hosts: [...] } } - extract and map to our format
+    const rawHosts = extractHosts(result);
+    const hosts = rawHosts.map(mapOpenCueHost);
+
     return NextResponse.json({ hosts });
   } catch (error) {
     console.error("Failed to fetch hosts:", error);
