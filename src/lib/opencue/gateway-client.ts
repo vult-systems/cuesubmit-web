@@ -205,14 +205,24 @@ export async function getHost(hostId: string): Promise<{ host: Host }> {
   return gatewayCall('host.HostInterface', 'GetHost', { id: hostId });
 }
 
-export async function lockHost(hostId: string): Promise<void> {
-  // Use same format as reboot which works
-  await gatewayCall('host.HostInterface', 'Lock', { host: { id: hostId } });
+export async function lockHost(hostId: string, hostName?: string): Promise<void> {
+  // OpenCue Lock may need host name for some operations
+  const hostRef: { id?: string; name?: string } = { id: hostId };
+  if (hostName) {
+    hostRef.name = hostName;
+  }
+  console.log('[DEBUG] lockHost request:', { host: hostRef });
+  await gatewayCall('host.HostInterface', 'Lock', { host: hostRef });
 }
 
-export async function unlockHost(hostId: string): Promise<void> {
-  // Use same format as reboot which works
-  await gatewayCall('host.HostInterface', 'Unlock', { host: { id: hostId } });
+export async function unlockHost(hostId: string, hostName?: string): Promise<void> {
+  // OpenCue Unlock may need host name for some operations
+  const hostRef: { id?: string; name?: string } = { id: hostId };
+  if (hostName) {
+    hostRef.name = hostName;
+  }
+  console.log('[DEBUG] unlockHost request:', { host: hostRef });
+  await gatewayCall('host.HostInterface', 'Unlock', { host: hostRef });
 }
 
 export async function rebootHost(hostId: string): Promise<void> {

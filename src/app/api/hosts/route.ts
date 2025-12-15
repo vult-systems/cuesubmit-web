@@ -30,11 +30,39 @@ interface OpenCueHost {
   ping_time?: number;
   os?: string;
   tags?: string[];
-  state?: string;
-  lock_state?: string;
+  state?: string | number;
+  lock_state?: string | number;
+  // Also check camelCase variants in case REST Gateway uses different format
+  lockState?: string | number;
   thread_mode?: string;
   gpus?: number;
   idle_gpus?: number;
+}
+
+// OpenCue enums - map numeric values to strings
+const HOST_STATE_MAP: Record<number, string> = {
+  0: "UP",
+  1: "DOWN",
+  2: "REPAIR",
+  3: "UNKNOWN",
+};
+
+const LOCK_STATE_MAP: Record<number, string> = {
+  0: "OPEN",
+  1: "LOCKED",
+  2: "NIMBY_LOCKED",
+};
+
+function mapState(value: string | number | undefined): string {
+  if (value === undefined || value === null) return "UNKNOWN";
+  if (typeof value === "number") return HOST_STATE_MAP[value] || "UNKNOWN";
+  return String(value).toUpperCase() || "UNKNOWN";
+}
+
+function mapLockState(value: string | number | undefined): string {
+  if (value === undefined || value === null) return "UNKNOWN";
+  if (typeof value === "number") return LOCK_STATE_MAP[value] || "UNKNOWN";
+  return String(value).toUpperCase() || "UNKNOWN";
 }
 
 // Map OpenCue snake_case to our camelCase Host interface
@@ -42,8 +70,8 @@ function mapOpenCueHost(h: OpenCueHost): Host {
   return {
     id: h.id,
     name: h.name,
-    state: h.state || "UNKNOWN",
-    lockState: h.lock_state || "UNKNOWN",
+    state: mapState(h.state),
+    lockState: mapLockState(h.lock_state ?? h.lockState),
     nimbyEnabled: h.nimby_enabled || false,
     cores: h.cores || 0,
     idleCores: h.idle_cores || 0,
@@ -63,6 +91,17 @@ function mapOpenCueHost(h: OpenCueHost): Host {
 
 // Helper to extract nested array from gateway response
 function extractHosts(data: unknown): OpenCueHost[] {
+  // Log first host to debug field names
+  if (data && typeof data === "object" && "hosts" in data) {
+    const hosts = (data as { hosts: unknown }).hosts;
+    if (hosts && typeof hosts === "object" && "hosts" in hosts) {
+      const hostArray = (hosts as { hosts: OpenCueHost[] }).hosts;
+      if (hostArray && hostArray.length > 0) {
+        console.log("[DEBUG] First host raw data:", JSON.stringify(hostArray[0], null, 2));
+      }
+    }
+  }
+
   if (Array.isArray(data)) return data;
   if (data && typeof data === "object" && "hosts" in data) {
     const hosts = (data as { hosts: unknown }).hosts;
