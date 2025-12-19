@@ -8,8 +8,15 @@
     "build:turbo": "next build",
     "start": "next start",
     "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"No tests configured\" && exit 0",
     "dev:offline": "cross-env CUEWEB_MODE=offline next dev",
-    "dev:online": "cross-env-shell CUEWEB_MODE=online \"node -e \\\"if(!process.env.CUEWEB_API_BASE){console.error('Error: CUEWEB_API_BASE is required when running in online mode.');process.exit(1);}\\\" && next dev\""
+    "dev:online": "cross-env-shell CUEWEB_MODE=online \"node -e \\\"if(!process.env.CUEWEB_API_BASE){console.error('Error: CUEWEB_API_BASE is required when running in online mode.');process.exit(1);}\\\" && next dev\"",
+    "docker:dev": "docker compose -f docker-compose.dev.yml up",
+    "docker:dev:build": "docker compose -f docker-compose.dev.yml up --build",
+    "docker:prod": "docker compose up -d",
+    "docker:prod:build": "docker compose up -d --build",
+    "docker:stop": "docker compose down && docker compose -f docker-compose.dev.yml down"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

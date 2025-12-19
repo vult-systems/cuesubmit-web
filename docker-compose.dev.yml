@@ -1,0 +1,27 @@
+services:
+  cuesubmit-web-dev:
+    image: node:20-alpine
+    container_name: cuesubmit-web-dev
+    working_dir: /app
+    command: sh -c "npm install && npm run dev"
+    ports:
+      - "3000:3000"
+    environment:
+      - CUEWEB_MODE=online
+      - CUEWEB_API_BASE=http://REDACTED_IP:8448
+      - REST_GATEWAY_URL=http://REDACTED_IP:8448
+      - JWT_SECRET=REDACTED_SECRET
+      - SESSION_SECRET=REDACTED_SECRET
+      - DATABASE_PATH=/app/data/cuesubmit.db
+      - ADMIN_INITIAL_PASSWORD=${ADMIN_INITIAL_PASSWORD:-REDACTED_PASSWORD}
+      - WATCHPACK_POLLING=true
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+      - cuesubmit-dev-data:/app/data
+    # Required for native modules like bcrypt and better-sqlite3
+    platform: linux/amd64
+
+volumes:
+  cuesubmit-dev-data:
