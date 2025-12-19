@@ -39,42 +39,23 @@ export function buildJobSpec(spec: JobSpec): string {
   const layersXml = spec.layers
     .map((layer) => {
       const servicesXml = layer.services?.length
-        ? `\n        <services>${layer.services.map((s) => `<service>${escapeXml(s)}</service>`).join("")}</services>`
-        : "";
+        ? `<services>${layer.services.map((s) => `<service>${escapeXml(s)}</service>`).join("")}</services>`
+        : "<services><service>default</service></services>";
 
       const envXml = layer.env
-        ? `\n        <env>${Object.entries(layer.env)
+        ? `<env>${Object.entries(layer.env)
             .map(([k, v]) => `<key name="${escapeXml(k)}">${escapeXml(v)}</key>`)
             .join("")}</env>`
         : "";
 
-      return `
-      <layer name="${escapeXml(layer.name)}" type="Render">
-        <cmd>${escapeXml(layer.command)}</cmd>
-        <range>${escapeXml(layer.range)}</range>
-        <chunk>${layer.chunk}</chunk>
-        <cores>${layer.cores}</cores>
-        <memory>${Math.round(layer.memory * 1024 * 1024)}</memory>${servicesXml}${envXml}
-      </layer>`;
+      // Layer type must be uppercase: RENDER, UTIL, or POST
+      return `<layer name="${escapeXml(layer.name)}" type="RENDER"><cmd>${escapeXml(layer.command)}</cmd><range>${escapeXml(layer.range)}</range><chunk>${layer.chunk}</chunk><cores>${layer.cores}</cores><memory>${Math.round(layer.memory * 1024 * 1024)}</memory>${envXml}${servicesXml}</layer>`;
     })
     .join("");
 
-  // OpenCue job spec format - job is directly under spec, not wrapped in <jobs>
-  return `<?xml version="1.0"?>
-<spec>
-  <facility>local</facility>
-  <show>${escapeXml(spec.show)}</show>
-  <shot>${escapeXml(spec.shot)}</shot>
-  <user>${escapeXml(spec.user)}</user>
-  <job name="${escapeXml(spec.name)}">
-    <paused>${paused}</paused>
-    <priority>${priority}</priority>
-    <maxretries>${maxRetries}</maxretries>
-    <autoeat>false</autoeat>
-    <layers>${layersXml}
-    </layers>
-  </job>
-</spec>`;
+  // OpenCue job spec format with DOCTYPE declaration pointing to cuebot's DTD
+  // The DOCTYPE URL must start with http://localhost:8080/spcue/dtd/ for cuebot to resolve it
+  return `<?xml version="1.0"?><!DOCTYPE spec PUBLIC "SPI Cue Specification Language" "http://localhost:8080/spcue/dtd/cjsl-1.12.dtd"><spec><facility>local</facility><show>${escapeXml(spec.show)}</show><shot>${escapeXml(spec.shot)}</shot><user>${escapeXml(spec.user)}</user><job name="${escapeXml(spec.name)}"><paused>${paused}</paused><priority>${priority}</priority><maxretries>${maxRetries}</maxretries><autoeat>false</autoeat><env></env><layers>${layersXml}</layers></job></spec>`;
 }
 
 // Common render command templates
