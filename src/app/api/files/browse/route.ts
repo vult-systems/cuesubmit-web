@@ -5,7 +5,8 @@ import path from "path";
 
 // Path translation between UNC and Linux mount
 const LINUX_PATH = process.env.RENDER_REPO_PATH || "/mnt/RenderOutputRepo";
-const UNC_PATH = process.env.RENDER_REPO_UNC || "\\\\10.40.14.25\\RenderOutputRepo";
+// Hardcoded UNC path (avoiding YAML env var escaping issues)
+const UNC_PATH = String.raw`\\10.40.14.25\RenderOutputRepo`;
 
 // Convert UNC path to Linux path for filesystem access
 function uncToLinux(uncPath: string): string {
