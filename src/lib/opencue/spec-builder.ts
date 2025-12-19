@@ -48,8 +48,8 @@ export function buildJobSpec(spec: JobSpec): string {
             .join("")}</env>`
         : "";
 
-      // Layer type must be uppercase: RENDER, UTIL, or POST
-      return `<layer name="${escapeXml(layer.name)}" type="RENDER"><cmd>${escapeXml(layer.command)}</cmd><range>${escapeXml(layer.range)}</range><chunk>${layer.chunk}</chunk><cores>${layer.cores}</cores><memory>${Math.round(layer.memory * 1024 * 1024)}</memory>${envXml}${servicesXml}</layer>`;
+      // Layer type must be: Render, Util, or Post (capitalized)
+      return `<layer name="${escapeXml(layer.name)}" type="Render"><cmd>${escapeXml(layer.command)}</cmd><range>${escapeXml(layer.range)}</range><chunk>${layer.chunk}</chunk><cores>${layer.cores}</cores><memory>${Math.round(layer.memory * 1024 * 1024)}</memory>${envXml}${servicesXml}</layer>`;
     })
     .join("");
 
