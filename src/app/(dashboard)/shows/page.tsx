@@ -589,14 +589,19 @@ export default function ShowsPage() {
                   </Label>
                   <Input
                     id="showName"
-                    placeholder="e.g., ProjectAlpha"
+                    placeholder="e.g., SeniorThesis"
                     value={newShowName}
                     onChange={(e) => setNewShowName(e.target.value)}
                     className="h-8 text-xs bg-white dark:bg-white/3 border-neutral-200 dark:border-white/8 focus:border-neutral-400 dark:focus:border-white/20 focus:bg-neutral-50 dark:focus:bg-white/5 rounded-lg transition-all duration-300"
                     onKeyDown={(e) => {
-                      if (e.key === "Enter") handleCreateShow();
+                      if (e.key === "Enter" && newShowSemester && newShowName.trim()) handleCreateShow();
                     }}
                   />
+                  {newShowName.trim() && newShowSemester && (
+                    <p className="text-xs text-text-muted mt-1">
+                      Full name: <span className="font-mono text-text-secondary">{newShowName.trim()}_{newShowSemester}</span>
+                    </p>
+                  )}
                 </div>
                 <div className="flex justify-end gap-2 pt-2">
                   <Button
