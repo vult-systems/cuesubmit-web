@@ -13,7 +13,6 @@ services:
       - DATABASE_PATH=/app/data/cuesubmit.db
       - ADMIN_INITIAL_PASSWORD=${ADMIN_INITIAL_PASSWORD:-REDACTED_PASSWORD}
       - RENDER_REPO_PATH=/mnt/RenderOutputRepo
-      - RENDER_REPO_UNC=\\\\REDACTED_IP\\RenderOutputRepo
     volumes:
       - cuesubmit-data:/app/data
       - /angd_server_pool/renderRepo:/mnt/RenderOutputRepo:ro
