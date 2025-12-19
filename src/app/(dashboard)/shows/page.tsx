@@ -17,6 +17,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,6 +49,22 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+
+// Generate semester options (current year +/- 2 years)
+function generateSemesterOptions(): { value: string; label: string }[] {
+  const currentYear = new Date().getFullYear();
+  const options: { value: string; label: string }[] = [];
+  
+  for (let year = currentYear + 1; year >= currentYear - 2; year--) {
+    const shortYear = year.toString().slice(-2);
+    options.push({ value: `F${shortYear}`, label: `Fall ${year} (F${shortYear})` });
+    options.push({ value: `S${shortYear}`, label: `Spring ${year} (S${shortYear})` });
+  }
+  
+  return options;
+}
+
+const SEMESTER_OPTIONS = generateSemesterOptions();
 
 interface Show {
   id: string;
@@ -74,6 +97,7 @@ export default function ShowsPage() {
   const [showAll, setShowAll] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newShowName, setNewShowName] = useState("");
+  const [newShowSemester, setNewShowSemester] = useState("");
   const [creating, setCreating] = useState(false);
   
   // Rename dialog state
@@ -95,6 +119,7 @@ export default function ShowsPage() {
   const [showToEdit, setShowToEdit] = useState<Show | null>(null);
   const [minCores, setMinCores] = useState(1);
   const [maxCores, setMaxCores] = useState(4);
+  const [editSemester, setEditSemester] = useState("");
   const [savingSettings, setSavingSettings] = useState(false);
   
   // Subscriptions state
@@ -127,18 +152,26 @@ export default function ShowsPage() {
       toast.error("Show name is required");
       return;
     }
+    if (!newShowSemester) {
+      toast.error("Semester is required");
+      return;
+    }
     setCreating(true);
     try {
       const response = await fetch("/api/shows", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newShowName.trim() }),
+        body: JSON.stringify({ 
+          name: newShowName.trim(),
+          semester: newShowSemester
+        }),
       });
       const data = await response.json();
       if (response.ok) {
         toast.success("Show created successfully");
         setCreateDialogOpen(false);
         setNewShowName("");
+        setNewShowSemester("");
         fetchShows();
       } else {
         toast.error(data.error || "Failed to create show");
@@ -225,7 +258,26 @@ export default function ShowsPage() {
     setSavingSettings(true);
     
     let success = true;
-    if (minCores !== showToEdit.defaultMinCores) {
+    
+    // Save semester if changed
+    if (editSemester !== (showToEdit.semester || "")) {
+      try {
+        const response = await fetch(`/api/shows/${showToEdit.id}/semester`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ semester: editSemester || null }),
+        });
+        if (!response.ok) {
+          toast.error("Failed to update semester");
+          success = false;
+        }
+      } catch {
+        toast.error("Failed to update semester");
+        success = false;
+      }
+    }
+    
+    if (success && minCores !== showToEdit.defaultMinCores) {
       success = await handleShowAction(showToEdit.id, "setMinCores", minCores);
     }
     if (success && maxCores !== showToEdit.defaultMaxCores) {
@@ -235,6 +287,7 @@ export default function ShowsPage() {
     if (success) {
       setSettingsDialogOpen(false);
       setShowToEdit(null);
+      fetchShows(); // Refresh to get updated semester
     }
     setSavingSettings(false);
   };
@@ -296,6 +349,7 @@ export default function ShowsPage() {
     setShowToEdit(show);
     setMinCores(show.defaultMinCores);
     setMaxCores(show.defaultMaxCores);
+    setEditSemester(show.semester || "");
     setSubscriptions([]);
     setSettingsDialogOpen(true);
     fetchSubscriptions(show.id);
@@ -513,8 +567,25 @@ export default function ShowsPage() {
               </DialogHeader>
               <div className="space-y-4 py-3">
                 <div className="space-y-1.5">
+                  <Label htmlFor="showSemester" className="text-text-muted text-xs font-medium">
+                    Semester <span className="text-red-500">*</span>
+                  </Label>
+                  <Select value={newShowSemester} onValueChange={setNewShowSemester}>
+                    <SelectTrigger className="h-8 text-xs bg-white dark:bg-white/3 border-neutral-200 dark:border-white/8 focus:border-neutral-400 dark:focus:border-white/20 rounded-lg">
+                      <SelectValue placeholder="Select semester..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SEMESTER_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
                   <Label htmlFor="showName" className="text-text-muted text-xs font-medium">
-                    Show Name
+                    Show Name <span className="text-red-500">*</span>
                   </Label>
                   <Input
                     id="showName"
@@ -537,7 +608,7 @@ export default function ShowsPage() {
                   </Button>
                   <Button 
                     onClick={handleCreateShow} 
-                    disabled={creating}
+                    disabled={creating || !newShowSemester || !newShowName.trim()}
                     className="h-8 px-4 text-xs bg-white hover:bg-white/90 text-black font-medium rounded-lg transition-all duration-300"
                   >
                     {creating ? "Creating..." : "Create Show"}
@@ -723,10 +794,30 @@ export default function ShowsPage() {
           <DialogHeader>
             <DialogTitle className="text-lg font-semibold text-text-primary">Show Settings</DialogTitle>
             <DialogDescription className="text-text-muted text-sm">
-              Default render settings for &quot;{showToEdit?.name}&quot;.
+              Settings for &quot;{showToEdit?.name}&quot;.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="editSemester" className="text-text-muted text-xs font-medium">
+                Semester
+              </Label>
+              <Select value={editSemester} onValueChange={setEditSemester}>
+                <SelectTrigger className="h-8 text-xs bg-white dark:bg-white/3 border-neutral-200 dark:border-white/8 focus:border-neutral-400 dark:focus:border-white/20 rounded-lg">
+                  <SelectValue placeholder="Select semester..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="" className="text-xs text-text-muted">
+                    No semester assigned
+                  </SelectItem>
+                  {SEMESTER_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-1.5">
               <Label htmlFor="minCores" className="text-text-muted text-xs font-medium">
                 Default Min Cores
