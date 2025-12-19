@@ -14,6 +14,8 @@ import {
   Folder,
   File,
   ChevronUp,
+  ChevronRight,
+  ChevronDown,
   Loader2,
   FolderOpen,
   FileImage,
@@ -27,6 +29,9 @@ interface FileItem {
   path: string;
   isDirectory: boolean;
   extension: string | null;
+  children?: FileItem[];
+  isExpanded?: boolean;
+  isLoading?: boolean;
 }
 
 interface FileBrowserDialogProps {
@@ -67,11 +72,17 @@ export function FileBrowserDialog({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<FileItem | null>(null);
+  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
+  const [childrenCache, setChildrenCache] = useState<Record<string, FileItem[]>>({});
 
-  const fetchDirectory = useCallback(async (path: string) => {
-    setLoading(true);
-    setError(null);
-    setSelectedItem(null);
+  const fetchDirectory = useCallback(async (path: string, forExpand = false) => {
+    if (!forExpand) {
+      setLoading(true);
+      setError(null);
+      setSelectedItem(null);
+      setExpandedPaths(new Set());
+      setChildrenCache({});
+    }
 
     try {
       const response = await fetch(`/api/files/browse?path=${encodeURIComponent(path)}`);
@@ -81,9 +92,6 @@ export function FileBrowserDialog({
         throw new Error(data.error || "Failed to load directory");
       }
 
-      setCurrentPath(data.currentPath);
-      setParentPath(data.parentPath);
-
       // Filter items based on mode and extensions
       let filteredItems = data.items;
       if (mode === "file" && fileExtensions?.length) {
@@ -92,11 +100,23 @@ export function FileBrowserDialog({
             item.isDirectory || fileExtensions.includes(item.extension || "")
         );
       }
+
+      if (forExpand) {
+        return filteredItems;
+      }
+
+      setCurrentPath(data.currentPath);
+      setParentPath(data.parentPath);
       setItems(filteredItems);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load directory");
+      if (!forExpand) {
+        setError(err instanceof Error ? err.message : "Failed to load directory");
+      }
+      return [];
     } finally {
-      setLoading(false);
+      if (!forExpand) {
+        setLoading(false);
+      }
     }
   }, [mode, fileExtensions]);
 
@@ -106,17 +126,40 @@ export function FileBrowserDialog({
     }
   }, [open, fetchDirectory, currentPath]);
 
+  const toggleExpand = async (item: FileItem) => {
+    if (!item.isDirectory) return;
+
+    const newExpanded = new Set(expandedPaths);
+    
+    if (expandedPaths.has(item.path)) {
+      // Collapse
+      newExpanded.delete(item.path);
+      setExpandedPaths(newExpanded);
+    } else {
+      // Expand - fetch children if not cached
+      if (!childrenCache[item.path]) {
+        // Mark as loading
+        setExpandedPaths(new Set([...newExpanded, item.path]));
+        const children = await fetchDirectory(item.path, true);
+        setChildrenCache(prev => ({ ...prev, [item.path]: children || [] }));
+      } else {
+        newExpanded.add(item.path);
+        setExpandedPaths(newExpanded);
+      }
+    }
+  };
+
   const handleItemClick = (item: FileItem) => {
+    setSelectedItem(item);
     if (item.isDirectory) {
-      // Double-click to enter directory
-      setSelectedItem(item);
-    } else if (mode === "file") {
-      setSelectedItem(item);
+      toggleExpand(item);
     }
   };
 
   const handleItemDoubleClick = (item: FileItem) => {
     if (item.isDirectory) {
+      // Navigate into folder
+      setCurrentPath(item.path);
       fetchDirectory(item.path);
     } else if (mode === "file") {
       onSelect(item.path);
@@ -135,18 +178,73 @@ export function FileBrowserDialog({
 
   const handleNavigateUp = () => {
     if (parentPath) {
+      setCurrentPath(parentPath);
       fetchDirectory(parentPath);
     }
   };
 
-  const getFileIcon = (item: FileItem) => {
+  const getFileIcon = (item: FileItem, isExpanded: boolean) => {
     if (item.isDirectory) {
-      return selectedItem?.path === item.path ? FolderOpen : Folder;
+      return isExpanded ? FolderOpen : Folder;
     }
     return fileIcons[item.extension || ""] || File;
   };
 
   const canSelect = mode === "directory" || (selectedItem && !selectedItem.isDirectory);
+
+  // Recursive render function for tree items
+  const renderItem = (item: FileItem, depth: number = 0) => {
+    const isExpanded = expandedPaths.has(item.path);
+    const isSelected = selectedItem?.path === item.path;
+    const Icon = getFileIcon(item, isExpanded);
+    const children = childrenCache[item.path] || [];
+    const isLoadingChildren = isExpanded && !childrenCache[item.path];
+
+    return (
+      <div key={item.path}>
+        <div
+          onClick={() => handleItemClick(item)}
+          onDoubleClick={() => handleItemDoubleClick(item)}
+          className={cn(
+            "flex items-center gap-1 py-1.5 rounded-md cursor-pointer transition-colors",
+            isSelected
+              ? "bg-blue-500/20 text-blue-400"
+              : "hover:bg-neutral-100 dark:hover:bg-white/5"
+          )}
+          style={{ paddingLeft: `${depth * 16 + 8}px`, paddingRight: '12px' }}
+        >
+          {/* Expand/collapse chevron for directories */}
+          {item.isDirectory ? (
+            <span className="w-4 h-4 flex items-center justify-center shrink-0">
+              {isLoadingChildren ? (
+                <Loader2 className="h-3 w-3 animate-spin text-text-muted" />
+              ) : isExpanded ? (
+                <ChevronDown className="h-3 w-3 text-text-muted" />
+              ) : (
+                <ChevronRight className="h-3 w-3 text-text-muted" />
+              )}
+            </span>
+          ) : (
+            <span className="w-4 h-4 shrink-0" />
+          )}
+          <Icon
+            className={cn(
+              "h-4 w-4 shrink-0",
+              item.isDirectory ? "text-amber-500" : "text-text-muted"
+            )}
+          />
+          <span className="text-sm truncate">{item.name}</span>
+        </div>
+        
+        {/* Render children if expanded */}
+        {isExpanded && children.length > 0 && (
+          <div>
+            {children.map(child => renderItem(child, depth + 1))}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -191,35 +289,8 @@ export function FileBrowserDialog({
                 Empty directory
               </div>
             ) : (
-              <div className="p-1">
-                {items.map((item) => {
-                  const Icon = getFileIcon(item);
-                  const isSelected = selectedItem?.path === item.path;
-
-                  return (
-                    <div
-                      key={item.path}
-                      onClick={() => handleItemClick(item)}
-                      onDoubleClick={() => handleItemDoubleClick(item)}
-                      className={cn(
-                        "flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer transition-colors",
-                        isSelected
-                          ? "bg-blue-500/20 text-blue-400"
-                          : "hover:bg-neutral-100 dark:hover:bg-white/5"
-                      )}
-                    >
-                      <Icon
-                        className={cn(
-                          "h-4 w-4 shrink-0",
-                          item.isDirectory
-                            ? "text-amber-500"
-                            : "text-text-muted"
-                        )}
-                      />
-                      <span className="text-sm truncate">{item.name}</span>
-                    </div>
-                  );
-                })}
+              <div className="py-1">
+                {items.map(item => renderItem(item, 0))}
               </div>
             )}
           </ScrollArea>
@@ -228,8 +299,8 @@ export function FileBrowserDialog({
           <div className="flex items-center justify-between">
             <p className="text-xs text-text-muted">
               {mode === "directory"
-                ? "Select a folder or use current directory"
-                : "Double-click to select a file"}
+                ? "Click to expand, double-click to navigate"
+                : "Click to expand folders, double-click to select"}
             </p>
             <div className="flex gap-2">
               <Button variant="ghost" onClick={() => onOpenChange(false)}>
