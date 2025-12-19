@@ -6,6 +6,8 @@ import {
   setShowDefaultMinCores,
   setShowDefaultMaxCores,
   deleteShow,
+  getShowSubscriptions,
+  deleteSubscription,
 } from "@/lib/opencue/gateway-client";
 import { config } from "@/lib/config";
 import { getOfflineShows, setOfflineShows } from "../route";
@@ -176,9 +178,26 @@ export async function DELETE(
       return NextResponse.json({ success: true });
     }
 
-    // In online mode, call the OpenCue Delete API
-    // Note: OpenCue only allows deletion of shows that have never had jobs launched
+    // In online mode, first delete all subscriptions, then delete the show
     try {
+      // Get all subscriptions for this show
+      const subscriptionsResponse = await getShowSubscriptions(id);
+      const subscriptions = Array.isArray(subscriptionsResponse.subscriptions)
+        ? subscriptionsResponse.subscriptions
+        : subscriptionsResponse.subscriptions?.subscriptions || [];
+      
+      // Delete each subscription
+      for (const subscription of subscriptions) {
+        try {
+          await deleteSubscription(subscription.id);
+          console.log(`Deleted subscription: ${subscription.name || subscription.id}`);
+        } catch (subError) {
+          console.error(`Failed to delete subscription ${subscription.id}:`, subError);
+          // Continue trying to delete other subscriptions
+        }
+      }
+      
+      // Now delete the show
       await deleteShow(id);
       return NextResponse.json({ success: true });
     } catch (error) {

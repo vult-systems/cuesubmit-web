@@ -120,6 +120,18 @@ export interface Show {
   semester?: string; // e.g., "F25", "S26"
 }
 
+export interface Subscription {
+  id: string;
+  name: string;
+  showName: string;
+  facility: string;
+  allocationName: string;
+  size: number;
+  burst: number;
+  reservedCores: number;
+  reservedGpus: number;
+}
+
 // Job API
 export async function getJobs(opts?: {
   show?: string;
@@ -320,5 +332,17 @@ export async function deleteShow(showId: string): Promise<void> {
   // Note: OpenCue only allows deletion of shows that have never had jobs launched
   await gatewayCall('show.ShowInterface', 'Delete', {
     show: { id: showId }
+  });
+}
+
+export async function getShowSubscriptions(showId: string): Promise<{ subscriptions: { subscriptions: Subscription[] } | Subscription[] }> {
+  return gatewayCall('show.ShowInterface', 'GetSubscriptions', {
+    show: { id: showId }
+  });
+}
+
+export async function deleteSubscription(subscriptionId: string): Promise<void> {
+  await gatewayCall('subscription.SubscriptionInterface', 'Delete', {
+    subscription: { id: subscriptionId }
   });
 }
