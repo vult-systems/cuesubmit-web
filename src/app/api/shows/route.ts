@@ -106,10 +106,20 @@ export async function POST(request: Request) {
       );
     }
 
+    if (!semester || typeof semester !== "string") {
+      return NextResponse.json(
+        { error: "Semester is required" },
+        { status: 400 }
+      );
+    }
+
+    // Auto-suffix show name with semester code (e.g., "ShowName_F25")
+    const fullName = `${name.trim()}_${semester.toUpperCase()}`;
+
     // Handle offline mode
     if (config.mode === "offline") {
       // Check for duplicate name
-      if (offlineShows.some(s => s.name.toLowerCase() === name.trim().toLowerCase())) {
+      if (offlineShows.some(s => s.name.toLowerCase() === fullName.toLowerCase())) {
         return NextResponse.json(
           { error: "A show with this name already exists" },
           { status: 400 }
@@ -118,23 +128,23 @@ export async function POST(request: Request) {
 
       const newShow: Show = {
         id: `show-${Date.now()}`,
-        name: name.trim(),
+        name: fullName,
         active: true,
         defaultMinCores: 1,
         defaultMaxCores: 4,
-        semester: semester || undefined
+        semester: semester.toUpperCase()
       };
       offlineShows.push(newShow);
       return NextResponse.json({ success: true, show: newShow });
     }
 
-    const result = await createShow(name);
+    const result = await createShow(fullName);
     
     // Set semester metadata if provided
-    if (semester && result.show?.id) {
+    if (result.show?.id) {
       try {
         await setShowSemester(result.show.id, semester);
-        result.show.semester = semester;
+        result.show.semester = semester.toUpperCase();
       } catch (metaError) {
         console.warn("Failed to set semester metadata:", metaError);
         // Show was created, just without semester
