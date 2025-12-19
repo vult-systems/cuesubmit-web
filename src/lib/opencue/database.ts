@@ -43,8 +43,8 @@ export async function getShowJobHistoryStats(showId: string): Promise<ShowJobHis
 
 /**
  * Force delete a show by clearing all dependencies first.
- * This removes job_history, subscriptions, and the show itself.
- * WARNING: This permanently deletes all historical data for the show.
+ * This removes ALL data associated with the show including jobs, layers, frames, history, etc.
+ * WARNING: This permanently deletes all data for the show.
  */
 export async function forceDeleteShow(showId: string): Promise<{ 
   success: boolean; 
@@ -56,12 +56,68 @@ export async function forceDeleteShow(showId: string): Promise<{
   try {
     await client.query('BEGIN');
 
-    // Delete job history (frame_history and layer_history cascade automatically)
-    const jobResult = await client.query(
+    // Get all job IDs for this show
+    const jobsResult = await client.query(
+      'SELECT pk_job FROM job WHERE pk_show = $1',
+      [showId]
+    );
+    const jobIds = jobsResult.rows.map(r => r.pk_job);
+
+    // Get all layer IDs for jobs in this show
+    let layerIds: string[] = [];
+    if (jobIds.length > 0) {
+      const layersResult = await client.query(
+        'SELECT pk_layer FROM layer WHERE pk_job = ANY($1)',
+        [jobIds]
+      );
+      layerIds = layersResult.rows.map(r => r.pk_layer);
+    }
+
+    // Delete layer_history and frame_history first (to avoid trigger issues)
+    if (jobIds.length > 0) {
+      await client.query('DELETE FROM layer_history WHERE pk_job = ANY($1)', [jobIds]);
+      await client.query('DELETE FROM frame_history WHERE pk_job = ANY($1)', [jobIds]);
+    }
+
+    // Delete layer-related data
+    if (layerIds.length > 0) {
+      await client.query('DELETE FROM layer_stat WHERE pk_layer = ANY($1)', [layerIds]);
+      await client.query('DELETE FROM layer_env WHERE pk_layer = ANY($1)', [layerIds]);
+      await client.query('DELETE FROM layer_limit WHERE pk_layer = ANY($1)', [layerIds]);
+      await client.query('DELETE FROM layer_output WHERE pk_layer = ANY($1)', [layerIds]);
+      await client.query('DELETE FROM layer_resource WHERE pk_layer = ANY($1)', [layerIds]);
+      await client.query('DELETE FROM layer_usage WHERE pk_layer = ANY($1)', [layerIds]);
+      await client.query('DELETE FROM layer_mem WHERE pk_layer = ANY($1)', [layerIds]);
+      await client.query('DELETE FROM frame WHERE pk_layer = ANY($1)', [layerIds]);
+      await client.query('DELETE FROM layer WHERE pk_layer = ANY($1)', [layerIds]);
+    }
+
+    // Delete job-related data
+    if (jobIds.length > 0) {
+      await client.query('DELETE FROM job_stat WHERE pk_job = ANY($1)', [jobIds]);
+      await client.query('DELETE FROM job_env WHERE pk_job = ANY($1)', [jobIds]);
+      await client.query('DELETE FROM job_resource WHERE pk_job = ANY($1)', [jobIds]);
+      await client.query('DELETE FROM job_usage WHERE pk_job = ANY($1)', [jobIds]);
+      await client.query('DELETE FROM job_mem WHERE pk_job = ANY($1)', [jobIds]);
+      await client.query('DELETE FROM job_post WHERE pk_job = ANY($1)', [jobIds]);
+      await client.query('DELETE FROM depend WHERE pk_job_depend_on = ANY($1) OR pk_job_depend_er = ANY($1)', [jobIds]);
+      await client.query('DELETE FROM job WHERE pk_job = ANY($1)', [jobIds]);
+    }
+
+    // Delete job_history
+    const jobHistoryResult = await client.query(
       'DELETE FROM job_history WHERE pk_show = $1',
       [showId]
     );
-    const deletedJobs = jobResult.rowCount || 0;
+    const deletedJobs = (jobHistoryResult.rowCount || 0) + jobIds.length;
+
+    // Delete show-level dependencies
+    await client.query('DELETE FROM folder WHERE pk_show = $1', [showId]);
+    await client.query('DELETE FROM filter WHERE pk_show = $1', [showId]);
+    await client.query('DELETE FROM point WHERE pk_show = $1', [showId]);
+    await client.query('DELETE FROM owner WHERE pk_show = $1', [showId]);
+    await client.query('DELETE FROM show_service WHERE pk_show = $1', [showId]);
+    await client.query('DELETE FROM show_alias WHERE pk_show = $1', [showId]);
 
     // Delete subscriptions
     const subResult = await client.query(
@@ -69,6 +125,9 @@ export async function forceDeleteShow(showId: string): Promise<{
       [showId]
     );
     const deletedSubscriptions = subResult.rowCount || 0;
+
+    // Delete show metadata
+    await client.query('DELETE FROM show_metadata WHERE pk_show = $1', [showId]);
 
     // Delete the show itself
     const showResult = await client.query(
