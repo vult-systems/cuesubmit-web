@@ -3,6 +3,34 @@ import { getCurrentUser } from "@/lib/auth/session";
 import fs from "fs/promises";
 import path from "path";
 
+// Path translation between UNC and Linux mount
+const LINUX_PATH = process.env.RENDER_REPO_PATH || "/mnt/RenderOutputRepo";
+const UNC_PATH = process.env.RENDER_REPO_UNC || "\\\\REDACTED_IP\\RenderOutputRepo";
+
+// Convert UNC path to Linux path for filesystem access
+function uncToLinux(uncPath: string): string {
+  // Normalize backslashes and remove trailing slashes
+  const normalized = uncPath.replace(/\\/g, "/").replace(/\/+$/, "");
+  const uncNormalized = UNC_PATH.replace(/\\/g, "/");
+  
+  if (normalized.startsWith(uncNormalized)) {
+    return normalized.replace(uncNormalized, LINUX_PATH);
+  }
+  // Already a Linux path
+  if (normalized.startsWith(LINUX_PATH)) {
+    return normalized;
+  }
+  return normalized;
+}
+
+// Convert Linux path back to UNC for display
+function linuxToUnc(linuxPath: string): string {
+  if (linuxPath.startsWith(LINUX_PATH)) {
+    return linuxPath.replace(LINUX_PATH, UNC_PATH).replace(/\//g, "\\");
+  }
+  return linuxPath;
+}
+
 export async function GET(request: Request) {
   try {
     const user = await getCurrentUser();
@@ -11,25 +39,29 @@ export async function GET(request: Request) {
     }
 
     const { searchParams } = new URL(request.url);
-    const dirPath = searchParams.get("path") || "\\\\REDACTED_IP\\RenderOutputRepo";
+    const requestedPath = searchParams.get("path") || UNC_PATH;
 
-    // Security: Ensure path starts with allowed base path
-    const basePath = "\\\\REDACTED_IP\\RenderOutputRepo";
-    if (!dirPath.startsWith(basePath) && dirPath !== basePath) {
+    // Convert to Linux path for filesystem access
+    const linuxPath = uncToLinux(requestedPath);
+
+    // Security: Ensure path is within allowed base path
+    if (!linuxPath.startsWith(LINUX_PATH)) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
-    const entries = await fs.readdir(dirPath, { withFileTypes: true });
+    const entries = await fs.readdir(linuxPath, { withFileTypes: true });
     
     const items = entries
       .filter(entry => !entry.name.startsWith(".")) // Hide hidden files
-      .map(entry => ({
-        name: entry.name,
-        path: path.join(dirPath, entry.name),
-        isDirectory: entry.isDirectory(),
-        // Get extension for files
-        extension: entry.isFile() ? path.extname(entry.name).toLowerCase() : null,
-      }))
+      .map(entry => {
+        const itemLinuxPath = path.posix.join(linuxPath, entry.name);
+        return {
+          name: entry.name,
+          path: linuxToUnc(itemLinuxPath), // Return UNC path for display
+          isDirectory: entry.isDirectory(),
+          extension: entry.isFile() ? path.extname(entry.name).toLowerCase() : null,
+        };
+      })
       .sort((a, b) => {
         // Directories first, then files
         if (a.isDirectory && !b.isDirectory) return -1;
@@ -37,9 +69,13 @@ export async function GET(request: Request) {
         return a.name.localeCompare(b.name);
       });
 
+    // Calculate parent path
+    const parentLinuxPath = linuxPath !== LINUX_PATH ? path.posix.dirname(linuxPath) : null;
+    const parentUncPath = parentLinuxPath ? linuxToUnc(parentLinuxPath) : null;
+
     return NextResponse.json({
-      currentPath: dirPath,
-      parentPath: dirPath !== basePath ? path.dirname(dirPath) : null,
+      currentPath: linuxToUnc(linuxPath),
+      parentPath: parentUncPath,
       items,
     });
   } catch (error) {
