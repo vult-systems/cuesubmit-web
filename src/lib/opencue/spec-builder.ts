@@ -40,7 +40,7 @@ export function buildJobSpec(spec: JobSpec): string {
     .map((layer) => {
       const servicesXml = layer.services?.length
         ? `<services>${layer.services.map((s) => `<service>${escapeXml(s)}</service>`).join("")}</services>`
-        : "<services><service>default</service></services>";
+        : "<services><service>maya</service></services>";
 
       const envXml = layer.env
         ? `<env>${Object.entries(layer.env)
