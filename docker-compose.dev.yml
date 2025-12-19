@@ -25,3 +25,4 @@ services:
 volumes:
   cuesubmit-data:
     external: true
+    name: cuesubmit-web_cuesubmit-data
