@@ -575,7 +575,7 @@ export default function ShowsPage() {
           <DialogHeader>
             <DialogTitle className="text-lg font-semibold text-text-primary">Delete Show</DialogTitle>
             <DialogDescription className="text-text-muted text-sm">
-              Permanently delete &quot;{showToDelete?.name}&quot;? This cannot be undone.
+              Permanently delete &quot;{showToDelete?.name}&quot;? This will also remove any associated subscriptions. This cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2 pt-4">
