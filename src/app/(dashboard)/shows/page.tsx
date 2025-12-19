@@ -802,12 +802,12 @@ export default function ShowsPage() {
               <Label htmlFor="editSemester" className="text-text-muted text-xs font-medium">
                 Semester
               </Label>
-              <Select value={editSemester} onValueChange={setEditSemester}>
+              <Select value={editSemester || "none"} onValueChange={(v) => setEditSemester(v === "none" ? "" : v)}>
                 <SelectTrigger className="h-8 text-xs bg-white dark:bg-white/3 border-neutral-200 dark:border-white/8 focus:border-neutral-400 dark:focus:border-white/20 rounded-lg">
                   <SelectValue placeholder="Select semester..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="" className="text-xs text-text-muted">
+                  <SelectItem value="none" className="text-xs text-text-muted">
                     No semester assigned
                   </SelectItem>
                   {SEMESTER_OPTIONS.map((opt) => (
