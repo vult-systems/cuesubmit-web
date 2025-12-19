@@ -87,6 +87,8 @@ export default function ShowsPage() {
   const [showToDelete, setShowToDelete] = useState<Show | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteSubscriptionCount, setDeleteSubscriptionCount] = useState<number | null>(null);
+  const [deleteJobCount, setDeleteJobCount] = useState<number | null>(null);
+  const [forceDelete, setForceDelete] = useState(false);
   
   // Settings dialog state
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
@@ -191,14 +193,21 @@ export default function ShowsPage() {
     if (!showToDelete) return;
     setDeleting(true);
     try {
-      const response = await fetch(`/api/shows/${showToDelete.id}`, {
+      const url = forceDelete 
+        ? `/api/shows/${showToDelete.id}?force=true`
+        : `/api/shows/${showToDelete.id}`;
+      const response = await fetch(url, {
         method: "DELETE",
       });
       const data = await response.json();
       if (response.ok) {
-        toast.success("Show deleted successfully");
+        const message = forceDelete && data.deletedJobs > 0
+          ? `Show deleted successfully (${data.deletedJobs} job records removed)`
+          : "Show deleted successfully";
+        toast.success(message);
         setDeleteDialogOpen(false);
         setShowToDelete(null);
+        setForceDelete(false);
         fetchShows();
       } else {
         toast.error(data.error || "Failed to delete show");
@@ -239,16 +248,29 @@ export default function ShowsPage() {
   const openDeleteDialog = async (show: Show) => {
     setShowToDelete(show);
     setDeleteSubscriptionCount(null);
+    setDeleteJobCount(null);
+    setForceDelete(false);
     setDeleteDialogOpen(true);
-    // Fetch subscription count for the show
+    
+    // Fetch stats for the show (subscriptions and job history)
     try {
-      const response = await fetch(`/api/shows/${show.id}/subscriptions`);
-      const data = await response.json();
-      if (response.ok) {
-        setDeleteSubscriptionCount(data.subscriptions?.length || 0);
+      const [subsResponse, statsResponse] = await Promise.all([
+        fetch(`/api/shows/${show.id}/subscriptions`),
+        fetch(`/api/shows/${show.id}/stats`),
+      ]);
+      
+      if (subsResponse.ok) {
+        const subsData = await subsResponse.json();
+        setDeleteSubscriptionCount(subsData.subscriptions?.length || 0);
+      }
+      
+      if (statsResponse.ok) {
+        const statsData = await statsResponse.json();
+        setDeleteJobCount(statsData.jobCount || 0);
       }
     } catch {
       setDeleteSubscriptionCount(0);
+      setDeleteJobCount(0);
     }
   };
 
@@ -618,7 +640,10 @@ export default function ShowsPage() {
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      <Dialog open={deleteDialogOpen} onOpenChange={(open) => {
+        setDeleteDialogOpen(open);
+        if (!open) setForceDelete(false);
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="text-lg font-semibold text-text-primary">Delete Show</DialogTitle>
@@ -627,30 +652,66 @@ export default function ShowsPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
+            {/* Stats loading */}
+            {(deleteSubscriptionCount === null || deleteJobCount === null) && (
+              <div className="text-xs text-text-muted py-1">Loading show data...</div>
+            )}
+            
+            {/* Subscription warning */}
             {deleteSubscriptionCount !== null && deleteSubscriptionCount > 0 && (
               <div className="text-xs bg-amber-500/10 text-amber-600 dark:text-amber-400 px-3 py-2 rounded-lg border border-amber-500/20">
-                ⚠️ This show has {deleteSubscriptionCount} subscription{deleteSubscriptionCount !== 1 ? 's' : ''} that will also be deleted.
+                ⚠️ This show has {deleteSubscriptionCount} subscription{deleteSubscriptionCount !== 1 ? 's' : ''} that will be deleted.
               </div>
             )}
-            <div className="text-xs text-text-muted bg-surface-muted px-3 py-2 rounded-lg">
-              <strong>Note:</strong> Shows with job history cannot be deleted. If deletion fails, try deactivating the show instead.
-            </div>
+            
+            {/* Job history warning */}
+            {deleteJobCount !== null && deleteJobCount > 0 && (
+              <div className="text-xs bg-red-500/10 text-red-600 dark:text-red-400 px-3 py-2 rounded-lg border border-red-500/20">
+                🗄️ This show has <strong>{deleteJobCount}</strong> job{deleteJobCount !== 1 ? 's' : ''} in history.
+                {!forceDelete && " Enable Force Delete to remove all job history."}
+              </div>
+            )}
+            
+            {/* Force delete option - only show if there's job history */}
+            {deleteJobCount !== null && deleteJobCount > 0 && (
+              <label className="flex items-center gap-2 text-xs cursor-pointer select-none bg-surface-muted px-3 py-2.5 rounded-lg border border-neutral-200 dark:border-white/10 hover:border-red-500/30 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={forceDelete}
+                  onChange={(e) => setForceDelete(e.target.checked)}
+                  className="rounded border-neutral-300 text-red-600 focus:ring-red-500"
+                />
+                <span className="text-text-secondary">
+                  <strong className="text-red-600 dark:text-red-400">Force Delete</strong> — permanently remove all {deleteJobCount} job record{deleteJobCount !== 1 ? 's' : ''} and subscriptions
+                </span>
+              </label>
+            )}
+            
+            {/* Info note when no job history */}
+            {deleteJobCount !== null && deleteJobCount === 0 && (
+              <div className="text-xs text-text-muted bg-surface-muted px-3 py-2 rounded-lg">
+                ✓ No job history found. This show can be safely deleted.
+              </div>
+            )}
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button
               variant="ghost"
-              onClick={() => setDeleteDialogOpen(false)}
+              onClick={() => {
+                setDeleteDialogOpen(false);
+                setForceDelete(false);
+              }}
               className="h-8 px-4 text-xs rounded-lg transition-all duration-300"
             >
               Cancel
             </Button>
             <Button
               onClick={handleDelete}
-              disabled={deleting}
+              disabled={deleting || (deleteJobCount !== null && deleteJobCount > 0 && !forceDelete)}
               variant="destructive"
               className="h-8 px-4 text-xs font-medium rounded-lg transition-all duration-300"
             >
-              {deleting ? "Deleting..." : "Delete Show"}
+              {deleting ? "Deleting..." : forceDelete ? "Force Delete" : "Delete Show"}
             </Button>
           </div>
         </DialogContent>

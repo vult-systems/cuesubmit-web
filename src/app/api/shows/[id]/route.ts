@@ -9,6 +9,7 @@ import {
   getShowSubscriptions,
   deleteSubscription,
 } from "@/lib/opencue/gateway-client";
+import { forceDeleteShow } from "@/lib/opencue/database";
 import { config } from "@/lib/config";
 import { getOfflineShows, setOfflineShows } from "../route";
 
@@ -160,6 +161,10 @@ export async function DELETE(
     }
 
     const { id } = await params;
+    
+    // Check for force delete parameter
+    const url = new URL(request.url);
+    const forceDelete = url.searchParams.get("force") === "true";
 
     // Handle offline mode
     if (config.mode === "offline") {
@@ -178,7 +183,27 @@ export async function DELETE(
       return NextResponse.json({ success: true });
     }
 
-    // In online mode, first delete all subscriptions, then delete the show
+    // Force delete - directly delete from database including job history
+    if (forceDelete) {
+      console.log(`Force deleting show ${id} including job history...`);
+      const result = await forceDeleteShow(id);
+      
+      if (result.success) {
+        console.log(`Force deleted show ${id}: ${result.deletedJobs} jobs, ${result.deletedSubscriptions} subscriptions`);
+        return NextResponse.json({ 
+          success: true,
+          deletedJobs: result.deletedJobs,
+          deletedSubscriptions: result.deletedSubscriptions,
+        });
+      } else {
+        return NextResponse.json(
+          { error: result.error || "Force delete failed" },
+          { status: 500 }
+        );
+      }
+    }
+
+    // Normal delete - first delete all subscriptions via API, then delete the show
     try {
       // Get all subscriptions for this show
       const subscriptionsResponse = await getShowSubscriptions(id);
