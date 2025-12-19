@@ -202,6 +202,16 @@ export async function DELETE(
       return NextResponse.json({ success: true });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
+      const details = (error as { details?: string })?.details || "";
+      
+      // Check for job history constraint - show has had jobs run
+      if (details.includes("job_history") || message.includes("job_history")) {
+        return NextResponse.json(
+          { error: "Cannot delete show: this show has job history. Shows with historical data can only be deactivated, not deleted." },
+          { status: 400 }
+        );
+      }
+      
       // If the show has had jobs, OpenCue will reject the deletion
       if (message.includes("jobs") || message.includes("launched")) {
         return NextResponse.json(
