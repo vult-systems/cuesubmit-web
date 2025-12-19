@@ -9,8 +9,11 @@ const UNC_PATH = process.env.RENDER_REPO_UNC || "\\\\REDACTED_IP\\RenderOutputRe
 
 // Convert UNC path to Linux path for filesystem access
 function uncToLinux(uncPath: string): string {
+  // Decode URI components first
+  let decoded = decodeURIComponent(uncPath);
+  
   // Normalize backslashes and remove trailing slashes
-  const normalized = uncPath.replace(/\\/g, "/").replace(/\/+$/, "");
+  const normalized = decoded.replace(/\\/g, "/").replace(/\/+$/, "");
   const uncNormalized = UNC_PATH.replace(/\\/g, "/");
   
   if (normalized.startsWith(uncNormalized)) {
@@ -19,6 +22,10 @@ function uncToLinux(uncPath: string): string {
   // Already a Linux path
   if (normalized.startsWith(LINUX_PATH)) {
     return normalized;
+  }
+  // Handle case where path starts with just the share name without full UNC
+  if (normalized.startsWith("//REDACTED_IP/RenderOutputRepo")) {
+    return normalized.replace("//REDACTED_IP/RenderOutputRepo", LINUX_PATH);
   }
   return normalized;
 }
@@ -45,7 +52,11 @@ export async function GET(request: Request) {
     const linuxPath = uncToLinux(requestedPath);
 
     // Security: Ensure path is within allowed base path
-    if (!linuxPath.startsWith(LINUX_PATH)) {
+    // Also normalize the base path comparison
+    const normalizedLinux = linuxPath.replace(/\/+$/, "");
+    const normalizedBase = LINUX_PATH.replace(/\/+$/, "");
+    if (!normalizedLinux.startsWith(normalizedBase)) {
+      console.error("Access denied - path:", requestedPath, "-> linux:", linuxPath);
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
