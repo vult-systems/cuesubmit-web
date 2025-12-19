@@ -50,7 +50,7 @@ launcher/zig-out/
 launcher/logs/
 
 # Reference content
-opencue/
+/opencue/
 logs/
 launcher/.zig-cache/
 launcher/Queue.app/
