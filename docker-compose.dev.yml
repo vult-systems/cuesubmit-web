@@ -18,9 +18,10 @@ services:
       - .:/app
       - /app/node_modules
       - /app/.next
-      - cuesubmit-dev-data:/app/data
+      - cuesubmit-data:/app/data
     # Required for native modules like bcrypt and better-sqlite3
     platform: linux/amd64
 
 volumes:
-  cuesubmit-dev-data:
+  cuesubmit-data:
+    external: true
