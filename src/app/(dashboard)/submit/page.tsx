@@ -15,9 +15,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { RotateCcw, Loader2, Send } from "lucide-react";
+import { RotateCcw, Loader2, Send, FolderOpen } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { FileBrowserDialog } from "@/components/file-browser-dialog";
 
 // Department display mappings
 const departmentLabels: Record<string, string> = {
@@ -264,6 +265,8 @@ export default function SubmitPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [shows, setShows] = useState<Show[]>([]);
   const [manualFrameName, setManualFrameName] = useState(false);
+  const [sceneFileBrowserOpen, setSceneFileBrowserOpen] = useState(false);
+  const [outputPathBrowserOpen, setOutputPathBrowserOpen] = useState(false);
 
   const {
     register,
@@ -765,19 +768,41 @@ export default function SubmitPage() {
             <div className="grid grid-cols-6 gap-3">
               <div className="col-span-3 space-y-1">
                 <FieldLabel required accent="warm">Scene File</FieldLabel>
-                <Input
-                  {...register("sceneFile")}
-                  placeholder="\\REDACTED_IP\RenderOutputRepo\project\scene.ma"
-                  className="font-mono text-xs"
-                />
+                <div className="flex gap-1">
+                  <Input
+                    {...register("sceneFile")}
+                    placeholder="\\REDACTED_IP\RenderOutputRepo\project\scene.ma"
+                    className="font-mono text-xs"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setSceneFileBrowserOpen(true)}
+                    className="h-9 w-9 shrink-0 border border-neutral-200 dark:border-white/8 hover:bg-neutral-100 dark:hover:bg-white/5"
+                  >
+                    <FolderOpen className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
               <div className="col-span-3 space-y-1">
                 <FieldLabel required accent="warm">Output Directory</FieldLabel>
-                <Input
-                  {...register("outputPath")}
-                  placeholder="\\REDACTED_IP\RenderOutputRepo\project\renders\"
-                  className="font-mono text-xs"
-                />
+                <div className="flex gap-1">
+                  <Input
+                    {...register("outputPath")}
+                    placeholder="\\REDACTED_IP\RenderOutputRepo\project\renders\\"
+                    className="font-mono text-xs"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setOutputPathBrowserOpen(true)}
+                    className="h-9 w-9 shrink-0 border border-neutral-200 dark:border-white/8 hover:bg-neutral-100 dark:hover:bg-white/5"
+                  >
+                    <FolderOpen className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -929,6 +954,23 @@ export default function SubmitPage() {
           </div>
         </div>
       </div>
+
+      {/* File Browser Dialogs */}
+      <FileBrowserDialog
+        open={sceneFileBrowserOpen}
+        onOpenChange={setSceneFileBrowserOpen}
+        onSelect={(path) => setValue("sceneFile", path)}
+        mode="file"
+        title="Select Scene File"
+        fileExtensions={[".ma", ".mb", ".hip", ".hipnc", ".hiplc"]}
+      />
+      <FileBrowserDialog
+        open={outputPathBrowserOpen}
+        onOpenChange={setOutputPathBrowserOpen}
+        onSelect={(path) => setValue("outputPath", path)}
+        mode="directory"
+        title="Select Output Directory"
+      />
     </div>
   );
 }
