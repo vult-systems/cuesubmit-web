@@ -121,3 +121,63 @@ export async function testDatabaseConnection(): Promise<boolean> {
     return false;
   }
 }
+
+// ============================================================================
+// Show Metadata (semester, etc.)
+// ============================================================================
+
+/**
+ * Get semester for a show
+ */
+export async function getShowSemester(showId: string): Promise<string | null> {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      'SELECT semester FROM show_metadata WHERE pk_show = $1',
+      [showId]
+    );
+    return result.rows[0]?.semester || null;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Set semester for a show (upsert)
+ */
+export async function setShowSemester(showId: string, semester: string | null): Promise<void> {
+  const client = await pool.connect();
+  try {
+    if (semester) {
+      await client.query(
+        `INSERT INTO show_metadata (pk_show, semester) VALUES ($1, $2)
+         ON CONFLICT (pk_show) DO UPDATE SET semester = $2`,
+        [showId, semester.toUpperCase()]
+      );
+    } else {
+      await client.query(
+        'DELETE FROM show_metadata WHERE pk_show = $1',
+        [showId]
+      );
+    }
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Get all show metadata (semester mapping)
+ */
+export async function getAllShowMetadata(): Promise<Map<string, { semester: string | null }>> {
+  const client = await pool.connect();
+  try {
+    const result = await client.query('SELECT pk_show, semester FROM show_metadata');
+    const map = new Map<string, { semester: string | null }>();
+    for (const row of result.rows) {
+      map.set(row.pk_show, { semester: row.semester });
+    }
+    return map;
+  } finally {
+    client.release();
+  }
+}

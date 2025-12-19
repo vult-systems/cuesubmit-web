@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/auth/permissions";
 import { getActiveShows, getShows, createShow, type Show } from "@/lib/opencue/gateway-client";
+import { getAllShowMetadata, setShowSemester } from "@/lib/opencue/database";
 import { config } from "@/lib/config";
 import { SHOWS } from "@/lib/mock-data";
 
@@ -55,6 +56,21 @@ export async function GET(request: Request) {
 
     // Gateway returns { shows: { shows: [...] } }
     const shows = extractShows(result.shows);
+    
+    // Enrich with semester metadata from local database
+    try {
+      const metadata = await getAllShowMetadata();
+      for (const show of shows) {
+        const meta = metadata.get(show.id);
+        if (meta) {
+          show.semester = meta.semester || undefined;
+        }
+      }
+    } catch (metaError) {
+      console.warn("Failed to fetch show metadata:", metaError);
+      // Continue without metadata - shows still work
+    }
+    
     return NextResponse.json({ shows });
   } catch (error) {
     console.error("Failed to fetch shows:", error);
@@ -81,7 +97,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { name } = body;
+    const { name, semester } = body;
 
     if (!name || typeof name !== "string") {
       return NextResponse.json(
@@ -105,13 +121,26 @@ export async function POST(request: Request) {
         name: name.trim(),
         active: true,
         defaultMinCores: 1,
-        defaultMaxCores: 4
+        defaultMaxCores: 4,
+        semester: semester || undefined
       };
       offlineShows.push(newShow);
       return NextResponse.json({ success: true, show: newShow });
     }
 
     const result = await createShow(name);
+    
+    // Set semester metadata if provided
+    if (semester && result.show?.id) {
+      try {
+        await setShowSemester(result.show.id, semester);
+        result.show.semester = semester;
+      } catch (metaError) {
+        console.warn("Failed to set semester metadata:", metaError);
+        // Show was created, just without semester
+      }
+    }
+    
     return NextResponse.json({ success: true, show: result.show });
   } catch (error) {
     console.error("Failed to create show:", error);
