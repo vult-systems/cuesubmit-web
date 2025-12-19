@@ -5,6 +5,7 @@ import {
   setShowActive,
   setShowDefaultMinCores,
   setShowDefaultMaxCores,
+  deleteShow,
 } from "@/lib/opencue/gateway-client";
 import { config } from "@/lib/config";
 import { getOfflineShows, setOfflineShows } from "../route";
@@ -175,12 +176,22 @@ export async function DELETE(
       return NextResponse.json({ success: true });
     }
 
-    // In online mode, we typically wouldn't actually delete shows
-    // as OpenCue doesn't support show deletion - just deactivate
-    return NextResponse.json(
-      { error: "Show deletion is not supported in online mode. Use deactivate instead." },
-      { status: 400 }
-    );
+    // In online mode, call the OpenCue Delete API
+    // Note: OpenCue only allows deletion of shows that have never had jobs launched
+    try {
+      await deleteShow(id);
+      return NextResponse.json({ success: true });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      // If the show has had jobs, OpenCue will reject the deletion
+      if (message.includes("jobs") || message.includes("launched")) {
+        return NextResponse.json(
+          { error: "Cannot delete show: jobs have been launched for this show. Use deactivate instead." },
+          { status: 400 }
+        );
+      }
+      throw error;
+    }
   } catch (error) {
     console.error("Show deletion failed:", error);
     return NextResponse.json(

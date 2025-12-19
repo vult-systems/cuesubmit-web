@@ -315,3 +315,10 @@ export async function setShowDefaultMaxCores(showId: string, maxCores: number): 
     max_cores: maxCores
   });
 }
+
+export async function deleteShow(showId: string): Promise<void> {
+  // Note: OpenCue only allows deletion of shows that have never had jobs launched
+  await gatewayCall('show.ShowInterface', 'Delete', {
+    show: { id: showId }
+  });
+}
