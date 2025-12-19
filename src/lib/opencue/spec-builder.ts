@@ -18,6 +18,7 @@ export interface JobSpec {
   user: string;
   priority?: number;
   maxRetries?: number;
+  paused?: boolean;
   layers: LayerSpec[];
 }
 
@@ -33,6 +34,7 @@ function escapeXml(str: string): string {
 export function buildJobSpec(spec: JobSpec): string {
   const priority = spec.priority ?? 100;
   const maxRetries = spec.maxRetries ?? 3;
+  const paused = spec.paused ?? false;
 
   const layersXml = spec.layers
     .map((layer) => {
@@ -57,22 +59,21 @@ export function buildJobSpec(spec: JobSpec): string {
     })
     .join("");
 
+  // OpenCue job spec format - job is directly under spec, not wrapped in <jobs>
   return `<?xml version="1.0"?>
-<!DOCTYPE spec PUBLIC "SPI Cue  Spec Language" "http://localhost:8080/spcue/dtd/cjsl-1.8.dtd">
 <spec>
   <facility>local</facility>
   <show>${escapeXml(spec.show)}</show>
   <shot>${escapeXml(spec.shot)}</shot>
   <user>${escapeXml(spec.user)}</user>
-  <jobs>
-    <job name="${escapeXml(spec.name)}">
-      <paused>false</paused>
-      <priority>${priority}</priority>
-      <maxretries>${maxRetries}</maxretries>
-      <layers>${layersXml}
-      </layers>
-    </job>
-  </jobs>
+  <job name="${escapeXml(spec.name)}">
+    <paused>${paused}</paused>
+    <priority>${priority}</priority>
+    <maxretries>${maxRetries}</maxretries>
+    <autoeat>false</autoeat>
+    <layers>${layersXml}
+    </layers>
+  </job>
 </spec>`;
 }
 
