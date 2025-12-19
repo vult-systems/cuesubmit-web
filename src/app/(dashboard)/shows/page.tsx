@@ -86,6 +86,7 @@ export default function ShowsPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [showToDelete, setShowToDelete] = useState<Show | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [deleteSubscriptionCount, setDeleteSubscriptionCount] = useState<number | null>(null);
   
   // Settings dialog state
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
@@ -235,9 +236,20 @@ export default function ShowsPage() {
     setRenameDialogOpen(true);
   };
 
-  const openDeleteDialog = (show: Show) => {
+  const openDeleteDialog = async (show: Show) => {
     setShowToDelete(show);
+    setDeleteSubscriptionCount(null);
     setDeleteDialogOpen(true);
+    // Fetch subscription count for the show
+    try {
+      const response = await fetch(`/api/shows/${show.id}/subscriptions`);
+      const data = await response.json();
+      if (response.ok) {
+        setDeleteSubscriptionCount(data.subscriptions?.length || 0);
+      }
+    } catch {
+      setDeleteSubscriptionCount(0);
+    }
   };
 
   const fetchSubscriptions = async (showId: string) => {
@@ -611,10 +623,20 @@ export default function ShowsPage() {
           <DialogHeader>
             <DialogTitle className="text-lg font-semibold text-text-primary">Delete Show</DialogTitle>
             <DialogDescription className="text-text-muted text-sm">
-              Permanently delete &quot;{showToDelete?.name}&quot;? This will also remove any associated subscriptions. This cannot be undone.
+              Permanently delete &quot;{showToDelete?.name}&quot;? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex justify-end gap-2 pt-4">
+          <div className="space-y-3 py-2">
+            {deleteSubscriptionCount !== null && deleteSubscriptionCount > 0 && (
+              <div className="text-xs bg-amber-500/10 text-amber-600 dark:text-amber-400 px-3 py-2 rounded-lg border border-amber-500/20">
+                ⚠️ This show has {deleteSubscriptionCount} subscription{deleteSubscriptionCount !== 1 ? 's' : ''} that will also be deleted.
+              </div>
+            )}
+            <div className="text-xs text-text-muted bg-surface-muted px-3 py-2 rounded-lg">
+              <strong>Note:</strong> Shows with job history cannot be deleted. If deletion fails, try deactivating the show instead.
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
             <Button
               variant="ghost"
               onClick={() => setDeleteDialogOpen(false)}
