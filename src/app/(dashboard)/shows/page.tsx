@@ -55,6 +55,18 @@ interface Show {
   semester?: string; // e.g., "F25", "S26"
 }
 
+interface Subscription {
+  id: string;
+  name: string;
+  showName: string;
+  facility: string;
+  allocationName: string;
+  size: number;
+  burst: number;
+  reservedCores: number;
+  reservedGpus: number;
+}
+
 export default function ShowsPage() {
   const [shows, setShows] = useState<Show[]>([]);
   const [loading, setLoading] = useState(true);
@@ -81,6 +93,10 @@ export default function ShowsPage() {
   const [minCores, setMinCores] = useState(1);
   const [maxCores, setMaxCores] = useState(4);
   const [savingSettings, setSavingSettings] = useState(false);
+  
+  // Subscriptions state
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [loadingSubscriptions, setLoadingSubscriptions] = useState(false);
 
   const fetchShows = useCallback(async () => {
     try {
@@ -224,11 +240,31 @@ export default function ShowsPage() {
     setDeleteDialogOpen(true);
   };
 
+  const fetchSubscriptions = async (showId: string) => {
+    setLoadingSubscriptions(true);
+    try {
+      const response = await fetch(`/api/shows/${showId}/subscriptions`);
+      const data = await response.json();
+      if (response.ok) {
+        setSubscriptions(data.subscriptions || []);
+      } else {
+        setSubscriptions([]);
+      }
+    } catch (error) {
+      console.error("Failed to fetch subscriptions:", error);
+      setSubscriptions([]);
+    } finally {
+      setLoadingSubscriptions(false);
+    }
+  };
+
   const openSettingsDialog = (show: Show) => {
     setShowToEdit(show);
     setMinCores(show.defaultMinCores);
     setMaxCores(show.defaultMaxCores);
+    setSubscriptions([]);
     setSettingsDialogOpen(true);
+    fetchSubscriptions(show.id);
   };
 
   // Filter shows
@@ -600,7 +636,7 @@ export default function ShowsPage() {
 
       {/* Settings Dialog */}
       <Dialog open={settingsDialogOpen} onOpenChange={setSettingsDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-lg font-semibold text-text-primary">Show Settings</DialogTitle>
             <DialogDescription className="text-text-muted text-sm">
@@ -634,6 +670,33 @@ export default function ShowsPage() {
                 className="h-8 text-xs bg-white dark:bg-white/3 border-neutral-200 dark:border-white/8 focus:border-neutral-400 dark:focus:border-white/20 focus:bg-neutral-50 dark:focus:bg-white/5 rounded-lg transition-all duration-300"
               />
             </div>
+            
+            {/* Subscriptions Section */}
+            <div className="space-y-2 pt-2 border-t border-neutral-200 dark:border-white/8">
+              <Label className="text-text-muted text-xs font-medium">
+                Subscriptions ({loadingSubscriptions ? "..." : subscriptions.length})
+              </Label>
+              {loadingSubscriptions ? (
+                <div className="text-xs text-text-muted py-2">Loading subscriptions...</div>
+              ) : subscriptions.length === 0 ? (
+                <div className="text-xs text-text-muted py-2">No subscriptions for this show.</div>
+              ) : (
+                <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                  {subscriptions.map((sub) => (
+                    <div
+                      key={sub.id}
+                      className="flex items-center justify-between text-xs bg-surface-muted px-2 py-1.5 rounded"
+                    >
+                      <span className="text-text-secondary font-medium">{sub.allocationName}</span>
+                      <span className="text-text-muted">
+                        Size: {sub.size} / Burst: {sub.burst}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            
             <div className="flex justify-end gap-2 pt-2">
               <Button
                 variant="ghost"
