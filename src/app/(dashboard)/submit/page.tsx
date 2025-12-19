@@ -124,8 +124,8 @@ const defaultValues: FormData = {
   renderer: "arnold",
   version: "2026",
   projectPath: "",
-  sceneFile: "",
-  outputPath: "",
+  sceneFile: "\\\\REDACTED_IP\\RenderOutputRepo\\",
+  outputPath: "\\\\REDACTED_IP\\RenderOutputRepo\\",
   renderLayer: "defaultRenderLayer",
   camera: "persp",
   imageFormat: "exr",
@@ -140,29 +140,21 @@ const defaultValues: FormData = {
 };
 
 // Generate job name from form data
+// Format: Show_Subject_Output (e.g., "4450_SrThesisWorkshop_S26_hero_sword_Still")
 function generateJobName(data: {
-  projectCode: string;
-  scope: string;
-  department: string;
+  show: string;
   subject: string;
   renderType: string;
 }): string {
-  if (!data.projectCode || !data.scope || !data.department || !data.subject || !data.renderType) {
+  if (!data.show || !data.subject || !data.renderType) {
     return "";
   }
 
-  // Context: ProjectCode-Scope-Department (e.g., "DRN-Asset-Model", "DRN-Shot-Anim")
-  const scopeLabel = data.scope.charAt(0).toUpperCase() + data.scope.slice(1);
-  const deptLabel = departmentLabels[data.department] || data.department;
-  const context = `${data.projectCode}-${scopeLabel}-${deptLabel}`;
-
-  // Subject: Human-readable name (already provided)
-  const subject = data.subject;
-
-  // Output: Render type
+  // Sanitize subject: remove spaces, keep only alphanumeric and underscores
+  const sanitizedSubject = data.subject.replace(/[^A-Za-z0-9_]/g, "");
   const output = renderTypeLabels[data.renderType] || data.renderType;
 
-  return `${context} / ${subject} / ${output}`;
+  return `${data.show}_${sanitizedSubject}_${output}`;
 }
 
 // Generate rendered frame base name
@@ -296,6 +288,7 @@ export default function SubmitPage() {
   const frameStart = watch("frameStart");
   const frameEnd = watch("frameEnd");
   const chunk = watch("chunk");
+  const show = watch("show");
   const projectCode = watch("projectCode");
   const scope = watch("scope");
   const department = watch("department");
@@ -316,7 +309,7 @@ export default function SubmitPage() {
   const chunkCount = Math.ceil(frameCount / chunk);
 
   // Generate job name preview
-  const jobNamePreview = generateJobName({ projectCode, scope, department, subject, renderType });
+  const jobNamePreview = generateJobName({ show, subject, renderType });
 
   // Generate rendered frame name preview - always compute fresh
   const autoRenderedFrameName = generateRenderedFrameName({ projectCode, subject, renderType });
@@ -352,11 +345,9 @@ export default function SubmitPage() {
         command = `hython -c "hou.hipFile.load('${data.sceneFile}'); hou.node('/out/mantra1').render(frame_range=(#IFRAME#, #IFRAME#))"`;
       }
 
-      // Generate the 3-part job name
+      // Generate job name: Show_Subject_Output
       const jobName = generateJobName({
-        projectCode: data.projectCode,
-        scope: data.scope,
-        department: data.department,
+        show: data.show,
         subject: data.subject,
         renderType: data.renderType,
       });
@@ -759,16 +750,16 @@ export default function SubmitPage() {
                 <FieldLabel required accent="warm">Scene File</FieldLabel>
                 <Input
                   {...register("sceneFile")}
-                  placeholder="e.g., /shows/proj/shots/sc01/lighting_v001.ma"
-                  className="font-mono"
+                  placeholder="\\REDACTED_IP\RenderOutputRepo\project\scene.ma"
+                  className="font-mono text-xs"
                 />
               </div>
               <div className="col-span-3 space-y-1">
                 <FieldLabel required accent="warm">Output Directory</FieldLabel>
                 <Input
                   {...register("outputPath")}
-                  placeholder="e.g., /shows/proj/renders/sc01/"
-                  className="font-mono"
+                  placeholder="\\REDACTED_IP\RenderOutputRepo\project\renders\"
+                  className="font-mono text-xs"
                 />
               </div>
             </div>
