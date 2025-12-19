@@ -139,8 +139,24 @@ const defaultValues: FormData = {
   autoRetry: true,
 };
 
+// Generate short show tag from full show name
+// e.g., "4450_SrThesisWorkshop_S26" -> "4450_S26"
+function getShowShorthand(showName: string): string {
+  if (!showName) return "";
+  
+  const parts = showName.split("_");
+  if (parts.length >= 2) {
+    // Get first part (course number) and last part (semester code)
+    const courseNum = parts[0];
+    const semester = parts[parts.length - 1];
+    return `${courseNum}_${semester}`;
+  }
+  // Fallback to full name if format doesn't match
+  return showName;
+}
+
 // Generate job name from form data
-// Format: Show_Subject_Output (e.g., "4450_SrThesisWorkshop_S26_hero_sword_Still")
+// Format: ShowShort_Subject_Output (e.g., "4450_S26_hero_sword_Still")
 function generateJobName(data: {
   show: string;
   subject: string;
@@ -150,11 +166,12 @@ function generateJobName(data: {
     return "";
   }
 
+  const showShort = getShowShorthand(data.show);
   // Sanitize subject: remove spaces, keep only alphanumeric and underscores
   const sanitizedSubject = data.subject.replace(/[^A-Za-z0-9_]/g, "");
   const output = renderTypeLabels[data.renderType] || data.renderType;
 
-  return `${data.show}_${sanitizedSubject}_${output}`;
+  return `${showShort}_${sanitizedSubject}_${output}`;
 }
 
 // Generate rendered frame base name
