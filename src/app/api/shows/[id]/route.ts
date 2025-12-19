@@ -9,7 +9,7 @@ import {
   getShowSubscriptions,
   deleteSubscription,
 } from "@/lib/opencue/gateway-client";
-import { forceDeleteShow } from "@/lib/opencue/database";
+import { forceDeleteShow, renameShow } from "@/lib/opencue/database";
 import { config } from "@/lib/config";
 import { getOfflineShows, setOfflineShows } from "../route";
 
@@ -106,6 +106,21 @@ export async function POST(
         break;
       case "deactivate":
         await setShowActive(id, false);
+        break;
+      case "rename":
+        if (!value || typeof value !== "string") {
+          return NextResponse.json(
+            { error: "New name is required" },
+            { status: 400 }
+          );
+        }
+        const renameResult = await renameShow(id, value.trim());
+        if (!renameResult.success) {
+          return NextResponse.json(
+            { error: renameResult.error || "Failed to rename show" },
+            { status: 400 }
+          );
+        }
         break;
       case "setMinCores":
         if (typeof value !== "number" || value < 0) {

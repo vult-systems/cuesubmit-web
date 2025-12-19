@@ -181,3 +181,42 @@ export async function getAllShowMetadata(): Promise<Map<string, { semester: stri
     client.release();
   }
 }
+
+// ============================================================================
+// Show Operations (not available in OpenCue API)
+// ============================================================================
+
+/**
+ * Rename a show (OpenCue doesn't have a rename API, so we update directly)
+ */
+export async function renameShow(showId: string, newName: string): Promise<{ success: boolean; error?: string }> {
+  const client = await pool.connect();
+  try {
+    // Check if name already exists
+    const existingResult = await client.query(
+      'SELECT pk_show FROM show WHERE str_name = $1 AND pk_show != $2',
+      [newName, showId]
+    );
+    if (existingResult.rows.length > 0) {
+      return { success: false, error: 'A show with this name already exists' };
+    }
+
+    // Update the show name
+    const result = await client.query(
+      'UPDATE show SET str_name = $1 WHERE pk_show = $2',
+      [newName, showId]
+    );
+
+    if (result.rowCount === 0) {
+      return { success: false, error: 'Show not found' };
+    }
+
+    return { success: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Rename show failed:', error);
+    return { success: false, error: message };
+  } finally {
+    client.release();
+  }
+}
