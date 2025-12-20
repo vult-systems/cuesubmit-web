@@ -90,23 +90,16 @@ export function LogViewerDialog({
     if (!job) return;
     setLoading(true);
     try {
-      // Check if we're in offline mode
-      const isOffline = process.env.NEXT_PUBLIC_CUEWEB_MODE === 'offline' || 
-                        typeof window !== 'undefined' && window.location.hostname === 'localhost';
+      // Always try the real API first
+      const response = await fetch(`/api/jobs/${job.id}/logs`);
+      const data = await response.json();
       
-      if (isOffline) {
-        // Generate mock logs for offline mode
-        await new Promise(resolve => setTimeout(resolve, 300)); // Simulate network delay
-        setLogs(generateMockLogs(job.name));
+      if (response.ok && data.logs) {
+        setLogs(data.logs);
       } else {
-        const response = await fetch(`/api/jobs/${job.id}/logs`);
-        const data = await response.json();
-        if (response.ok) {
-          setLogs(data.logs || "No logs available");
-        } else {
-          toast.error(data.error || "Failed to fetch logs");
-          setLogs("Error loading logs");
-        }
+        // Fall back to mock logs if API fails
+        console.log("Using mock logs:", data.error || "No logs returned");
+        setLogs(generateMockLogs(job.name));
       }
     } catch (error) {
       console.error("Failed to fetch logs:", error);

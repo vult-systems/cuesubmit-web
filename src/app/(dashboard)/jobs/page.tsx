@@ -48,7 +48,11 @@ interface Job {
   runningFrames: number;
   deadFrames: number;
   succeededFrames: number;
+  eatenFrames?: number;
+  waitingFrames?: number;
+  dependFrames?: number;
   totalFrames: number;
+  logDir?: string;
 }
 
 const stateColors: Record<string, string> = {
@@ -61,19 +65,25 @@ const stateColors: Record<string, string> = {
 
 function ProgressBar({ job }: { job: Job }) {
   const total = job.totalFrames || 1;
+  // Eaten frames count as completed (shown in gray/muted), succeeded in green
+  const eaten = ((job.eatenFrames || 0) / total) * 100;
   const succeeded = (job.succeededFrames / total) * 100;
   const running = (job.runningFrames / total) * 100;
   const dead = (job.deadFrames / total) * 100;
+  
+  // Total completed = succeeded + eaten
+  const completedFrames = job.succeededFrames + (job.eatenFrames || 0);
 
   return (
     <div className="flex items-center gap-3">
       <div className="w-28 h-1.5 bg-surface-muted rounded-full overflow-hidden flex">
         <div className="bg-success transition-all duration-500" style={{ width: `${succeeded}%` }} />
+        <div className="bg-gray-400 transition-all duration-500" style={{ width: `${eaten}%` }} title="Eaten frames" />
         <div className="bg-blue-500 transition-all duration-500" style={{ width: `${running}%` }} />
         <div className="bg-danger transition-all duration-500" style={{ width: `${dead}%` }} />
       </div>
       <span className="text-xs text-text-muted">
-        {job.succeededFrames}/{job.totalFrames}
+        {completedFrames}/{job.totalFrames}
       </span>
     </div>
   );

@@ -100,26 +100,122 @@ function formatMemoryFromBytes(bytes: number): string {
   return `${Math.round(kb)}K`;
 }
 
-function UsageBar({ used, total, label, isMemory = false }: { used: number; total: number; label: string; isMemory?: boolean }) {
-  const percentage = total > 0 ? ((total - used) / total) * 100 : 0;
-  const usedAmount = total - used;
+function UsageBar({
+  used,
+  total,
+  isMemory = false,
+  showPercentage = true,
+  colorMode = "default"
+}: {
+  used: number;
+  total: number;
+  isMemory?: boolean;
+  showPercentage?: boolean;
+  colorMode?: "default" | "cores" | "load";
+}) {
+  const percentage = total > 0 ? (used / total) * 100 : 0;
+
+  // Color based on usage level and mode
+  const getBarColor = () => {
+    if (colorMode === "cores") {
+      // Cores: green when in use (rendering), gray when idle
+      if (percentage > 0) return "bg-emerald-500";
+      return "bg-neutral-300 dark:bg-neutral-700";
+    }
+    if (colorMode === "load") {
+      // Load: green < 50%, yellow 50-80%, red > 80%
+      if (percentage > 80) return "bg-red-500";
+      if (percentage > 50) return "bg-amber-500";
+      return "bg-emerald-500";
+    }
+    // Memory: blue gradient based on usage
+    if (percentage > 90) return "bg-red-500";
+    if (percentage > 70) return "bg-amber-500";
+    return "bg-blue-500";
+  };
 
   return (
-    <div className="space-y-0.5 min-w-20">
-      <div className="flex items-center justify-between text-xs gap-2">
-        <span className="text-neutral-600 dark:text-white/60 font-medium">{Math.round(percentage)}%</span>
-        <span className="text-neutral-400 dark:text-white/30 text-[10px]">
+    <div className="space-y-0.5 min-w-24">
+      <div className="flex items-center justify-between text-[10px] gap-1">
+        {showPercentage && (
+          <span className={cn(
+            "font-medium",
+            percentage > 0 ? "text-text-primary" : "text-text-muted"
+          )}>
+            {Math.round(percentage)}%
+          </span>
+        )}
+        <span className="text-text-muted">
           {isMemory
-            ? `${formatMemoryFromBytes(usedAmount)}/${formatMemoryFromBytes(total)}`
-            : `${usedAmount}/${total}`
+            ? `${formatMemoryFromBytes(used)}/${formatMemoryFromBytes(total)}`
+            : `${used}/${total}`
           }
         </span>
       </div>
-      <Progress
-        value={percentage}
-        className="h-1.5 bg-neutral-200 dark:bg-neutral-950/60"
-      />
+      <div className="h-1.5 bg-neutral-200 dark:bg-neutral-800 rounded-full overflow-hidden">
+        <div
+          className={cn("h-full rounded-full transition-all duration-500", getBarColor())}
+          style={{ width: `${Math.min(100, percentage)}%` }}
+        />
+      </div>
     </div>
+  );
+}
+
+// Compact usage bar for table cells
+function CompactUsageBar({
+  used,
+  total,
+  label,
+  colorMode = "default"
+}: {
+  used: number;
+  total: number;
+  label: string;
+  colorMode?: "default" | "cores" | "load" | "memory";
+}) {
+  const percentage = total > 0 ? (used / total) * 100 : 0;
+
+  const getBarColor = () => {
+    if (colorMode === "cores") {
+      if (percentage > 0) return "bg-emerald-500";
+      return "bg-neutral-300 dark:bg-neutral-700";
+    }
+    if (colorMode === "load") {
+      if (percentage > 80) return "bg-red-500";
+      if (percentage > 50) return "bg-amber-500";
+      if (percentage > 0) return "bg-emerald-500";
+      return "bg-neutral-300 dark:bg-neutral-700";
+    }
+    if (colorMode === "memory") {
+      if (percentage > 90) return "bg-red-500";
+      if (percentage > 70) return "bg-amber-500";
+      return "bg-blue-500";
+    }
+    return "bg-blue-500";
+  };
+
+  return (
+    <TooltipProvider delayDuration={100}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="w-20 space-y-0.5 cursor-default">
+            <div className="h-2 bg-neutral-200 dark:bg-neutral-800 rounded-full overflow-hidden">
+              <div
+                className={cn("h-full rounded-full transition-all duration-500", getBarColor())}
+                style={{ width: `${Math.min(100, percentage)}%` }}
+              />
+            </div>
+            <div className="text-[9px] text-text-muted text-center">
+              {label}
+            </div>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="text-xs">
+          {Math.round(percentage)}% used
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
@@ -387,6 +483,7 @@ export default function HostsPage() {
 
   // Summary stats
   const upHosts = hosts.filter((h) => h.state === "UP").length;
+  const renderingHosts = hosts.filter((h) => h.state === "UP" && h.cores > h.idleCores).length;
   const totalCores = hosts.reduce((sum, h) => sum + h.cores, 0);
   const usedCores = hosts.reduce((sum, h) => sum + (h.cores - h.idleCores), 0);
 
@@ -397,7 +494,14 @@ export default function HostsPage() {
         <div>
           <h1 className="text-2xl font-semibold text-text-primary tracking-tight">Hosts</h1>
           <p className="text-text-muted text-xs mt-1">
-            {upHosts} hosts up • {usedCores}/{totalCores} cores in use
+            {renderingHosts > 0 ? (
+              <span className="text-emerald-600 dark:text-emerald-400 font-medium">{renderingHosts} rendering</span>
+            ) : (
+              <span>{upHosts} up</span>
+            )}
+            {renderingHosts > 0 && ` • ${upHosts - renderingHosts} idle`}
+            {" • "}
+            <span className={usedCores > 0 ? "text-text-primary font-medium" : ""}>{usedCores}/{totalCores} cores</span>
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -459,14 +563,13 @@ export default function HostsPage() {
                 <Table>
                   <TableHeader>
                     <TableRow className="hover:bg-transparent border-neutral-200 dark:border-white/6">
-                      <TableHead>ID</TableHead>
+                      <TableHead className="w-24">ID</TableHead>
                       <TableHead>System Name</TableHead>
-                      <TableHead>IP Address</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="w-28">Cores</TableHead>
+                      <TableHead className="w-28">Memory</TableHead>
+                      <TableHead className="w-28">Load</TableHead>
                       <TableHead>Tags</TableHead>
-                      <TableHead>State</TableHead>
-                      <TableHead>Lock</TableHead>
-                      <TableHead>Load</TableHead>
-                      <TableHead>Mem/Swap</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -475,6 +578,11 @@ export default function HostsPage() {
                       const isLocked = host.lockState === "LOCKED";
                       const isNimbyLocked = host.lockState === "NIMBY_LOCKED";
                       const isUp = host.state === "UP";
+
+                      // Calculate usage
+                      const coresUsed = host.cores - host.idleCores;
+                      const memoryUsed = host.memory - host.idleMemory;
+                      const isRendering = coresUsed > 0 && isUp;
 
                       // Get local metadata for this host
                       const metadata = hostMetadata[host.id];
@@ -488,12 +596,84 @@ export default function HostsPage() {
                       return (
                         <TableRow
                           key={host.id}
-                          className="hover:bg-neutral-50 dark:hover:bg-white/3 transition-all duration-200 group"
+                          className={cn(
+                            "hover:bg-neutral-50 dark:hover:bg-white/3 transition-all duration-200 group",
+                            isRendering && "bg-emerald-50/50 dark:bg-emerald-500/5"
+                          )}
                           style={{ animationDelay: `${index * 30}ms` }}
                         >
-                          <TableCell className="font-medium text-text-primary">{displayId}</TableCell>
-                          <TableCell className="font-mono text-xs text-text-muted">{systemName}</TableCell>
-                          <TableCell className="font-mono text-xs text-text-muted">{ipAddress}</TableCell>
+                          {/* ID */}
+                          <TableCell className="font-medium text-text-primary">
+                            <div className="flex items-center gap-2">
+                              {isRendering && (
+                                <span className="relative flex h-2 w-2">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                </span>
+                              )}
+                              {displayId}
+                            </div>
+                          </TableCell>
+
+                          {/* System Name + IP */}
+                          <TableCell>
+                            <div className="space-y-0.5">
+                              <div className="font-medium text-xs text-text-primary">{systemName}</div>
+                              <div className="font-mono text-[10px] text-text-muted">{ipAddress}</div>
+                            </div>
+                          </TableCell>
+
+                          {/* Status - Combined state info */}
+                          <TableCell>
+                            <div className="flex items-center gap-1.5">
+                              {!isUp ? (
+                                <Badge variant="outline" className={cn(stateColors[host.state], "text-[10px]")}>
+                                  {host.state}
+                                </Badge>
+                              ) : isRendering ? (
+                                <Badge variant="outline" className="text-[10px] bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
+                                  Rendering
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-[10px] bg-neutral-100 dark:bg-neutral-800 text-text-muted border-neutral-200 dark:border-neutral-700">
+                                  Idle
+                                </Badge>
+                              )}
+                              {(isLocked || isNimbyLocked) && (
+                                <Lock className="h-3 w-3 text-amber-500" />
+                              )}
+                            </div>
+                          </TableCell>
+
+                          {/* Cores Usage */}
+                          <TableCell>
+                            <UsageBar
+                              used={coresUsed}
+                              total={host.cores}
+                              colorMode="cores"
+                            />
+                          </TableCell>
+
+                          {/* Memory Usage */}
+                          <TableCell>
+                            <UsageBar
+                              used={memoryUsed}
+                              total={host.memory}
+                              isMemory={true}
+                              colorMode="default"
+                            />
+                          </TableCell>
+
+                          {/* Load */}
+                          <TableCell>
+                            <UsageBar
+                              used={host.load}
+                              total={100}
+                              colorMode="load"
+                            />
+                          </TableCell>
+
+                          {/* Tags */}
                           <TableCell>
                             <div className="flex flex-wrap gap-1 max-w-32">
                               {displayTags.slice(0, 2).map((tag) => (
@@ -511,29 +691,6 @@ export default function HostsPage() {
                               {displayTags.length === 0 && (
                                 <span className="text-xs text-text-muted">-</span>
                               )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className={cn(stateColors[host.state])}>
-                              {host.state}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className={cn(lockStateColors[host.lockState])}>
-                              {host.lockState}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <span className={cn(
-                              "text-sm font-medium",
-                              host.load > 80 ? "text-danger" : host.load > 50 ? "text-warning" : "text-text-muted"
-                            )}>
-                              {host.load}%
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            <div className="text-xs text-text-muted space-y-0.5">
-                              <div>{formatMemory(host.memory)} / {formatMemory(host.swap)}</div>
                             </div>
                           </TableCell>
                           <TableCell>

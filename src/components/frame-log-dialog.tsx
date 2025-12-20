@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { RefreshCw, Download, ArrowDown } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { getExitCodeLabel, getExitCodeColorClass, getExitCodeInfo } from "@/lib/exit-codes";
 
 interface Frame {
   id: string;
@@ -30,6 +31,7 @@ interface Frame {
 
 interface FrameLogDialogProps {
   frame: Frame | null;
+  jobId: string;
   jobName: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -52,6 +54,8 @@ function generateFrameLog(frame: Frame, jobName: string): string {
 
   const lines: string[] = [];
   
+  const exitInfo = getExitCodeInfo(frame.exitStatus);
+  
   // Header info
   lines.push(`================================================================================`);
   lines.push(`OpenCue Frame Log`);
@@ -64,7 +68,7 @@ function generateFrameLog(frame: Frame, jobName: string): string {
   lines.push(`Start Time:  ${formatTime(frame.startTime)}`);
   lines.push(`Stop Time:   ${formatTime(frame.stopTime)}`);
   lines.push(`Duration:    ${duration}s`);
-  lines.push(`Exit Status: ${frame.exitStatus}`);
+  lines.push(`Exit Status: ${frame.exitStatus} (${exitInfo.label} - ${exitInfo.description})`);
   lines.push(`Retries:     ${frame.retryCount}`);
   lines.push(`================================================================================`);
   lines.push(``);
@@ -150,6 +154,7 @@ const stateColors: Record<string, string> = {
 
 export function FrameLogDialog({
   frame,
+  jobId,
   jobName,
   open,
   onOpenChange,
@@ -157,22 +162,36 @@ export function FrameLogDialog({
   const [logs, setLogs] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
+  const [isRealLog, setIsRealLog] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const fetchLogs = useCallback(async () => {
     if (!frame) return;
     setLoading(true);
+    setIsRealLog(false);
     try {
-      // Simulate network delay then generate mock logs
-      await new Promise(resolve => setTimeout(resolve, 200));
-      setLogs(generateFrameLog(frame, jobName));
+      // Try to fetch real logs from the API
+      const response = await fetch(
+        `/api/jobs/${jobId}/logs?frame=${frame.number}&layer=render`
+      );
+      const data = await response.json();
+      
+      if (response.ok && data.logs && !data.error) {
+        setLogs(data.logs);
+        setIsRealLog(true);
+      } else {
+        // Fall back to mock logs if API fails or returns empty
+        console.log("Using mock logs:", data.error || "No logs returned");
+        setLogs(generateFrameLog(frame, jobName));
+      }
     } catch (error) {
       console.error("Failed to fetch frame logs:", error);
-      toast.error("Failed to fetch frame logs");
+      // Fall back to mock logs on error
+      setLogs(generateFrameLog(frame, jobName));
     } finally {
       setLoading(false);
     }
-  }, [frame, jobName]);
+  }, [frame, jobId, jobName]);
 
   useEffect(() => {
     if (open && frame) {
@@ -266,7 +285,7 @@ export function FrameLogDialog({
           <div className="flex items-center gap-6 text-sm text-text-muted mt-3">
             <span>Host: <span className="text-text-secondary font-mono">{frame.lastResource || "-"}</span></span>
             <span>Chunk: <span className="text-text-secondary font-mono">{frame.chunkNumber || "-"}</span></span>
-            <span>Exit: <span className={cn("font-mono", frame.exitStatus !== 0 ? "text-red-600 dark:text-red-400" : "text-text-secondary")}>{frame.exitStatus}</span></span>
+            <span>Exit: <span className={cn("font-mono", getExitCodeColorClass(frame.exitStatus))} title={`Exit code: ${frame.exitStatus}`}>{getExitCodeLabel(frame.exitStatus)}</span></span>
           </div>
         </DialogHeader>
 
