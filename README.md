@@ -1,109 +1,130 @@
-# CueWeb
+# CueSubmit Web
 
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+A modern web interface for [OpenCue](https://www.opencue.io/) render farm management, built with Next.js. Designed for university render labs running Maya, Blender, and other DCC applications.
 
-## Getting Started
+![Next.js](https://img.shields.io/badge/Next.js-16-black)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
+![OpenCue](https://img.shields.io/badge/OpenCue-1.13-green)
 
-First, run the development server:
+## Features
+
+- **Job Submission** - Submit render jobs with auto-versioning job names
+- **Job Monitoring** - View job progress, frames, and logs in real-time
+- **Host Management** - Monitor render nodes grouped by lab (AD400, AD404, etc.)
+- **Show Management** - Create and manage shows with semester organization
+- **User Management** - Role-based access (admin, instructor, student)
+- **File Browser** - Browse network paths for scene selection
+- **Offline Mode** - Works without OpenCue connection for testing
+
+## Prerequisites
+
+- Node.js 18+
+- OpenCue REST Gateway (for online mode)
+- PostgreSQL (for Cuebot)
+
+## Quick Start
 
 ```bash
+# Install dependencies
+npm install
+
+# Configure environment
+cp .env.example .env.local
+# Edit .env.local with your settings
+
+# Run development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Configuration
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Environment Variables
 
-## Learn More
+```bash
+# .env.local
+OPENCUE_GATEWAY_URL=http://localhost:8448  # REST Gateway URL
+CUEBOT_HOST=REDACTED_IP                     # Cuebot server
+SESSION_SECRET=your-secret-key              # For session encryption
+ADMIN_INITIAL_PASSWORD=changeme             # Initial admin password
+```
 
-To learn more about Next.js, take a look at the following resources:
+### Operating Modes
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **Online Mode** - Connects to OpenCue REST Gateway for live data
+- **Offline Mode** - Uses mock data for development/testing
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Project Structure
 
-## Deploy on Vercel
+```
+src/
+├── app/                    # Next.js App Router
+│   ├── (dashboard)/       # Dashboard pages (jobs, hosts, shows, etc.)
+│   └── api/               # API routes
+├── components/            # React components
+└── lib/
+    ├── opencue/          # OpenCue client (gateway-client, spec-builder)
+    └── db/               # SQLite for local metadata
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+opencue/                   # OpenCue reference codebase
+├── rqd/                  # Render Queue Daemon
+├── pycue/                # Python client library
+├── uiw3d_installers/     # Windows deployment tools
+└── uiw3d_machinelist/    # Lab machine inventory (Excel)
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Deployment
 
-## CueWeb Launcher (Zig)
+### Docker
 
-### Building
+```bash
+# Production build
+docker compose up -d
 
-**Windows (native):**
+# Development with hot reload
+docker compose -f docker-compose.dev.yml up
+```
+
+### Desktop Launcher (Zig)
+
+A native launcher that bundles the Next.js app:
 
 ```powershell
-# Full build using batch script
+# Windows
 cd launcher
 .\build.bat
 
-# Or manually:
-cd ..
-npm run build --webpack        # Build Next.js with webpack (required for Windows)
-cd launcher
-zig build -Doptimize=ReleaseSmall
-# Then copy .next/standalone to zig-out/bin/app
+# Run
+.\zig-out\bin\cueweb-launcher.exe --mode online --port 3000
 ```
 
-**macOS (native):**
+## Host Metadata
 
-```bash
-cd launcher
-./bundle.sh --full             # Full build including Next.js
+The app maintains local metadata for render hosts (display IDs, system names) in SQLite at `data/cuesubmit.db`. This supplements OpenCue's host data with lab-specific naming.
 
-# Or just the Zig executable:
-zig build -Doptimize=ReleaseSmall
-```
+## Lab Setup
 
-**Cross-compilation (from macOS to Windows):**
+Machine inventory is tracked in `opencue/uiw3d_machinelist/labs.xlsx`. The deployment scripts in `opencue/uiw3d_installers/` automate RQD installation on Windows lab machines.
 
-```bash
-cd launcher
-zig build -Doptimize=ReleaseSmall -Dtarget=x86_64-windows-gnu
-```
+## API Routes
 
-Output goes to `launcher/zig-out/bin/` as `cueweb-launcher` (macOS) or `cueweb-launcher.exe` (Windows).
+| Route | Description |
+|-------|-------------|
+| `/api/jobs` | List/manage render jobs |
+| `/api/shows` | List/manage shows |
+| `/api/hosts` | List/manage render hosts |
+| `/api/submit` | Submit new render jobs |
+| `/api/users` | User management |
 
-### Platform Notes
+## Tech Stack
 
-- **macOS**: Uses native WebKit WebView for a true desktop app experience
-- **Windows**: Opens the default browser (WebView2 integration planned for future)
+- **Framework**: Next.js 16 (App Router)
+- **Language**: TypeScript
+- **UI**: Tailwind CSS, shadcn/ui
+- **Database**: SQLite (better-sqlite3) for local metadata
+- **Auth**: Cookie-based sessions with bcrypt
 
-### Running
+## License
 
-```bash
-# From the zig-out/bin directory (where cueweb-launcher.exe and app/ are located)
-./cueweb-launcher --mode offline --port 3000
-
-# Online mode (requires OpenCue REST Gateway)
-./cueweb-launcher --mode online --api-base http://<gateway-host>:<port>
-```
-
-### Configuration
-
-Config resolution order: CLI flags > config.json > env vars > defaults
-
-**config.json example:**
-
-```json
-{
-  "port": 3000,
-  "mode": "offline",
-  "nodePath": "node",
-  "serverEntry": "./app/server.js",
-  "openBrowser": true,
-  "urlPath": "/",
-  "logFile": "./logs/cueweb-launcher.log"
-}
-```
+MIT
