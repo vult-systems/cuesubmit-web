@@ -4,39 +4,66 @@ import { getHosts, type Host } from "@/lib/opencue/gateway-client";
 import { config } from "@/lib/config";
 import { ROOMS, MACHINES_PER_ROOM, randomSystemName } from "@/lib/mock-data";
 
-// OpenCue API response has snake_case fields - map to our camelCase
+// OpenCue REST Gateway returns camelCase fields with some values as strings
 interface OpenCueHost {
   id: string;
   name: string;
+  // Both snake_case and camelCase variants (gateway uses camelCase)
   alloc_name?: string;
+  allocName?: string;
   nimby_enabled?: boolean;
+  nimbyEnabled?: boolean;
   has_comment?: boolean;
-  cores?: number;
-  idle_cores?: number;
-  memory?: number;
-  idle_memory?: number;
-  gpu_memory?: number;
-  idle_gpu_memory?: number;
-  total_swap?: number;
-  total_memory?: number;
-  total_gpu_memory?: number;
-  total_mcp?: number;
-  free_swap?: number;
-  free_memory?: number;
-  free_mcp?: number;
-  free_gpu_memory?: number;
-  load?: number;
-  boot_time?: number;
-  ping_time?: number;
+  hasComment?: boolean;
+  cores?: number | string;
+  idle_cores?: number | string;
+  idleCores?: number | string;
+  memory?: number | string;
+  idle_memory?: number | string;
+  idleMemory?: number | string;
+  gpu_memory?: number | string;
+  gpuMemory?: number | string;
+  idle_gpu_memory?: number | string;
+  idleGpuMemory?: number | string;
+  total_swap?: number | string;
+  totalSwap?: number | string;
+  total_memory?: number | string;
+  totalMemory?: number | string;
+  total_gpu_memory?: number | string;
+  totalGpuMemory?: number | string;
+  total_mcp?: number | string;
+  totalMcp?: number | string;
+  free_swap?: number | string;
+  freeSwap?: number | string;
+  free_memory?: number | string;
+  freeMemory?: number | string;
+  free_mcp?: number | string;
+  freeMcp?: number | string;
+  free_gpu_memory?: number | string;
+  freeGpuMemory?: number | string;
+  load?: number | string;
+  boot_time?: number | string;
+  bootTime?: number | string;
+  ping_time?: number | string;
+  pingTime?: number | string;
   os?: string;
   tags?: string[];
   state?: string | number;
   lock_state?: string | number;
-  // Also check camelCase variants in case REST Gateway uses different format
   lockState?: string | number;
   thread_mode?: string;
-  gpus?: number;
-  idle_gpus?: number;
+  threadMode?: string;
+  gpus?: number | string;
+  idle_gpus?: number | string;
+  idleGpus?: number | string;
+}
+
+// Helper to safely parse numbers from string or number values
+function toNumber(value: number | string | undefined | null): number {
+  if (value === undefined || value === null) return 0;
+  if (typeof value === "number") return value;
+  const parsed = parseInt(value, 10);
+  return isNaN(parsed) ? 0 : parsed;
 }
 
 // OpenCue enums - map numeric values to strings
@@ -65,29 +92,41 @@ function mapLockState(value: string | number | undefined): string {
   return String(value).toUpperCase() || "UNKNOWN";
 }
 
-// Map OpenCue snake_case to our camelCase Host interface
+// Map OpenCue host data to our Host interface
+// Handles both snake_case and camelCase field names, and string/number values
 function mapOpenCueHost(h: OpenCueHost): Host {
+  // Use totalMemory/freeMemory for actual physical memory (not OpenCue allocation pool)
+  // OpenCue reports memory in KB, convert to bytes for display
+  const totalMemory = toNumber(h.totalMemory ?? h.total_memory) * 1024;
+  const freeMemory = toNumber(h.freeMemory ?? h.free_memory) * 1024;
+  const totalSwap = toNumber(h.totalSwap ?? h.total_swap) * 1024;
+  const freeSwap = toNumber(h.freeSwap ?? h.free_swap) * 1024;
+
   return {
     id: h.id,
     name: h.name,
     state: mapState(h.state),
     lockState: mapLockState(h.lock_state ?? h.lockState),
-    nimbyEnabled: h.nimby_enabled || false,
-    cores: h.cores || 0,
-    idleCores: h.idle_cores || 0,
-    memory: h.total_memory || h.memory || 0,
-    idleMemory: h.free_memory || h.idle_memory || 0,
-    swap: h.total_swap || 0,
-    freeSwap: h.free_swap || 0,
-    gpuMemory: h.total_gpu_memory || h.gpu_memory || 0,
-    idleGpuMemory: h.free_gpu_memory || h.idle_gpu_memory || 0,
-    gpus: h.gpus || 0,
-    idleGpus: h.idle_gpus || 0,
-    load: h.load || 0,
-    bootTime: h.boot_time || 0,
-    pingTime: h.ping_time || 0,
+    nimbyEnabled: h.nimby_enabled ?? h.nimbyEnabled ?? false,
+    cores: toNumber(h.cores),
+    idleCores: toNumber(h.idleCores ?? h.idle_cores),
+    // Physical memory (total and free)
+    memory: totalMemory,
+    idleMemory: freeMemory,
+    // Swap (total and free)
+    swap: totalSwap,
+    freeSwap: freeSwap,
+    // GPU
+    gpuMemory: toNumber(h.totalGpuMemory ?? h.total_gpu_memory ?? h.gpuMemory ?? h.gpu_memory) * 1024,
+    idleGpuMemory: toNumber(h.freeGpuMemory ?? h.free_gpu_memory ?? h.idleGpuMemory ?? h.idle_gpu_memory) * 1024,
+    gpus: toNumber(h.gpus),
+    idleGpus: toNumber(h.idleGpus ?? h.idle_gpus),
+    // Load is already a percentage (0-100+)
+    load: toNumber(h.load),
+    bootTime: toNumber(h.bootTime ?? h.boot_time),
+    pingTime: toNumber(h.pingTime ?? h.ping_time),
     tags: h.tags || [],
-    alloc: h.alloc_name || "",
+    alloc: h.allocName ?? h.alloc_name ?? "",
   };
 }
 
