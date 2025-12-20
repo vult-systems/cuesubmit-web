@@ -102,15 +102,25 @@ export async function POST(request: Request) {
     };
 
     const specXml = buildJobSpec(jobSpec);
-    const result = await launchSpec(specXml);
+    console.log("=== SUBMIT DEBUG ===");
+    console.log("Spec XML:", specXml);
+    
+    try {
+      const result = await launchSpec(specXml);
+      console.log("Launch result:", result);
 
-    return NextResponse.json({
-      success: true,
-      jobNames: result.names,
-      message: `Job submitted successfully: ${result.names.join(", ")}`,
-    });
+      return NextResponse.json({
+        success: true,
+        jobNames: result.names,
+        message: `Job submitted successfully: ${result.names.join(", ")}`,
+      });
+    } catch (launchError) {
+      console.error("LaunchSpec failed:", launchError);
+      throw launchError;
+    }
   } catch (error) {
     console.error("Job submission failed:", error);
+    console.error("Error details:", JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Job submission failed" },
       { status: 500 }

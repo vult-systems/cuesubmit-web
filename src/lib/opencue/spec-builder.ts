@@ -61,7 +61,8 @@ export function buildJobSpec(spec: JobSpec): string {
   // OpenCue job spec format with DOCTYPE declaration pointing to cuebot's DTD
   // The DOCTYPE URL must start with http://localhost:8080/spcue/dtd/ for cuebot to resolve it
   // The <os> element tells cuebot which log path root to use (e.g., "Windows" uses log.frame-log-root.Windows)
-  return `<?xml version="1.0"?><!DOCTYPE spec PUBLIC "SPI Cue Specification Language" "http://localhost:8080/spcue/dtd/cjsl-1.12.dtd"><spec><facility>local</facility><show>${escapeXml(spec.show)}</show><shot>${escapeXml(spec.shot)}</shot><user>${escapeXml(spec.user)}</user><job name="${escapeXml(spec.name)}"><os>${escapeXml(os)}</os><paused>${paused}</paused><priority>${priority}</priority><maxretries>${maxRetries}</maxretries><autoeat>false</autoeat><env></env><layers>${layersXml}</layers></job></spec>`;
+  // DTD element order: (paused?,priority?,maxretries?,autoeat?,localbook?,os?,env*,layers?)
+  return `<?xml version="1.0"?><!DOCTYPE spec PUBLIC "SPI Cue Specification Language" "http://localhost:8080/spcue/dtd/cjsl-1.12.dtd"><spec><facility>local</facility><show>${escapeXml(spec.show)}</show><shot>${escapeXml(spec.shot)}</shot><user>${escapeXml(spec.user)}</user><job name="${escapeXml(spec.name)}"><paused>${paused}</paused><priority>${priority}</priority><maxretries>${maxRetries}</maxretries><autoeat>false</autoeat><os>${escapeXml(os)}</os><env></env><layers>${layersXml}</layers></job></spec>`;
 }
 
 // Common render command templates
