@@ -566,9 +566,10 @@ export default function HostsPage() {
                       <TableHead className="w-24">ID</TableHead>
                       <TableHead>System Name</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead className="w-28">Cores</TableHead>
-                      <TableHead className="w-28">Memory</TableHead>
-                      <TableHead className="w-28">Load</TableHead>
+                      <TableHead className="w-24">Cores</TableHead>
+                      <TableHead className="w-24">Mem</TableHead>
+                      <TableHead className="w-24">Swap</TableHead>
+                      <TableHead className="w-20">Load</TableHead>
                       <TableHead>Tags</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -582,6 +583,8 @@ export default function HostsPage() {
                       // Calculate usage
                       const coresUsed = host.cores - host.idleCores;
                       const memoryUsed = host.memory - host.idleMemory;
+                      // Load per core (like CueGUI) - load is system load avg, divide by cores
+                      const loadPerCore = host.cores > 0 ? Math.round(host.load / host.cores) : 0;
                       const isRendering = coresUsed > 0 && isUp;
 
                       // Get local metadata for this host
@@ -645,7 +648,7 @@ export default function HostsPage() {
                             </div>
                           </TableCell>
 
-                          {/* Cores Usage */}
+                          {/* Cores Usage - shows reserved vs total */}
                           <TableCell>
                             <UsageBar
                               used={coresUsed}
@@ -654,7 +657,7 @@ export default function HostsPage() {
                             />
                           </TableCell>
 
-                          {/* Memory Usage */}
+                          {/* Physical Memory - shows used vs total */}
                           <TableCell>
                             <UsageBar
                               used={memoryUsed}
@@ -664,10 +667,20 @@ export default function HostsPage() {
                             />
                           </TableCell>
 
-                          {/* Load */}
+                          {/* Swap - shows used vs total */}
                           <TableCell>
                             <UsageBar
-                              used={host.load}
+                              used={host.swap - host.freeSwap}
+                              total={host.swap}
+                              isMemory={true}
+                              colorMode="default"
+                            />
+                          </TableCell>
+
+                          {/* Load per core (like CueGUI) */}
+                          <TableCell>
+                            <UsageBar
+                              used={loadPerCore}
                               total={100}
                               colorMode="load"
                             />
