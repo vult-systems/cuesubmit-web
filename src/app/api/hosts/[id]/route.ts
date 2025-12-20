@@ -26,7 +26,6 @@ export async function POST(
     const { id } = await params;
     const body = await request.json();
     const { action, tags, allocationId, state, hostName } = body;
-    console.log(`[DEBUG] Host action: ${action} for host id=${id}, name=${hostName}`);
 
     // Check permissions based on action
     if (["lock", "unlock"].includes(action)) {

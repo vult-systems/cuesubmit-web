@@ -132,17 +132,6 @@ function mapOpenCueHost(h: OpenCueHost): Host {
 
 // Helper to extract nested array from gateway response
 function extractHosts(data: unknown): OpenCueHost[] {
-  // Log first host to debug field names
-  if (data && typeof data === "object" && "hosts" in data) {
-    const hosts = (data as { hosts: unknown }).hosts;
-    if (hosts && typeof hosts === "object" && "hosts" in hosts) {
-      const hostArray = (hosts as { hosts: OpenCueHost[] }).hosts;
-      if (hostArray && hostArray.length > 0) {
-        console.log("[DEBUG] First host raw data:", JSON.stringify(hostArray[0], null, 2));
-      }
-    }
-  }
-
   if (Array.isArray(data)) return data;
   if (data && typeof data === "object" && "hosts" in data) {
     const hosts = (data as { hosts: unknown }).hosts;

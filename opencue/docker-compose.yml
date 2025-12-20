@@ -1,0 +1,64 @@
+services:
+  db:
+    image: postgres:15.1
+    environment:
+      - POSTGRES_USER=cuebot
+      - POSTGRES_PASSWORD=cuebot_password
+      - POSTGRES_DB=cuebot
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./sandbox/db-data:/var/lib/postgresql/data
+
+  flyway:
+    build:
+      context: ./
+      dockerfile: ./sandbox/flyway.Dockerfile
+    links:
+      - db
+    depends_on:
+      - db
+    environment:
+      - PGUSER=cuebot
+      - PGPASSWORD=cuebot_password
+      - PGDATABASE=cuebot
+      - PGHOST=db
+      - PGPORT=5432
+    command: /opt/scripts/migrate.sh
+
+  cuebot:
+    # Use build to compile from source with latest code (recommended for development)
+    # build:
+    #   context: ./
+    #   dockerfile: ./cuebot/Dockerfile
+    # Use image for faster startup with pre-built image (uncomment to use)
+    image: opencue/cuebot
+    links:
+      - db
+    ports:
+      - "8443:8443"
+    depends_on:
+      db:
+        condition: service_started
+      flyway:
+        condition: service_completed_successfully
+    restart: always
+    environment:
+      - CUE_FRAME_LOG_DIR=/tmp/rqd/logs
+    command: --datasource.cue-data-source.jdbc-url=jdbc:postgresql://db/cuebot --datasource.cue-data-source.username=cuebot --datasource.cue-data-source.password=cuebot_password
+
+  rqd:
+    image: opencue/rqd
+    environment:
+      - PYTHONUNBUFFERED=1
+      - CUEBOT_HOSTNAME=cuebot
+    depends_on:
+      cuebot:
+        condition: service_healthy
+    links:
+      - cuebot
+    ports:
+      - "8444:8444"
+    volumes:
+      - /tmp/rqd/logs:/tmp/rqd/logs
+      - /tmp/rqd/shots:/tmp/rqd/shots

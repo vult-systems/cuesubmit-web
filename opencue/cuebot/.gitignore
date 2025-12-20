@@ -1,0 +1,14 @@
+/build
+/classes-slice
+/classes-test
+/dist
+/.gradle
+/logs
+/src-slice
+/target
+/velocity.log
+/out
+/.idea
+/nbproject
+/NETBEANS_CLASSPATH_SPECIFIC
+*.iml

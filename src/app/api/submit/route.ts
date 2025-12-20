@@ -102,7 +102,6 @@ export async function POST(request: Request) {
     };
 
     const specXml = buildJobSpec(jobSpec);
-    console.log("Job spec XML:", specXml);
     const result = await launchSpec(specXml);
 
     return NextResponse.json({

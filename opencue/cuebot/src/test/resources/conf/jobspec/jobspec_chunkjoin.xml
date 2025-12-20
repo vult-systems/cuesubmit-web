@@ -1,0 +1,67 @@
+<?xml version="1.0"?>
+<!--
+   Copyright Contributors to the OpenCue Project
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+-->
+
+
+
+
+<!DOCTYPE spec SYSTEM "../dtd/cjsl-1.5.dtd">
+<spec>
+
+    <show>pipe</show>
+    <shot>dev.cue</shot>
+    <user>testuser</user>
+    <uid>9860</uid>
+
+    <job name="chunk_join_depend_v1">
+        <paused>false</paused>
+        <layers>
+            <layer name="depend_er" type="RENDER">
+                <cmd>/shots/pipe/usr_testuser/logs/help.py</cmd>
+                <range>1-100</range>
+                <chunk>20</chunk>
+                <cores>100</cores>
+                <services>
+                    <service>prman</service>
+                    <service>katana</service>
+                </services>
+            </layer>
+
+             <layer name="depend_on" type="RENDER">
+                <cmd>/shots/pipe/usr_testuser/logs/help.py</cmd>
+                <range>1-100</range>
+                <chunk>1</chunk>
+                <cores>100</cores>
+                <services>
+                    <service>prman</service>
+                    <service>katana</service>
+                </services>
+            </layer>
+        </layers>
+    </job>
+
+    <depends>
+        <depend type="FRAME_BY_FRAME">
+            <depjob>chunk_join_depend_v1</depjob>
+            <deplayer>depend_er</deplayer>
+            <onjob>chunk_join_depend_v1</onjob>
+            <onlayer>depend_on</onlayer>
+        </depend>
+    </depends>
+</spec>
+
+
+
