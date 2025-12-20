@@ -118,11 +118,6 @@ export async function GET(request: Request) {
       includeFinished: true,
     });
 
-    console.log("GetJobs result:", result.jobs.length, "jobs");
-    if (result.jobs.length > 0) {
-      console.log("Sample job:", JSON.stringify(result.jobs[0], null, 2));
-    }
-
     return NextResponse.json({ jobs: result.jobs });
   } catch (error) {
     console.error("Failed to fetch jobs:", error);

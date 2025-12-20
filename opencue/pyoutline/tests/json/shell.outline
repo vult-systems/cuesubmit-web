@@ -1,0 +1,12 @@
+{
+  "name": "shell_command",
+  "range": "1-100",
+  "layers": [
+    {
+      "name": "shell_layer",
+      "module": "outline.modules.shell.Shell",
+      "env": {"LAYER_KEY": "LAYER_VALUE"},
+      "command": ["/bin/ls"]
+    }
+  ]
+}

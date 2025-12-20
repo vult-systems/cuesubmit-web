@@ -1,0 +1,6 @@
+{
+    "cuebot_host": "10.40.14.25",
+    "cuebot_port": 8443,
+    "idle_time": 120,
+    "check_interval": 30
+}

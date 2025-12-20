@@ -329,7 +329,6 @@ export async function lockHost(hostId: string, hostName?: string): Promise<void>
   if (hostName) {
     hostRef.name = hostName;
   }
-  console.log('[DEBUG] lockHost request:', { host: hostRef });
   await gatewayCall('host.HostInterface', 'Lock', { host: hostRef });
 }
 
@@ -339,7 +338,6 @@ export async function unlockHost(hostId: string, hostName?: string): Promise<voi
   if (hostName) {
     hostRef.name = hostName;
   }
-  console.log('[DEBUG] unlockHost request:', { host: hostRef });
   await gatewayCall('host.HostInterface', 'Unlock', { host: hostRef });
 }
 
