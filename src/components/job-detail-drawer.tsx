@@ -34,6 +34,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { iconButton } from "@/lib/icon-button-styles";
 import { FrameLogDialog } from "@/components/frame-log-dialog";
+import { getExitCodeLabel, getExitCodeColorClass } from "@/lib/exit-codes";
 
 interface Frame {
   id: string;
@@ -388,12 +389,11 @@ export function JobDetailDrawer({
                         <TableCell
                           className={cn(
                             "py-1.5 text-sm",
-                            frame.exitStatus !== 0
-                              ? "text-red-400"
-                              : "text-text-muted"
+                            getExitCodeColorClass(frame.exitStatus)
                           )}
+                          title={`Exit code: ${frame.exitStatus}`}
                         >
-                          {frame.exitStatus}
+                          {getExitCodeLabel(frame.exitStatus)}
                         </TableCell>
                         <TableCell className="text-text-muted truncate max-w-50 py-1.5 text-sm">
                           {frame.lastResource || "-"}
@@ -443,6 +443,7 @@ export function JobDetailDrawer({
       {/* Frame Log Dialog */}
       <FrameLogDialog
         frame={selectedFrameForLog}
+        jobId={job.id}
         jobName={job.name}
         open={selectedFrameForLog !== null}
         onOpenChange={(open) => !open && setSelectedFrameForLog(null)}

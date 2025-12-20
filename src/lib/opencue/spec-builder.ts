@@ -19,6 +19,7 @@ export interface JobSpec {
   priority?: number;
   maxRetries?: number;
   paused?: boolean;
+  os?: string; // Target OS for log path resolution: "Windows", "linux", etc.
   layers: LayerSpec[];
 }
 
@@ -35,6 +36,8 @@ export function buildJobSpec(spec: JobSpec): string {
   const priority = spec.priority ?? 100;
   const maxRetries = spec.maxRetries ?? 3;
   const paused = spec.paused ?? false;
+  // Default to Windows since our render farm is Windows-based
+  const os = spec.os ?? "Windows";
 
   const layersXml = spec.layers
     .map((layer) => {
@@ -49,13 +52,16 @@ export function buildJobSpec(spec: JobSpec): string {
         : "";
 
       // Layer type must be: Render, Util, or Post (capitalized)
-      return `<layer name="${escapeXml(layer.name)}" type="Render"><cmd>${escapeXml(layer.command)}</cmd><range>${escapeXml(layer.range)}</range><chunk>${layer.chunk}</chunk><cores>${layer.cores}</cores><memory>${Math.round(layer.memory * 1024 * 1024)}</memory>${envXml}${servicesXml}</layer>`;
+      // Memory in spec must be specified with 'g' suffix for GB (e.g., "8g" for 8GB)
+      // Otherwise OpenCue interprets raw numbers as GB multiplied by CueUtil.GB (1048576 KB)
+      return `<layer name="${escapeXml(layer.name)}" type="Render"><cmd>${escapeXml(layer.command)}</cmd><range>${escapeXml(layer.range)}</range><chunk>${layer.chunk}</chunk><cores>${layer.cores}</cores><memory>${layer.memory}g</memory>${envXml}${servicesXml}</layer>`;
     })
     .join("");
 
   // OpenCue job spec format with DOCTYPE declaration pointing to cuebot's DTD
   // The DOCTYPE URL must start with http://localhost:8080/spcue/dtd/ for cuebot to resolve it
-  return `<?xml version="1.0"?><!DOCTYPE spec PUBLIC "SPI Cue Specification Language" "http://localhost:8080/spcue/dtd/cjsl-1.12.dtd"><spec><facility>local</facility><show>${escapeXml(spec.show)}</show><shot>${escapeXml(spec.shot)}</shot><user>${escapeXml(spec.user)}</user><job name="${escapeXml(spec.name)}"><paused>${paused}</paused><priority>${priority}</priority><maxretries>${maxRetries}</maxretries><autoeat>false</autoeat><env></env><layers>${layersXml}</layers></job></spec>`;
+  // The <os> element tells cuebot which log path root to use (e.g., "Windows" uses log.frame-log-root.Windows)
+  return `<?xml version="1.0"?><!DOCTYPE spec PUBLIC "SPI Cue Specification Language" "http://localhost:8080/spcue/dtd/cjsl-1.12.dtd"><spec><facility>local</facility><show>${escapeXml(spec.show)}</show><shot>${escapeXml(spec.shot)}</shot><user>${escapeXml(spec.user)}</user><job name="${escapeXml(spec.name)}"><os>${escapeXml(os)}</os><paused>${paused}</paused><priority>${priority}</priority><maxretries>${maxRetries}</maxretries><autoeat>false</autoeat><env></env><layers>${layersXml}</layers></job></spec>`;
 }
 
 // Common render command templates

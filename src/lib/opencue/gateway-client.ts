@@ -53,7 +53,56 @@ export async function gatewayCall<T>(
   }
 }
 
-// Job types
+// Job stats from OpenCue (nested in jobStats)
+export interface JobStats {
+  totalLayers: number;
+  totalFrames: number;
+  waitingFrames: number;
+  runningFrames: number;
+  deadFrames: number;
+  eatenFrames: number;
+  dependFrames: number;
+  succeededFrames: number;
+  pendingFrames: number;
+  avgFrameSec: number;
+  highFrameSec: number;
+  avgCoreSec: number;
+  renderedFrameCount: string;
+  failedFrameCount: string;
+  remainingCoreSec: string;
+  totalCoreSec: string;
+  renderedCoreSec: string;
+  failedCoreSec: string;
+  maxRss: string;
+  reservedCores: number;
+}
+
+// Raw job from OpenCue API
+export interface RawJob {
+  id: string;
+  name: string;
+  state: string;
+  isPaused: boolean;
+  user: string;
+  show: string;
+  shot?: string;
+  group?: string;
+  facility?: string;
+  os?: string;
+  priority: number;
+  minCores?: number;
+  maxCores?: number;
+  minGpus?: number;
+  maxGpus?: number;
+  logDir?: string;
+  hasComment?: boolean;
+  autoEat?: boolean;
+  startTime: number;
+  stopTime: number;
+  jobStats: JobStats;
+}
+
+// Normalized job interface for the UI
 export interface Job {
   id: string;
   name: string;
@@ -61,14 +110,54 @@ export interface Job {
   isPaused: boolean;
   user: string;
   show: string;
+  shot?: string;
+  group?: string;
+  facility?: string;
   priority: number;
+  logDir?: string;
   startTime: number;
   stopTime: number;
   pendingFrames: number;
   runningFrames: number;
   deadFrames: number;
   succeededFrames: number;
+  eatenFrames: number;
+  waitingFrames: number;
+  dependFrames: number;
   totalFrames: number;
+  // Extended stats
+  avgFrameSec?: number;
+  reservedCores?: number;
+}
+
+// Transform raw OpenCue job to normalized UI job
+export function normalizeJob(raw: RawJob): Job {
+  const stats = raw.jobStats || {};
+  return {
+    id: raw.id,
+    name: raw.name,
+    state: raw.state,
+    isPaused: raw.isPaused,
+    user: raw.user,
+    show: raw.show,
+    shot: raw.shot,
+    group: raw.group,
+    facility: raw.facility,
+    priority: raw.priority,
+    logDir: raw.logDir,
+    startTime: raw.startTime,
+    stopTime: raw.stopTime,
+    pendingFrames: stats.pendingFrames || 0,
+    runningFrames: stats.runningFrames || 0,
+    deadFrames: stats.deadFrames || 0,
+    succeededFrames: stats.succeededFrames || 0,
+    eatenFrames: stats.eatenFrames || 0,
+    waitingFrames: stats.waitingFrames || 0,
+    dependFrames: stats.dependFrames || 0,
+    totalFrames: stats.totalFrames || 0,
+    avgFrameSec: stats.avgFrameSec,
+    reservedCores: stats.reservedCores,
+  };
 }
 
 export interface Frame {
@@ -133,24 +222,37 @@ export interface Subscription {
 }
 
 // Job API
+// Raw response type from OpenCue GetJobs API
+interface GetJobsRawResponse {
+  jobs: {
+    jobs: RawJob[];
+  };
+}
+
 export async function getJobs(opts?: {
   show?: string;
   user?: string;
   includeFinished?: boolean;
-}): Promise<{ jobs: { jobs: Job[] } | Job[] }> {
-  const request: Record<string, unknown> = {};
+}): Promise<{ jobs: Job[] }> {
+  const request: Record<string, unknown> = { r: {} };
 
-  if (opts?.show || opts?.user) {
-    request.r = {};
-    if (opts.show) (request.r as Record<string, unknown>).show = [opts.show];
-    if (opts.user) (request.r as Record<string, unknown>).user = [opts.user];
+  if (opts?.show) {
+    (request.r as Record<string, unknown>).shows = [opts.show];
   }
-
+  if (opts?.user) {
+    (request.r as Record<string, unknown>).users = [opts.user];
+  }
   if (opts?.includeFinished) {
-    request.include_finished = true;
+    (request.r as Record<string, unknown>).include_finished = true;
   }
 
-  return gatewayCall('job.JobInterface', 'GetJobs', request);
+  const response = await gatewayCall<GetJobsRawResponse>('job.JobInterface', 'GetJobs', request);
+  
+  // Normalize raw jobs to UI jobs
+  const rawJobs = response?.jobs?.jobs || [];
+  const normalizedJobs = rawJobs.map(normalizeJob);
+  
+  return { jobs: normalizedJobs };
 }
 
 export async function getJob(jobId: string): Promise<{ job: Job }> {

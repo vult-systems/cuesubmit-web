@@ -15,7 +15,11 @@
       "Bash(git commit:*)",
       "Bash(git push)",
       "Bash(npm run typecheck:*)",
-      "Bash(npm run test:*)"
+      "Bash(npm run test:*)",
+      "Bash(ssh cuesubmit-server:*)",
+      "Bash(git -C C:/repos/cuesubmit-web status --short)",
+      "Bash(git -C C:/repos/cuesubmit-web add -A)",
+      "Bash(git -C C:/repos/cuesubmit-web commit -m \"$\\(cat <<''EOF''\nfeat: improve hosts page with rendering indicators and progress bars\n\n- Add pulsing green dot for actively rendering hosts\n- Add \"Rendering\" / \"Idle\" status badges\n- Replace text Load/Mem columns with visual progress bars\n- Add cores usage progress bar \\(green when rendering\\)\n- Memory bar shows blue/amber/red based on usage level\n- Load bar shows green/amber/red based on percentage\n- Header shows \"X rendering • Y idle\" summary\n- Combined System Name + IP into single column\n- Row highlights green when host is rendering\n\nAlso includes:\n- Job spec now includes <os>Windows</os> for correct log paths\n- Job name versioning \\(_v02, _v03\\) for duplicate names\n- Fixed frame-log-dialog syntax error\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
     ]
   }
 }

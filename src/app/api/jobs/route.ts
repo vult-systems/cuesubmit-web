@@ -11,16 +11,9 @@ import {
   USERS, 
   ASSETS, 
   SHOTS,
-  JOB_STATES,
   randomItem,
   type Scope
 } from "@/lib/mock-data";
-
-// Helper to extract nested array from gateway response
-function extractJobs(data: { jobs: Job[] } | Job[]): Job[] {
-  if (Array.isArray(data)) return data;
-  return data.jobs || [];
-}
 
 // Mock jobs for offline mode - uses centralized mock data
 function generateMockJobs(): Job[] {
@@ -85,7 +78,10 @@ function generateMockJobs(): Job[] {
       succeededFrames,
       runningFrames,
       pendingFrames,
-      deadFrames
+      deadFrames,
+      eatenFrames: 0,
+      waitingFrames: 0,
+      dependFrames: 0
     });
   }
   
@@ -119,11 +115,15 @@ export async function GET(request: Request) {
     const result = await getJobs({
       show,
       user: effectiveUser,
+      includeFinished: true,
     });
 
-    // Gateway returns { jobs: { jobs: [...] } }
-    const jobs = extractJobs(result.jobs);
-    return NextResponse.json({ jobs });
+    console.log("GetJobs result:", result.jobs.length, "jobs");
+    if (result.jobs.length > 0) {
+      console.log("Sample job:", JSON.stringify(result.jobs[0], null, 2));
+    }
+
+    return NextResponse.json({ jobs: result.jobs });
   } catch (error) {
     console.error("Failed to fetch jobs:", error);
     return NextResponse.json(
