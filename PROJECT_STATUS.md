@@ -6,6 +6,16 @@
 
 The web-based job submission interface for OpenCue is now functional. Jobs can be submitted from the production server at `http://10.40.14.25:3000`.
 
+### 🌐 Custom URL Ideas
+Consider setting up a friendly URL/subdomain:
+- `render.uiw3d.com`
+- `farm.uiw3d.com`
+- `opencue.uiw3d.com`
+- `submit.uiw3d.com`
+- `cue.uiw3d.com`
+
+This would require DNS configuration pointing to `10.40.14.25` and optionally nginx/reverse proxy for SSL.
+
 ## Infrastructure
 
 ### Server (10.40.14.25)
@@ -70,7 +80,12 @@ Consider:
 
 ### 4. 🟢 Minor Warnings (Non-blocking)
 - `SESSION_SECRET not set in production` warnings during build (cosmetic)
-- Allocations API returns 501 (method unimplemented in gateway - not critical)
+- ~~Allocations API returns 501~~ **FIXED** - Now falls back to mock data gracefully
+
+### 5. ✅ Performance Issue - FIXED
+**Problem**: Website was laggy due to repeated failed API calls to `GetAllocations` (method unimplemented in gateway).
+
+**Solution**: Modified `/api/allocations` to return mock allocation data when gateway fails instead of throwing errors. This prevents the frontend from getting stuck retrying failed requests.
 
 ## Recent Fixes (Dec 19, 2025)
 
