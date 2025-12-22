@@ -27,7 +27,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import {
   RefreshCw,
   Search,
@@ -36,7 +35,10 @@ import {
   PowerOff,
   Pencil,
   Trash2,
-  Settings,
+  ChevronDown,
+  ChevronRight,
+  Check,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -78,7 +80,7 @@ interface Show {
   defaultMinCores: number;
   defaultMaxCores: number;
   bookingEnabled?: boolean;
-  semester?: string; // e.g., "F25", "S26"
+  semester?: string;
 }
 
 interface Subscription {
@@ -117,24 +119,27 @@ export default function ShowsPage() {
   const [deleteJobCount, setDeleteJobCount] = useState<number | null>(null);
   const [forceDelete, setForceDelete] = useState(false);
   
-  // Settings dialog state
-  const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
-  const [showToEdit, setShowToEdit] = useState<Show | null>(null);
-  const [minCores, setMinCores] = useState(1);
-  const [maxCores, setMaxCores] = useState(4);
-  const [editSemester, setEditSemester] = useState("");
-  const [savingSettings, setSavingSettings] = useState(false);
+  // Expanded rows for subscriptions
+  const [expandedShows, setExpandedShows] = useState<Set<string>>(new Set());
+  const [showSubscriptions, setShowSubscriptions] = useState<Record<string, Subscription[]>>({});
+  const [loadingSubscriptions, setLoadingSubscriptions] = useState<Set<string>>(new Set());
   
-  // Subscriptions state
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
-  const [loadingSubscriptions, setLoadingSubscriptions] = useState(false);
-  const [allocations, setAllocations] = useState<{ id: string; name: string }[]>([]);
+  // Inline editing state
+  const [editingField, setEditingField] = useState<{ showId: string; field: string } | null>(null);
+  const [editValue, setEditValue] = useState<string | number>("");
+  const [saving, setSaving] = useState(false);
+  
+  // Subscription editing
   const [editingSubscription, setEditingSubscription] = useState<string | null>(null);
-  const [editSize, setEditSize] = useState(0);
-  const [editBurst, setEditBurst] = useState(100);
+  const [editSubSize, setEditSubSize] = useState(0);
+  const [editSubBurst, setEditSubBurst] = useState(100);
   const [savingSubscription, setSavingSubscription] = useState(false);
-  const [addingSubscription, setAddingSubscription] = useState(false);
+  
+  // Allocations for adding subscriptions
+  const [allocations, setAllocations] = useState<{ id: string; name: string }[]>([]);
+  const [addingSubToShow, setAddingSubToShow] = useState<string | null>(null);
   const [newSubAllocation, setNewSubAllocation] = useState("");
+  const [addingSubscription, setAddingSubscription] = useState(false);
 
   const fetchShows = useCallback(async () => {
     try {
@@ -169,6 +174,44 @@ export default function ShowsPage() {
     fetchShows();
     fetchAllocations();
   }, [fetchShows, fetchAllocations]);
+
+  const fetchSubscriptions = async (showId: string) => {
+    setLoadingSubscriptions((prev) => new Set(prev).add(showId));
+    try {
+      const response = await fetch(`/api/shows/${showId}/subscriptions`);
+      const data = await response.json();
+      if (response.ok) {
+        setShowSubscriptions((prev) => ({
+          ...prev,
+          [showId]: data.subscriptions || [],
+        }));
+      }
+    } catch (error) {
+      console.error("Failed to fetch subscriptions:", error);
+    } finally {
+      setLoadingSubscriptions((prev) => {
+        const next = new Set(prev);
+        next.delete(showId);
+        return next;
+      });
+    }
+  };
+
+  const toggleExpanded = (showId: string) => {
+    setExpandedShows((prev) => {
+      const next = new Set(prev);
+      if (next.has(showId)) {
+        next.delete(showId);
+      } else {
+        next.add(showId);
+        // Fetch subscriptions if not already loaded
+        if (!showSubscriptions[showId]) {
+          fetchSubscriptions(showId);
+        }
+      }
+      return next;
+    });
+  };
 
   const handleCreateShow = async () => {
     if (!newShowName.trim()) {
@@ -216,7 +259,6 @@ export default function ShowsPage() {
       });
       const data = await response.json();
       if (response.ok) {
-        toast.success(`Show ${action} successful`);
         fetchShows();
         return true;
       } else {
@@ -238,6 +280,7 @@ export default function ShowsPage() {
     setRenaming(true);
     const success = await handleShowAction(showToRename.id, "rename", newName.trim());
     if (success) {
+      toast.success("Show renamed");
       setRenameDialogOpen(false);
       setShowToRename(null);
       setNewName("");
@@ -252,14 +295,12 @@ export default function ShowsPage() {
       const url = forceDelete 
         ? `/api/shows/${showToDelete.id}?force=true`
         : `/api/shows/${showToDelete.id}`;
-      const response = await fetch(url, {
-        method: "DELETE",
-      });
+      const response = await fetch(url, { method: "DELETE" });
       const data = await response.json();
       if (response.ok) {
         const message = forceDelete && data.deletedJobs > 0
-          ? `Show deleted successfully (${data.deletedJobs} job records removed)`
-          : "Show deleted successfully";
+          ? `Show deleted (${data.deletedJobs} job records removed)`
+          : "Show deleted";
         toast.success(message);
         setDeleteDialogOpen(false);
         setShowToDelete(null);
@@ -276,43 +317,132 @@ export default function ShowsPage() {
     }
   };
 
-  const handleSaveSettings = async () => {
-    if (!showToEdit) return;
-    setSavingSettings(true);
+  // Inline field editing
+  const startEditing = (showId: string, field: string, currentValue: string | number) => {
+    setEditingField({ showId, field });
+    setEditValue(currentValue);
+  };
+
+  const cancelEditing = () => {
+    setEditingField(null);
+    setEditValue("");
+  };
+
+  const saveInlineEdit = async () => {
+    if (!editingField) return;
+    setSaving(true);
     
-    let success = true;
+    const { showId, field } = editingField;
+    let success = false;
     
-    // Save semester if changed
-    if (editSemester !== (showToEdit.semester || "")) {
+    if (field === "minCores") {
+      success = await handleShowAction(showId, "setMinCores", Number(editValue));
+    } else if (field === "maxCores") {
+      success = await handleShowAction(showId, "setMaxCores", Number(editValue));
+    } else if (field === "semester") {
       try {
-        const response = await fetch(`/api/shows/${showToEdit.id}/semester`, {
+        const response = await fetch(`/api/shows/${showId}/semester`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ semester: editSemester || null }),
+          body: JSON.stringify({ semester: editValue || null }),
         });
-        if (!response.ok) {
-          toast.error("Failed to update semester");
-          success = false;
-        }
+        success = response.ok;
+        if (success) fetchShows();
       } catch {
-        toast.error("Failed to update semester");
         success = false;
       }
     }
     
-    if (success && minCores !== showToEdit.defaultMinCores) {
-      success = await handleShowAction(showToEdit.id, "setMinCores", minCores);
-    }
-    if (success && maxCores !== showToEdit.defaultMaxCores) {
-      success = await handleShowAction(showToEdit.id, "setMaxCores", maxCores);
-    }
-    
     if (success) {
-      setSettingsDialogOpen(false);
-      setShowToEdit(null);
-      fetchShows(); // Refresh to get updated semester
+      toast.success(`Updated ${field}`);
     }
-    setSavingSettings(false);
+    setSaving(false);
+    cancelEditing();
+  };
+
+  // Subscription editing
+  const startEditSubscription = (sub: Subscription) => {
+    setEditingSubscription(sub.id);
+    setEditSubSize(sub.size);
+    setEditSubBurst(sub.burst);
+  };
+
+  const handleUpdateSubscription = async (showId: string, subscriptionId: string) => {
+    setSavingSubscription(true);
+    try {
+      const response = await fetch(`/api/shows/${showId}/subscriptions`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          subscriptionId,
+          size: editSubSize,
+          burst: editSubBurst,
+        }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        toast.success("Subscription updated");
+        setEditingSubscription(null);
+        fetchSubscriptions(showId);
+      } else {
+        toast.error(data.error || "Failed to update subscription");
+      }
+    } catch (error) {
+      console.error("Failed to update subscription:", error);
+      toast.error("Failed to update subscription");
+    } finally {
+      setSavingSubscription(false);
+    }
+  };
+
+  const handleDeleteSubscription = async (showId: string, subscriptionId: string) => {
+    try {
+      const response = await fetch(
+        `/api/shows/${showId}/subscriptions?subscriptionId=${subscriptionId}`,
+        { method: "DELETE" }
+      );
+      const data = await response.json();
+      if (response.ok) {
+        toast.success("Subscription removed");
+        fetchSubscriptions(showId);
+      } else {
+        toast.error(data.error || "Failed to remove subscription");
+      }
+    } catch (error) {
+      console.error("Failed to delete subscription:", error);
+      toast.error("Failed to remove subscription");
+    }
+  };
+
+  const handleAddSubscription = async (showId: string) => {
+    if (!newSubAllocation) return;
+    
+    setAddingSubscription(true);
+    try {
+      const response = await fetch(`/api/shows/${showId}/subscriptions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          allocationId: newSubAllocation,
+          size: 0,
+          burst: 100,
+        }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        toast.success("Subscription added");
+        setNewSubAllocation("");
+        setAddingSubToShow(null);
+        fetchSubscriptions(showId);
+      } else {
+        toast.error(data.error || "Failed to add subscription");
+      }
+    } catch (error) {
+      console.error("Failed to add subscription:", error);
+      toast.error("Failed to add subscription");
+    } finally {
+      setAddingSubscription(false);
+    }
   };
 
   const openRenameDialog = (show: Show) => {
@@ -328,7 +458,6 @@ export default function ShowsPage() {
     setForceDelete(false);
     setDeleteDialogOpen(true);
     
-    // Fetch stats for the show (subscriptions and job history)
     try {
       const [subsResponse, statsResponse] = await Promise.all([
         fetch(`/api/shows/${show.id}/subscriptions`),
@@ -350,127 +479,13 @@ export default function ShowsPage() {
     }
   };
 
-  const fetchSubscriptions = async (showId: string) => {
-    setLoadingSubscriptions(true);
-    try {
-      const response = await fetch(`/api/shows/${showId}/subscriptions`);
-      const data = await response.json();
-      if (response.ok) {
-        setSubscriptions(data.subscriptions || []);
-      } else {
-        setSubscriptions([]);
-      }
-    } catch (error) {
-      console.error("Failed to fetch subscriptions:", error);
-      setSubscriptions([]);
-    } finally {
-      setLoadingSubscriptions(false);
-    }
+  // Get allocations not yet subscribed for a show
+  const getAvailableAllocations = (showId: string) => {
+    const subs = showSubscriptions[showId] || [];
+    return allocations.filter(
+      (alloc) => !subs.some((sub) => sub.allocationName === alloc.name)
+    );
   };
-
-  const handleAddSubscription = async () => {
-    if (!showToEdit || !newSubAllocation) return;
-    
-    setAddingSubscription(true);
-    try {
-      const response = await fetch(`/api/shows/${showToEdit.id}/subscriptions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          allocationId: newSubAllocation,
-          size: 0,
-          burst: 100,
-        }),
-      });
-      const data = await response.json();
-      if (response.ok) {
-        toast.success("Subscription created");
-        setNewSubAllocation("");
-        fetchSubscriptions(showToEdit.id);
-      } else {
-        toast.error(data.error || "Failed to create subscription");
-      }
-    } catch (error) {
-      console.error("Failed to create subscription:", error);
-      toast.error("Failed to create subscription");
-    } finally {
-      setAddingSubscription(false);
-    }
-  };
-
-  const handleUpdateSubscription = async (subscriptionId: string) => {
-    if (!showToEdit) return;
-    
-    setSavingSubscription(true);
-    try {
-      const response = await fetch(`/api/shows/${showToEdit.id}/subscriptions`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          subscriptionId,
-          size: editSize,
-          burst: editBurst,
-        }),
-      });
-      const data = await response.json();
-      if (response.ok) {
-        toast.success("Subscription updated");
-        setEditingSubscription(null);
-        fetchSubscriptions(showToEdit.id);
-      } else {
-        toast.error(data.error || "Failed to update subscription");
-      }
-    } catch (error) {
-      console.error("Failed to update subscription:", error);
-      toast.error("Failed to update subscription");
-    } finally {
-      setSavingSubscription(false);
-    }
-  };
-
-  const handleDeleteSubscription = async (subscriptionId: string) => {
-    if (!showToEdit) return;
-    
-    try {
-      const response = await fetch(
-        `/api/shows/${showToEdit.id}/subscriptions?subscriptionId=${subscriptionId}`,
-        { method: "DELETE" }
-      );
-      const data = await response.json();
-      if (response.ok) {
-        toast.success("Subscription removed");
-        fetchSubscriptions(showToEdit.id);
-      } else {
-        toast.error(data.error || "Failed to remove subscription");
-      }
-    } catch (error) {
-      console.error("Failed to delete subscription:", error);
-      toast.error("Failed to remove subscription");
-    }
-  };
-
-  const startEditSubscription = (sub: Subscription) => {
-    setEditingSubscription(sub.id);
-    setEditSize(sub.size);
-    setEditBurst(sub.burst);
-  };
-
-  const openSettingsDialog = (show: Show) => {
-    setShowToEdit(show);
-    setMinCores(show.defaultMinCores);
-    setMaxCores(show.defaultMaxCores);
-    setEditSemester(show.semester || "");
-    setSubscriptions([]);
-    setEditingSubscription(null);
-    setNewSubAllocation("");
-    setSettingsDialogOpen(true);
-    fetchSubscriptions(show.id);
-  };
-
-  // Get allocations that don't have subscriptions yet
-  const availableAllocations = allocations.filter(
-    (alloc) => !subscriptions.some((sub) => sub.allocationName === alloc.name)
-  );
 
   // Filter shows
   const filteredShows = shows.filter((show) =>
@@ -486,7 +501,6 @@ export default function ShowsPage() {
     if (!match) return -1;
     const season = match[1].toUpperCase();
     const year = Number.parseInt(match[2], 10);
-    // Higher year = higher priority, Fall > Spring within same year
     return year * 10 + (season === "F" ? 1 : 0);
   };
 
@@ -498,12 +512,10 @@ export default function ShowsPage() {
     return acc;
   }, {} as Record<string, Show[]>);
 
-  // Sort semesters (most recent first, UNASSIGNED last)
   const sortedSemesters = Object.keys(showsBySemester).sort(
     (a, b) => getSemesterOrder(b) - getSemesterOrder(a)
   );
 
-  // Get full semester name for display
   const getSemesterLabel = (semester: string): string => {
     if (!semester || semester === "UNASSIGNED") return "UNASSIGNED";
     const regex = /^([FS])(\d{2})$/i;
@@ -514,140 +526,347 @@ export default function ShowsPage() {
     return `${season} ${year}`;
   };
 
-  const renderShowRow = (show: Show) => (
-    <ResizableTableRow
-      key={show.id}
-      className="hover:bg-neutral-50 dark:hover:bg-white/3 transition-colors duration-150 group"
-    >
-      <ResizableTableCell columnId="name" className="font-medium text-text-primary">
-        {show.name}
-      </ResizableTableCell>
-      <ResizableTableCell columnId="subscription">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-6 px-2 text-xs text-text-muted hover:text-text-primary hover:bg-neutral-100 dark:hover:bg-white/5"
-          onClick={() => openSettingsDialog(show)}
-        >
-          View
-        </Button>
-      </ResizableTableCell>
-      <ResizableTableCell columnId="status">
-        <Badge
-          variant="outline"
-          className={cn(
-            "text-[10px]",
-            show.active
-              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-              : "bg-surface-muted text-text-muted border-border"
-          )}
-        >
-          {show.active ? "Active" : "Inactive"}
-        </Badge>
-      </ResizableTableCell>
-      <ResizableTableCell columnId="min" className="text-text-muted text-xs">
-        {show.defaultMinCores}
-      </ResizableTableCell>
-      <ResizableTableCell columnId="max" className="text-text-secondary text-xs">
-        {show.defaultMaxCores}
-      </ResizableTableCell>
-      <ResizableTableCell columnId="booking">
-        <span className={cn(
-          "text-xs font-medium",
-          show.bookingEnabled ? "text-emerald-500" : "text-text-muted"
-        )}>
-          {show.bookingEnabled ? "Yes" : "No"}
-        </span>
-      </ResizableTableCell>
-      <ResizableTableCell columnId="actions">
-        <div className="flex items-center justify-end gap-0.5">
-          {/* Activate/Deactivate Toggle */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className={show.active ? iconButton.activate : iconButton.settings}
-                onClick={() => handleShowAction(show.id, show.active ? "deactivate" : "activate")}
-              >
-                {show.active ? (
-                  <Power className="h-3.5 w-3.5" />
-                ) : (
-                  <PowerOff className="h-3.5 w-3.5" />
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>{show.active ? "Deactivate" : "Activate"}</p>
-            </TooltipContent>
-          </Tooltip>
-
-          {/* Rename */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className={iconButton.edit}
-                onClick={() => openRenameDialog(show)}
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Rename</p>
-            </TooltipContent>
-          </Tooltip>
-
-          {/* Settings */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className={iconButton.settings}
-                onClick={() => openSettingsDialog(show)}
-              >
-                <Settings className="h-3.5 w-3.5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Settings</p>
-            </TooltipContent>
-          </Tooltip>
-
-          {/* Delete */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className={iconButton.delete}
-                onClick={() => openDeleteDialog(show)}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Delete</p>
-            </TooltipContent>
-          </Tooltip>
+  const renderEditableCell = (
+    show: Show,
+    field: string,
+    value: string | number,
+    type: "number" | "text" = "number"
+  ) => {
+    const isEditing = editingField?.showId === show.id && editingField?.field === field;
+    
+    if (isEditing) {
+      return (
+        <div className="flex items-center gap-1">
+          <Input
+            type={type}
+            value={editValue}
+            onChange={(e) => setEditValue(type === "number" ? Number(e.target.value) : e.target.value)}
+            className="h-6 w-16 text-xs px-1.5"
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === "Enter") saveInlineEdit();
+              if (e.key === "Escape") cancelEditing();
+            }}
+          />
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-5 w-5 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50"
+            onClick={saveInlineEdit}
+            disabled={saving}
+          >
+            <Check className="h-3 w-3" />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-5 w-5 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100"
+            onClick={cancelEditing}
+          >
+            <X className="h-3 w-3" />
+          </Button>
         </div>
-      </ResizableTableCell>
-    </ResizableTableRow>
-  );
+      );
+    }
+    
+    return (
+      <button
+        type="button"
+        onClick={() => startEditing(show.id, field, value)}
+        className="text-xs text-text-secondary hover:text-text-primary hover:bg-neutral-100 dark:hover:bg-white/5 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+      >
+        {value}
+      </button>
+    );
+  };
+
+  const renderSubscriptionRow = (show: Show) => {
+    const subs = showSubscriptions[show.id] || [];
+    const isLoading = loadingSubscriptions.has(show.id);
+    const availableAllocs = getAvailableAllocations(show.id);
+    
+    return (
+      <tr key={`${show.id}-subs`} className="bg-neutral-50/50 dark:bg-white/[0.02]">
+        <td colSpan={7} className="px-3 py-2">
+          <div className="pl-6 space-y-2">
+            {isLoading && (
+              <div className="text-xs text-text-muted">Loading subscriptions...</div>
+            )}
+            
+            {!isLoading && subs.length === 0 && (
+              <div className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 px-2 py-1.5 rounded border border-amber-200 dark:border-amber-500/20">
+                ⚠️ No room subscriptions — this show cannot render
+              </div>
+            )}
+            
+            {!isLoading && subs.length > 0 && (
+              <div className="grid gap-1">
+                {subs.map((sub) => (
+                  <div
+                    key={sub.id}
+                    className="flex items-center gap-3 text-xs bg-white dark:bg-white/5 px-2 py-1.5 rounded border border-neutral-200 dark:border-white/10"
+                  >
+                    <span className="font-medium text-text-primary min-w-20">{sub.allocationName}</span>
+                    
+                    {editingSubscription === sub.id ? (
+                      <>
+                        <div className="flex items-center gap-1">
+                          <span className="text-text-muted">Size:</span>
+                          <Input
+                            type="number"
+                            min={0}
+                            value={editSubSize}
+                            onChange={(e) => setEditSubSize(Number(e.target.value) || 0)}
+                            className="h-5 w-14 text-xs px-1"
+                          />
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-text-muted">Burst:</span>
+                          <Input
+                            type="number"
+                            min={0}
+                            value={editSubBurst}
+                            onChange={(e) => setEditSubBurst(Number(e.target.value) || 0)}
+                            className="h-5 w-14 text-xs px-1"
+                          />
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => handleUpdateSubscription(show.id, sub.id)}
+                          disabled={savingSubscription}
+                          className="h-5 px-2 text-[10px]"
+                        >
+                          {savingSubscription ? "..." : "Save"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setEditingSubscription(null)}
+                          className="h-5 px-2 text-[10px]"
+                        >
+                          Cancel
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-text-muted">
+                          Size: <span className="text-text-secondary font-medium">{sub.size}</span>
+                        </span>
+                        <span className="text-text-muted">
+                          Burst: <span className="text-text-secondary font-medium">{sub.burst}</span>
+                        </span>
+                        {sub.reservedCores > 0 && (
+                          <span className="text-emerald-600 dark:text-emerald-400">
+                            {sub.reservedCores} cores in use
+                          </span>
+                        )}
+                        <div className="flex-1" />
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => startEditSubscription(sub)}
+                          className="h-5 px-1.5 text-text-muted hover:text-text-primary"
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDeleteSubscription(show.id, sub.id)}
+                          className="h-5 px-1.5 text-red-400 hover:text-red-600"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {/* Add subscription */}
+            {!isLoading && availableAllocs.length > 0 && (
+              <div className="flex items-center gap-2 pt-1">
+                {addingSubToShow === show.id ? (
+                  <>
+                    <Select value={newSubAllocation} onValueChange={setNewSubAllocation}>
+                      <SelectTrigger className="h-6 text-xs w-40 bg-white dark:bg-white/5">
+                        <SelectValue placeholder="Select room..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableAllocs.map((alloc) => (
+                          <SelectItem key={alloc.id} value={alloc.id} className="text-xs">
+                            {alloc.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      size="sm"
+                      onClick={() => handleAddSubscription(show.id)}
+                      disabled={!newSubAllocation || addingSubscription}
+                      className="h-6 px-2 text-xs"
+                    >
+                      {addingSubscription ? "..." : "Add"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setAddingSubToShow(null);
+                        setNewSubAllocation("");
+                      }}
+                      className="h-6 px-2 text-xs"
+                    >
+                      Cancel
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setAddingSubToShow(show.id)}
+                    className="h-6 px-2 text-xs text-text-muted hover:text-text-primary"
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    Add Room
+                  </Button>
+                )}
+              </div>
+            )}
+            
+            {!isLoading && availableAllocs.length === 0 && subs.length > 0 && (
+              <div className="text-[10px] text-text-muted">
+                ✓ Subscribed to all available rooms
+              </div>
+            )}
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
+  const renderShowRow = (show: Show) => {
+    const isExpanded = expandedShows.has(show.id);
+    const subs = showSubscriptions[show.id] || [];
+    const subCount = isExpanded ? subs.length : null;
+    
+    return (
+      <>
+        <ResizableTableRow
+          key={show.id}
+          className="hover:bg-neutral-50 dark:hover:bg-white/3 transition-colors duration-150 group"
+        >
+          <ResizableTableCell columnId="expand" className="w-8">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-text-muted hover:text-text-primary"
+              onClick={() => toggleExpanded(show.id)}
+            >
+              {isExpanded ? (
+                <ChevronDown className="h-3.5 w-3.5" />
+              ) : (
+                <ChevronRight className="h-3.5 w-3.5" />
+              )}
+            </Button>
+          </ResizableTableCell>
+          <ResizableTableCell columnId="name" className="font-medium text-text-primary">
+            {show.name}
+          </ResizableTableCell>
+          <ResizableTableCell columnId="status">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => handleShowAction(show.id, show.active ? "deactivate" : "activate")}
+                  className={cn(
+                    "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors cursor-pointer",
+                    show.active
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20"
+                      : "bg-neutral-100 dark:bg-white/5 text-text-muted hover:bg-neutral-200 dark:hover:bg-white/10"
+                  )}
+                >
+                  {show.active ? <Power className="h-3 w-3" /> : <PowerOff className="h-3 w-3" />}
+                  {show.active ? "Active" : "Inactive"}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Click to {show.active ? "deactivate" : "activate"}</p>
+              </TooltipContent>
+            </Tooltip>
+          </ResizableTableCell>
+          <ResizableTableCell columnId="min">
+            {renderEditableCell(show, "minCores", show.defaultMinCores)}
+          </ResizableTableCell>
+          <ResizableTableCell columnId="max">
+            {renderEditableCell(show, "maxCores", show.defaultMaxCores)}
+          </ResizableTableCell>
+          <ResizableTableCell columnId="subs" className="text-xs text-text-muted">
+            {subCount !== null ? (
+              <span>{subCount} {pluralize(subCount, "room")}</span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => toggleExpanded(show.id)}
+                className="text-text-muted hover:text-text-primary hover:underline cursor-pointer"
+              >
+                View
+              </button>
+            )}
+          </ResizableTableCell>
+          <ResizableTableCell columnId="actions">
+            <div className="flex items-center justify-end gap-0.5">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={iconButton.edit}
+                    onClick={() => openRenameDialog(show)}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Rename</p>
+                </TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={iconButton.delete}
+                    onClick={() => openDeleteDialog(show)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Delete</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          </ResizableTableCell>
+        </ResizableTableRow>
+        {isExpanded && renderSubscriptionRow(show)}
+      </>
+    );
+  };
 
   const renderTable = (showsList: Show[], storageKey: string) => (
     <ResizableTable storageKey={storageKey}>
       <ResizableTableHeader>
         <ResizableTableRow className="hover:bg-transparent border-neutral-200 dark:border-white/6">
+          <ResizableTableHead columnId="expand" resizable={false} minWidth={32} maxWidth={32} />
           <ResizableTableHead columnId="name" minWidth={100} maxWidth={300}>Name</ResizableTableHead>
-          <ResizableTableHead columnId="subscription" minWidth={80} maxWidth={120}>Subscription</ResizableTableHead>
-          <ResizableTableHead columnId="status" minWidth={70} maxWidth={100}>Status</ResizableTableHead>
-          <ResizableTableHead columnId="min" minWidth={50} maxWidth={80}>Min</ResizableTableHead>
-          <ResizableTableHead columnId="max" minWidth={50} maxWidth={80}>Max</ResizableTableHead>
-          <ResizableTableHead columnId="booking" minWidth={60} maxWidth={100}>Booking</ResizableTableHead>
-          <ResizableTableHead columnId="actions" resizable={false} minWidth={120} maxWidth={120} className="text-right">Actions</ResizableTableHead>
+          <ResizableTableHead columnId="status" minWidth={80} maxWidth={120}>Status</ResizableTableHead>
+          <ResizableTableHead columnId="min" minWidth={50} maxWidth={80}>Min Cores</ResizableTableHead>
+          <ResizableTableHead columnId="max" minWidth={50} maxWidth={80}>Max Cores</ResizableTableHead>
+          <ResizableTableHead columnId="subs" minWidth={80} maxWidth={120}>Subscriptions</ResizableTableHead>
+          <ResizableTableHead columnId="actions" resizable={false} minWidth={80} maxWidth={80} className="text-right">Actions</ResizableTableHead>
         </ResizableTableRow>
       </ResizableTableHeader>
       <ResizableTableBody>
@@ -663,7 +882,7 @@ export default function ShowsPage() {
         <div>
           <h1 className="text-2xl font-semibold text-text-primary tracking-tight">Shows</h1>
           <p className="text-text-muted text-xs mt-1">
-            {filteredShows.length} {pluralize(filteredShows.length, 'show')} across {sortedSemesters.length} {pluralize(sortedSemesters.length, 'semester')}
+            {filteredShows.length} {pluralize(filteredShows.length, "show")} across {sortedSemesters.length} {pluralize(sortedSemesters.length, "semester")}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -852,27 +1071,23 @@ export default function ShowsPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
-            {/* Stats loading */}
             {(deleteSubscriptionCount === null || deleteJobCount === null) && (
               <div className="text-xs text-text-muted py-1">Loading show data...</div>
             )}
             
-            {/* Subscription warning */}
             {deleteSubscriptionCount !== null && deleteSubscriptionCount > 0 && (
               <div className="text-xs bg-amber-500/10 text-amber-600 dark:text-amber-400 px-3 py-2 rounded-lg border border-amber-500/20">
-                ⚠️ This show has {deleteSubscriptionCount} {pluralize(deleteSubscriptionCount, 'subscription')} that will be deleted.
+                ⚠️ This show has {deleteSubscriptionCount} {pluralize(deleteSubscriptionCount, "subscription")} that will be deleted.
               </div>
             )}
             
-            {/* Job history warning */}
             {deleteJobCount !== null && deleteJobCount > 0 && (
               <div className="text-xs bg-red-500/10 text-red-600 dark:text-red-400 px-3 py-2 rounded-lg border border-red-500/20">
-                🗄️ This show has <strong>{deleteJobCount}</strong> {pluralize(deleteJobCount, 'job')} in history.
+                🗄️ This show has <strong>{deleteJobCount}</strong> {pluralize(deleteJobCount, "job")} in history.
                 {!forceDelete && " Enable Force Delete to remove all job history."}
               </div>
             )}
             
-            {/* Force delete option - only show if there's job history */}
             {deleteJobCount !== null && deleteJobCount > 0 && (
               <label className="flex items-center gap-2 text-xs cursor-pointer select-none bg-surface-muted px-3 py-2.5 rounded-lg border border-neutral-200 dark:border-white/10 hover:border-red-500/30 transition-colors">
                 <input
@@ -882,12 +1097,11 @@ export default function ShowsPage() {
                   className="rounded border-neutral-300 text-red-600 focus:ring-red-500"
                 />
                 <span className="text-text-secondary">
-                  <strong className="text-red-600 dark:text-red-400">Force Delete</strong> — permanently remove all {deleteJobCount} job {pluralize(deleteJobCount ?? 0, 'record')} and subscriptions
+                  <strong className="text-red-600 dark:text-red-400">Force Delete</strong> — permanently remove all {deleteJobCount} job {pluralize(deleteJobCount ?? 0, "record")} and subscriptions
                 </span>
               </label>
             )}
             
-            {/* Info note when no job history */}
             {deleteJobCount !== null && deleteJobCount === 0 && (
               <div className="text-xs text-text-muted bg-surface-muted px-3 py-2 rounded-lg">
                 ✓ No job history found. This show can be safely deleted.
@@ -915,219 +1129,6 @@ export default function ShowsPage() {
               {!deleting && forceDelete && "Force Delete"}
               {!deleting && !forceDelete && "Delete Show"}
             </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Settings Dialog */}
-      <Dialog open={settingsDialogOpen} onOpenChange={setSettingsDialogOpen}>
-        <DialogContent className="max-w-xl">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-semibold text-text-primary">Show Settings</DialogTitle>
-            <DialogDescription className="text-text-muted text-sm">
-              Settings for &quot;{showToEdit?.name}&quot;.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="editSemester" className="text-text-muted text-xs font-medium">
-                Semester
-              </Label>
-              <Select value={editSemester || "none"} onValueChange={(v) => setEditSemester(v === "none" ? "" : v)}>
-                <SelectTrigger className="h-8 text-xs bg-white dark:bg-white/3 border-neutral-200 dark:border-white/8 focus:border-neutral-400 dark:focus:border-white/20 rounded-lg">
-                  <SelectValue placeholder="Select semester..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none" className="text-xs text-text-muted">
-                    No semester assigned
-                  </SelectItem>
-                  {SEMESTER_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value} className="text-xs">
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="minCores" className="text-text-muted text-xs font-medium">
-                  Default Min Cores
-                </Label>
-                <Input
-                  id="minCores"
-                  type="number"
-                  min={0}
-                  value={minCores}
-                  onChange={(e) => setMinCores(Number.parseInt(e.target.value, 10) || 0)}
-                  className="h-8 text-xs bg-white dark:bg-white/3 border-neutral-200 dark:border-white/8 focus:border-neutral-400 dark:focus:border-white/20 focus:bg-neutral-50 dark:focus:bg-white/5 rounded-lg transition-all duration-300"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="maxCores" className="text-text-muted text-xs font-medium">
-                  Default Max Cores
-                </Label>
-                <Input
-                  id="maxCores"
-                  type="number"
-                  min={0}
-                  value={maxCores}
-                  onChange={(e) => setMaxCores(Number.parseInt(e.target.value, 10) || 0)}
-                  className="h-8 text-xs bg-white dark:bg-white/3 border-neutral-200 dark:border-white/8 focus:border-neutral-400 dark:focus:border-white/20 focus:bg-neutral-50 dark:focus:bg-white/5 rounded-lg transition-all duration-300"
-                />
-              </div>
-            </div>
-            
-            {/* Subscriptions Section */}
-            <div className="space-y-3 pt-3 border-t border-neutral-200 dark:border-white/8">
-              <div className="flex items-center justify-between">
-                <Label className="text-text-muted text-xs font-medium">
-                  Room Subscriptions ({loadingSubscriptions ? "..." : subscriptions.length})
-                </Label>
-              </div>
-              
-              <p className="text-[10px] text-text-muted">
-                Subscriptions control which render rooms this show can use. Set <strong>Size</strong> for guaranteed cores,{" "}
-                <strong>Burst</strong> for maximum when available.
-              </p>
-              
-              {loadingSubscriptions && (
-                <div className="text-xs text-text-muted py-2">Loading subscriptions...</div>
-              )}
-              
-              {!loadingSubscriptions && subscriptions.length === 0 && (
-                <div className="text-xs text-text-muted py-2 px-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded">
-                  ⚠️ No subscriptions. This show cannot render until you add room subscriptions below.
-                </div>
-              )}
-              
-              {!loadingSubscriptions && subscriptions.length > 0 && (
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {subscriptions.map((sub) => (
-                    <div
-                      key={sub.id}
-                      className="flex items-center gap-2 text-xs bg-surface-muted px-3 py-2 rounded-lg"
-                    >
-                      <span className="text-text-primary font-medium min-w-24">{sub.allocationName}</span>
-                      
-                      {editingSubscription === sub.id ? (
-                        <>
-                          <div className="flex items-center gap-1">
-                            <span className="text-text-muted text-[10px]">Size:</span>
-                            <Input
-                              type="number"
-                              min={0}
-                              value={editSize}
-                              onChange={(e) => setEditSize(Number.parseInt(e.target.value, 10) || 0)}
-                              className="h-6 w-16 text-xs px-1.5"
-                            />
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <span className="text-text-muted text-[10px]">Burst:</span>
-                            <Input
-                              type="number"
-                              min={0}
-                              value={editBurst}
-                              onChange={(e) => setEditBurst(Number.parseInt(e.target.value, 10) || 0)}
-                              className="h-6 w-16 text-xs px-1.5"
-                            />
-                          </div>
-                          <Button
-                            size="sm"
-                            onClick={() => handleUpdateSubscription(sub.id)}
-                            disabled={savingSubscription}
-                            className="h-6 px-2 text-[10px]"
-                          >
-                            {savingSubscription ? "..." : "Save"}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => setEditingSubscription(null)}
-                            className="h-6 px-2 text-[10px]"
-                          >
-                            Cancel
-                          </Button>
-                        </>
-                      ) : (
-                        <>
-                          <span className="text-text-muted flex-1">
-                            Size: <span className="text-text-secondary">{sub.size}</span> / 
-                            Burst: <span className="text-text-secondary">{sub.burst}</span>
-                          </span>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => startEditSubscription(sub)}
-                            className="h-6 px-2 text-[10px] hover:bg-white/50 dark:hover:bg-white/10"
-                          >
-                            <Pencil className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleDeleteSubscription(sub.id)}
-                            className="h-6 px-2 text-[10px] text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-              
-              {/* Add Subscription */}
-              {!loadingSubscriptions && availableAllocations.length > 0 && (
-                <div className="flex items-center gap-2 pt-2">
-                  <Select value={newSubAllocation} onValueChange={setNewSubAllocation}>
-                    <SelectTrigger className="h-8 text-xs flex-1 bg-white dark:bg-white/3 border-neutral-200 dark:border-white/8 rounded-lg">
-                      <SelectValue placeholder="Add room subscription..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableAllocations.map((alloc) => (
-                        <SelectItem key={alloc.id} value={alloc.id} className="text-xs">
-                          {alloc.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    size="sm"
-                    onClick={handleAddSubscription}
-                    disabled={!newSubAllocation || addingSubscription}
-                    className="h-8 px-3 text-xs"
-                  >
-                    <Plus className="h-3.5 w-3.5 mr-1" />
-                    {addingSubscription ? "Adding..." : "Add"}
-                  </Button>
-                </div>
-              )}
-              
-              {!loadingSubscriptions && availableAllocations.length === 0 && subscriptions.length > 0 && (
-                <div className="text-[10px] text-text-muted">
-                  ✓ Subscribed to all available rooms
-                </div>
-              )}
-            </div>
-            
-            <div className="flex justify-end gap-2 pt-2">
-              <Button
-                variant="ghost"
-                onClick={() => setSettingsDialogOpen(false)}
-                className="h-8 px-4 text-xs rounded-lg transition-all duration-300"
-              >
-                Cancel
-              </Button>
-              <Button 
-                onClick={handleSaveSettings} 
-                disabled={savingSettings}
-                className="h-8 px-4 text-xs font-medium rounded-lg transition-all duration-300"
-              >
-                {savingSettings ? "Saving..." : "Save Settings"}
-              </Button>
-            </div>
           </div>
         </DialogContent>
       </Dialog>
