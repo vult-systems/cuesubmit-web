@@ -384,7 +384,7 @@ export default function ShowsPage() {
 
   // Group shows by semester (DEBUG_* shows go into Debug group)
   const showsBySemester = filteredShows.reduce((acc, show) => {
-    const group = show.name.startsWith("DEBUG_") ? "Debug" : (show.semester || "Unknown");
+    const group = show.name.toUpperCase().startsWith("DEBUG_") ? "Debug" : (show.semester || "Unknown");
     if (!acc[group]) acc[group] = [];
     acc[group].push(show);
     return acc;
