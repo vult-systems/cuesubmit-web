@@ -157,13 +157,6 @@ function UsageBar({
 import { accentColorList } from "@/lib/accent-colors";
 import { GroupedSection } from "@/components/grouped-section";
 
-interface Allocation {
-  id: string;
-  name: string;
-  tag: string;
-  facility: string;
-}
-
 interface HostMetadata {
   opencue_host_id: string;
   display_id: string | null;
@@ -174,7 +167,6 @@ interface HostMetadata {
 
 export default function HostsPage() {
   const [hosts, setHosts] = useState<Host[]>([]);
-  const [allocations, setAllocations] = useState<Allocation[]>([]);
   const [hostMetadata, setHostMetadata] = useState<Record<string, HostMetadata>>({});
   const [loading, setLoading] = useState(true);
   const [globalFilter, setGlobalFilter] = useState("");
@@ -204,18 +196,6 @@ export default function HostsPage() {
     }
   }, []);
 
-  const fetchAllocations = useCallback(async () => {
-    try {
-      const response = await fetch("/api/allocations");
-      const data = await response.json();
-      if (response.ok) {
-        setAllocations(data.allocations || []);
-      }
-    } catch (error) {
-      console.error("Failed to fetch allocations:", error);
-    }
-  }, []);
-
   const fetchHostMetadata = useCallback(async () => {
     try {
       const response = await fetch("/api/host-metadata");
@@ -235,11 +215,10 @@ export default function HostsPage() {
 
   useEffect(() => {
     fetchHosts();
-    fetchAllocations();
     fetchHostMetadata();
     const interval = setInterval(fetchHosts, 15000); // Auto-refresh every 15s
     return () => clearInterval(interval);
-  }, [fetchHosts, fetchAllocations, fetchHostMetadata]);
+  }, [fetchHosts, fetchHostMetadata]);
 
   const handleHostAction = async (hostId: string, action: string, extraData?: Record<string, unknown>) => {
     try {
@@ -304,21 +283,6 @@ export default function HostsPage() {
       setSelectedHost({
         ...selectedHost,
         tags: (selectedHost.tags || []).filter(t => t !== tag)
-      });
-    }
-    setSaving(false);
-  };
-
-  const handleSetAllocation = async (allocationId: string) => {
-    if (!selectedHost) return;
-
-    setSaving(true);
-    const success = await handleHostAction(selectedHost.id, "setAllocation", { allocationId });
-    if (success) {
-      const allocation = allocations.find(a => a.id === allocationId);
-      setSelectedHost({
-        ...selectedHost,
-        alloc: allocation?.name || ""
       });
     }
     setSaving(false);
@@ -803,31 +767,6 @@ export default function HostsPage() {
                   </Button>
                 </div>
               </div>
-
-              {/* Allocation Section */}
-              {allocations.length > 0 && (
-                <div className="space-y-3">
-                  <Label className="text-text-muted text-xs font-medium">
-                    Allocation (Room)
-                  </Label>
-                  <Select
-                    value={allocations.find(a => a.name === selectedHost.alloc)?.id || ""}
-                    onValueChange={handleSetAllocation}
-                    disabled={saving}
-                  >
-                    <SelectTrigger className="h-8 text-xs bg-white dark:bg-white/3 border-neutral-200 dark:border-white/8 rounded-lg">
-                      <SelectValue placeholder="Select allocation..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {allocations.map((alloc) => (
-                        <SelectItem key={alloc.id} value={alloc.id}>
-                          {alloc.name.toUpperCase()}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
 
               {/* Host Info */}
               <div className="space-y-2 pt-4 border-t border-neutral-200 dark:border-white/8">
