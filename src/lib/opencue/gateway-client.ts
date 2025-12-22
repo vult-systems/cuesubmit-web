@@ -390,6 +390,24 @@ export async function getAllocations(): Promise<{ allocations: Allocation[] | { 
   return gatewayCall('facility.AllocationInterface', 'GetAll', {});
 }
 
+export async function createAllocation(
+  name: string,
+  tag: string,
+  facilityName: string = 'local'
+): Promise<{ allocation: Allocation }> {
+  return gatewayCall('facility.AllocationInterface', 'Create', {
+    name,
+    tag,
+    facility: { name: facilityName }
+  });
+}
+
+export async function deleteAllocation(allocationId: string): Promise<void> {
+  await gatewayCall('facility.AllocationInterface', 'Delete', {
+    allocation: { id: allocationId }
+  });
+}
+
 // Show API
 export async function getShows(): Promise<{ shows: { shows: Show[] } | Show[] }> {
   return gatewayCall('show.ShowInterface', 'GetShows', {});
