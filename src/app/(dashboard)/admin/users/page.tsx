@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { pluralize } from "@/lib/format";
 import { iconButton } from "@/lib/icon-button-styles";
 import { GroupedSection } from "@/components/grouped-section";
 import { accentColorList } from "@/lib/accent-colors";
@@ -421,7 +422,7 @@ export default function UsersPage() {
         <div>
           <h1 className="text-2xl font-semibold text-text-primary tracking-tight">Users</h1>
           <p className="text-text-muted text-xs mt-1">
-            {filteredUsers.length} user{filteredUsers.length !== 1 ? "s" : ""} across {sortedRoles.length} role{sortedRoles.length !== 1 ? "s" : ""}
+            {filteredUsers.length} {pluralize(filteredUsers.length, 'user')} across {sortedRoles.length} {pluralize(sortedRoles.length, 'role')}
           </p>
         </div>
         <div className="flex items-center gap-2">

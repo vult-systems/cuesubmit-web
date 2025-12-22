@@ -15,6 +15,8 @@ const eslintConfig = defineConfig([
     // Reference content (not live code):
     "opencue/**",
     "launcher/**",
+    // Scripts (Node.js, not browser/Next.js):
+    "scripts/**",
   ]),
 ]);
 

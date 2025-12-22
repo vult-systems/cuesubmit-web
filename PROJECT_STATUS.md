@@ -1,6 +1,6 @@
 # CueSubmit Web - Project Status
 
-**Last Updated:** December 19, 2025
+**Last Updated:** December 22, 2025
 
 ## Current State: ✅ Job Submission Working
 
@@ -71,12 +71,11 @@ Consider:
 - UI truncation with tooltips
 - Job name format configuration
 
-### 3. 🟡 UI/UX Improvements Needed
-- Review submit form layout
-- Improve job/frame status indicators
-- Better error messages
-- Mobile responsiveness
-- Dark mode polish
+### 3. ✅ UI/UX Improvements - COMPLETED (Dec 22, 2025)
+- ✅ Hosts table: Resizable columns with drag handles
+- ✅ Hosts table: IP address shown above system name
+- ✅ Table consistency: Unified padding (px-3 py-2) across all tables
+- ✅ Created reusable `ResizableTable` component with localStorage persistence
 
 ### 4. 🟢 Minor Warnings (Non-blocking)
 - `SESSION_SECRET not set in production` warnings during build (cosmetic)
@@ -86,6 +85,32 @@ Consider:
 **Problem**: Website was laggy due to repeated failed API calls to `GetAllocations` (method unimplemented in gateway).
 
 **Solution**: Modified `/api/allocations` to return mock allocation data when gateway fails instead of throwing errors. This prevents the frontend from getting stuck retrying failed requests.
+
+## Recent Fixes (Dec 22, 2025)
+
+1. **UI/UX Table Improvements**
+   - Created `ResizableTable` component with drag-to-resize columns
+   - Column widths persist to localStorage per table
+   - Hosts page: IP shown on top, system name below
+   - Unified table styling: `px-3 py-2` padding, `text-xs` cells, `text-[10px] uppercase` headers
+
+2. **Linting & Code Quality** - Fixed 40+ issues
+   - Replaced all `count !== 1 ? "s" : ""` with `pluralize()` utility
+   - Fixed nested ternaries → logical AND patterns  
+   - Fixed `parseInt()` → `Number.parseInt()` with radix
+   - Fixed `String.match()` → `RegExp.exec()`
+   - Fixed `.sort()` → `.sort((a,b) => a.localeCompare(b))`
+   - Added `Readonly<>` wrappers to component props
+   - Removed unused variables (`lockStateColors`, `CompactUsageBar`, `setShowAll`)
+
+3. **Database Sync Script**
+   - Added `npm run sync-db` to pull database from production
+   - Handles SQLite WAL checkpointing automatically
+
+4. **Project Configuration**
+   - Added `sonar-project.properties` for SonarLint exclusions
+   - Added `.vscode/settings.json` for workspace settings
+   - Updated `eslint.config.mjs` to exclude `scripts/`
 
 ## Recent Fixes (Dec 19, 2025)
 
