@@ -11,7 +11,7 @@ import {
 } from "@/lib/opencue/gateway-client";
 import { forceDeleteShow, renameShow } from "@/lib/opencue/database";
 import { config } from "@/lib/config";
-import { getOfflineShows, setOfflineShows } from "../route";
+import { getOfflineShows, setOfflineShows } from "@/lib/offline-shows";
 
 export async function POST(
   request: Request,
