@@ -52,7 +52,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useAuth } from "@/lib/auth/auth-context";
 
 // Generate semester options (current year +/- 2 years)
 function generateSemesterOptions(): { value: string; label: string }[] {
@@ -101,8 +100,8 @@ interface DebugShow {
 }
 
 export default function ShowsPage() {
-  const { user } = useAuth();
-  const isAdmin = user?.role === "admin";
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const isAdmin = userRole === "admin";
   const [shows, setShows] = useState<Show[]>([]);
   const [loading, setLoading] = useState(true);
   const [globalFilter, setGlobalFilter] = useState("");
@@ -132,6 +131,18 @@ export default function ShowsPage() {
   const [loadingRoomData, setLoadingRoomData] = useState(false);
   const [syncingHosts, setSyncingHosts] = useState(false);
   const [creatingDebugShows, setCreatingDebugShows] = useState(false);
+
+  // Fetch user session on mount
+  useEffect(() => {
+    fetch("/api/auth/session")
+      .then(res => res.json())
+      .then(data => {
+        if (data.isLoggedIn && data.user?.role) {
+          setUserRole(data.user.role);
+        }
+      })
+      .catch(err => console.error("Failed to get session:", err));
+  }, []);
 
   const fetchShows = useCallback(async () => {
     try {
