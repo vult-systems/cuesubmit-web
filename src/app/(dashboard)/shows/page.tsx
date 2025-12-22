@@ -987,8 +987,8 @@ export default function ShowsPage() {
               </div>
               
               <p className="text-[10px] text-text-muted">
-                Subscriptions control which render rooms this show can use. Set <strong>Size</strong> for guaranteed cores, 
-                <strong> Burst</strong> for maximum when available.
+                Subscriptions control which render rooms this show can use. Set <strong>Size</strong> for guaranteed cores,{" "}
+                <strong>Burst</strong> for maximum when available.
               </p>
               
               {loadingSubscriptions && (
