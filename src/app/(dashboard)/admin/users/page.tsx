@@ -2,13 +2,13 @@
 
 import { useState, useEffect, useCallback } from "react";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  ResizableTable,
+  ResizableTableBody,
+  ResizableTableCell,
+  ResizableTableHead,
+  ResizableTableHeader,
+  ResizableTableRow,
+} from "@/components/ui/resizable-table";
 import {
   Dialog,
   DialogContent,
@@ -314,105 +314,103 @@ export default function UsersPage() {
   };
 
   const renderUserRow = (user: User) => (
-    <TableRow
+    <ResizableTableRow
       key={user.id}
-      className="hover:bg-neutral-50 dark:hover:bg-white/3 transition-all duration-200 group border-neutral-200 dark:border-white/6"
+      className="hover:bg-neutral-50 dark:hover:bg-white/3 transition-colors duration-150 group"
     >
-      <TableCell className="pl-8 font-medium text-text-primary text-sm">
+      <ResizableTableCell columnId="username" className="font-medium text-text-primary">
         {user.username}
-      </TableCell>
-      <TableCell className="text-text-secondary text-sm">
+      </ResizableTableCell>
+      <ResizableTableCell columnId="fullname" className="text-text-secondary text-xs">
         {user.full_name || "-"}
-      </TableCell>
-      <TableCell className="text-center">
+      </ResizableTableCell>
+      <ResizableTableCell columnId="role">
         <Badge
           variant="outline"
-          className={cn("text-xs capitalize", getRoleBadgeStyle(user.role))}
+          className={cn("text-[10px] capitalize", getRoleBadgeStyle(user.role))}
         >
           {user.role}
         </Badge>
-      </TableCell>
-      <TableCell className="text-text-muted text-sm text-center">
+      </ResizableTableCell>
+      <ResizableTableCell columnId="created" className="text-text-muted text-xs">
         {formatDate(user.created_at)}
-      </TableCell>
-      <TableCell className="text-text-muted text-sm text-center">
+      </ResizableTableCell>
+      <ResizableTableCell columnId="lastlogin" className="text-text-muted text-xs">
         {formatDate(user.last_login)}
-      </TableCell>
-      <TableCell className="pr-8">
-        <TooltipProvider delayDuration={300}>
-          <div className="flex items-center justify-center gap-0.5">
-            {/* Edit */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className={iconButton.edit}
-                  onClick={() => openEditDialog(user)}
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Edit</p>
-              </TooltipContent>
-            </Tooltip>
+      </ResizableTableCell>
+      <ResizableTableCell columnId="actions">
+        <div className="flex items-center justify-end gap-0.5">
+          {/* Edit */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={iconButton.edit}
+                onClick={() => openEditDialog(user)}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Edit</p>
+            </TooltipContent>
+          </Tooltip>
 
-            {/* Reset Password */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className={iconButton.settings}
-                  onClick={() => openResetPasswordDialog(user)}
-                >
-                  <KeyRound className="h-3.5 w-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Reset Password</p>
-              </TooltipContent>
-            </Tooltip>
+          {/* Reset Password */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={iconButton.settings}
+                onClick={() => openResetPasswordDialog(user)}
+              >
+                <KeyRound className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Reset Password</p>
+            </TooltipContent>
+          </Tooltip>
 
-            {/* Delete */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className={iconButton.delete}
-                  onClick={() => openDeleteDialog(user)}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Delete</p>
-              </TooltipContent>
-            </Tooltip>
-          </div>
-        </TooltipProvider>
-      </TableCell>
-    </TableRow>
+          {/* Delete */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={iconButton.delete}
+                onClick={() => openDeleteDialog(user)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Delete</p>
+            </TooltipContent>
+          </Tooltip>
+        </div>
+      </ResizableTableCell>
+    </ResizableTableRow>
   );
 
-  const renderTable = (usersList: User[]) => (
-    <Table>
-      <TableHeader>
-        <TableRow className="hover:bg-transparent border-neutral-200 dark:border-white/6">
-          <TableHead className="pl-8">Username</TableHead>
-          <TableHead>Full Name</TableHead>
-          <TableHead className="text-center">Role</TableHead>
-          <TableHead className="text-center">Created</TableHead>
-          <TableHead className="text-center">Last Login</TableHead>
-          <TableHead className="text-center pr-8">Actions</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
+  const renderTable = (usersList: User[], storageKey: string) => (
+    <ResizableTable storageKey={storageKey}>
+      <ResizableTableHeader>
+        <ResizableTableRow className="hover:bg-transparent border-neutral-200 dark:border-white/6">
+          <ResizableTableHead columnId="username" minWidth={100} maxWidth={200}>Username</ResizableTableHead>
+          <ResizableTableHead columnId="fullname" minWidth={100} maxWidth={250}>Full Name</ResizableTableHead>
+          <ResizableTableHead columnId="role" minWidth={80} maxWidth={120}>Role</ResizableTableHead>
+          <ResizableTableHead columnId="created" minWidth={100} maxWidth={150}>Created</ResizableTableHead>
+          <ResizableTableHead columnId="lastlogin" minWidth={100} maxWidth={150}>Last Login</ResizableTableHead>
+          <ResizableTableHead columnId="actions" resizable={false} minWidth={100} maxWidth={100} className="text-right">Actions</ResizableTableHead>
+        </ResizableTableRow>
+      </ResizableTableHeader>
+      <ResizableTableBody>
         {usersList.map(renderUserRow)}
-      </TableBody>
-    </Table>
+      </ResizableTableBody>
+    </ResizableTable>
   );
 
   return (
@@ -551,19 +549,21 @@ export default function UsersPage() {
 
       {/* Grouped Sections */}
       {!loading && filteredUsers.length > 0 && (
-        <div className="space-y-3">
-          {sortedRoles.map((role, index) => (
-            <GroupedSection
-              key={role}
-              title={roleLabels[role] || role.toUpperCase()}
-              badge={`${usersByRole[role].length}`}
-              accentColors={accentColorList[index % accentColorList.length]}
-              defaultOpen={true}
-            >
-              {renderTable(usersByRole[role])}
-            </GroupedSection>
-          ))}
-        </div>
+        <TooltipProvider delayDuration={200}>
+          <div className="space-y-3">
+            {sortedRoles.map((role, index) => (
+              <GroupedSection
+                key={role}
+                title={roleLabels[role] || role.toUpperCase()}
+                badge={`${usersByRole[role].length}`}
+                accentColors={accentColorList[index % accentColorList.length]}
+                defaultOpen={true}
+              >
+                {renderTable(usersByRole[role], `users-${role}`)}
+              </GroupedSection>
+            ))}
+          </div>
+        </TooltipProvider>
       )}
 
       {/* Edit Dialog */}

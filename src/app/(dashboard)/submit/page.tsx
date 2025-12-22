@@ -54,7 +54,7 @@ const formSchema = z.object({
   renderType: z.string().min(1, "Output type is required"),
   // Rendered frame base name (validated conditionally below)
   renderedFrameName: z.string()
-    .regex(/^[A-Za-z0-9_]*$/, "Only letters, numbers, and underscores allowed")
+    .regex(/^\w*$/, "Only letters, numbers, and underscores allowed")
     .optional(),
   // Shot Structure (only used when scope is "shot")
   useAct: z.boolean().optional(),
@@ -149,7 +149,7 @@ function getShowShorthand(showName: string): string {
   if (parts.length >= 2) {
     // Get first part (course number) and last part (semester code)
     const courseNum = parts[0];
-    const semester = parts[parts.length - 1];
+    const semester = parts.at(-1);
     return `${courseNum}_${semester}`;
   }
   // Fallback to full name if format doesn't match
@@ -169,7 +169,7 @@ function generateJobName(data: {
 
   const showShort = getShowShorthand(data.show);
   // Sanitize subject: remove spaces, keep only alphanumeric and underscores
-  const sanitizedSubject = data.subject.replace(/[^A-Za-z0-9_]/g, "");
+  const sanitizedSubject = data.subject.replaceAll(/\W/g, "");
   const output = renderTypeLabels[data.renderType] || data.renderType;
 
   return `${showShort}_${sanitizedSubject}_${output}`;
@@ -186,7 +186,7 @@ function generateRenderedFrameName(data: {
   }
 
   // Sanitize subject: remove spaces, keep only alphanumeric and underscores
-  const sanitizedSubject = data.subject.replace(/[^A-Za-z0-9_]/g, "");
+  const sanitizedSubject = data.subject.replaceAll(/\W/g, "");
   const output = renderTypeLabels[data.renderType] || data.renderType;
 
   return `${data.projectCode}_${sanitizedSubject}_${output}`;
@@ -226,7 +226,7 @@ function generateShotCode(data: {
 }
 
 // Required field marker component
-function Required({ color = "cool" }: { color?: "cool" | "warm" }) {
+function Required({ color = "cool" }: Readonly<{ color?: "cool" | "warm" }>) {
   const colorClass = color === "cool" ? "text-blue-400" : "text-amber-400";
   return <span className={`${colorClass} ml-0.5`}>*</span>;
 }
@@ -240,12 +240,12 @@ function FieldLabel({
   required,
   accent = "cool",
   htmlFor
-}: {
+}: Readonly<{
   children: React.ReactNode;
   required?: boolean;
   accent?: "cool" | "warm";
   htmlFor?: string;
-}) {
+}>) {
   return (
     <Label htmlFor={htmlFor} className="text-text-muted text-[10px] font-medium uppercase tracking-wide">
       {children}
@@ -274,7 +274,7 @@ export default function SubmitPage() {
     setValue,
     watch,
     reset,
-    formState: { errors, isValid },
+    formState: { isValid },
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues,
@@ -311,7 +311,6 @@ export default function SubmitPage() {
   const show = watch("show");
   const projectCode = watch("projectCode");
   const scope = watch("scope");
-  const department = watch("department");
   const subject = watch("subject");
   const renderType = watch("renderType");
   const renderedFrameName = watch("renderedFrameName");
@@ -517,7 +516,7 @@ export default function SubmitPage() {
                   className="uppercase font-mono tracking-wider"
                   onChange={(e) => {
                     // Force uppercase
-                    const value = e.target.value.toUpperCase().replace(/[^A-Z]/g, "");
+                    const value = e.target.value.toUpperCase().replaceAll(/[^A-Z]/g, "");
                     setValue("projectCode", value);
                   }}
                 />
@@ -852,7 +851,7 @@ export default function SubmitPage() {
                   className="font-mono"
                   onChange={(e) => {
                     // Only allow letters, numbers, underscores
-                    const value = e.target.value.replace(/[^A-Za-z0-9_]/g, "");
+                    const value = e.target.value.replaceAll(/\W/g, "");
                     setValue("renderedFrameName", value);
                     // Mark as manually edited once user starts typing
                     setManualFrameName(true);

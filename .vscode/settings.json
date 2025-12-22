@@ -12,5 +12,11 @@
     "launcher/**": true,
     ".next/**": true,
     "node_modules/**": true
+  },
+  "redhat.telemetry.enabled": false,
+  "redHatDependencyAnalytics.exhortSnykToken": "",
+  "redHatDependencyAnalytics.matchManifestVersions": false,
+  "files.watcherExclude": {
+    "opencue/**": true
   }
 }

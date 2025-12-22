@@ -482,8 +482,9 @@ export default function HostsPage() {
         </div>
       )}
       {!loading && hostsByGroup.length > 0 && (
-        <div className="space-y-4">
-          {hostsByGroup.map(([group, groupHosts]) => {
+        <TooltipProvider delayDuration={200}>
+          <div className="space-y-4">
+            {hostsByGroup.map(([group, groupHosts]) => {
             const colors = groupColorMap[group];
             const groupUpHosts = groupHosts.filter(h => h.state === "UP").length;
             const groupTotalCores = groupHosts.reduce((sum, h) => sum + h.cores, 0);
@@ -506,13 +507,12 @@ export default function HostsPage() {
                       <ResizableTableHead columnId="cores" minWidth={80} maxWidth={140}>Cores</ResizableTableHead>
                       <ResizableTableHead columnId="mem" minWidth={80} maxWidth={140}>Mem</ResizableTableHead>
                       <ResizableTableHead columnId="swap" minWidth={80} maxWidth={140}>Swap</ResizableTableHead>
-                      <ResizableTableHead columnId="load" minWidth={70} maxWidth={120}>Load</ResizableTableHead>
                       <ResizableTableHead columnId="tags" minWidth={80} maxWidth={200}>Tags</ResizableTableHead>
                       <ResizableTableHead columnId="actions" resizable={false} minWidth={100} maxWidth={100} className="text-right">Actions</ResizableTableHead>
                     </ResizableTableRow>
                   </ResizableTableHeader>
                   <ResizableTableBody>
-                    {groupHosts.map((host, index) => {
+                    {groupHosts.map((host) => {
                       const isLocked = host.lockState === "LOCKED";
                       const isNimbyLocked = host.lockState === "NIMBY_LOCKED";
                       const isUp = host.state === "UP";
@@ -520,8 +520,6 @@ export default function HostsPage() {
                       // Calculate usage
                       const coresUsed = host.cores - host.idleCores;
                       const memoryUsed = host.memory - host.idleMemory;
-                      // Load per core (like CueGUI) - load is system load avg, divide by cores
-                      const loadPerCore = host.cores > 0 ? Math.round(host.load / host.cores) : 0;
                       const isRendering = coresUsed > 0 && isUp;
 
                       // Get local metadata for this host
@@ -537,19 +535,15 @@ export default function HostsPage() {
                         <ResizableTableRow
                           key={host.id}
                           className={cn(
-                            "hover:bg-neutral-50 dark:hover:bg-white/3 transition-all duration-200 group",
+                            "hover:bg-neutral-50 dark:hover:bg-white/3 transition-colors duration-150 group",
                             isRendering && "bg-emerald-50/50 dark:bg-emerald-500/5"
                           )}
-                          style={{ animationDelay: `${index * 30}ms` }}
                         >
                           {/* ID */}
                           <ResizableTableCell columnId="id" className="font-medium text-text-primary">
                             <div className="flex items-center gap-2">
                               {isRendering && (
-                                <span className="relative flex h-2 w-2 shrink-0">
-                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                                </span>
+                                <span className="inline-flex rounded-full h-2 w-2 bg-emerald-500 shrink-0"></span>
                               )}
                               <span className="truncate">{displayId}</span>
                             </div>
@@ -616,15 +610,6 @@ export default function HostsPage() {
                             />
                           </ResizableTableCell>
 
-                          {/* Load per core (like CueGUI) */}
-                          <ResizableTableCell columnId="load">
-                            <UsageBar
-                              used={loadPerCore}
-                              total={100}
-                              colorMode="load"
-                            />
-                          </ResizableTableCell>
-
                           {/* Tags */}
                           <ResizableTableCell columnId="tags">
                             <div className="flex flex-wrap gap-1 min-w-0">
@@ -646,7 +631,6 @@ export default function HostsPage() {
                             </div>
                           </ResizableTableCell>
                           <ResizableTableCell columnId="actions">
-                            <TooltipProvider delayDuration={200}>
                               <div className="flex items-center justify-end gap-0.5">
                                 <Tooltip>
                                   <TooltipTrigger asChild>
@@ -702,7 +686,6 @@ export default function HostsPage() {
                                   </TooltipContent>
                                 </Tooltip>
                               </div>
-                            </TooltipProvider>
                           </ResizableTableCell>
                         </ResizableTableRow>
                       );
@@ -712,7 +695,8 @@ export default function HostsPage() {
               </GroupedSection>
             );
           })}
-        </div>
+          </div>
+        </TooltipProvider>
       )}
 
       <p className="text-text-muted/50 text-xs">
