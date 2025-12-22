@@ -36,7 +36,6 @@ import {
   Pencil,
   Trash2,
   ChevronDown,
-  ChevronRight,
   Check,
   X,
 } from "lucide-react";
@@ -586,8 +585,8 @@ export default function ShowsPage() {
     
     return (
       <tr key={`${show.id}-subs`} className="bg-neutral-50/50 dark:bg-white/2">
-        <td colSpan={7} className="px-3 py-3">
-          <div className="pl-6 space-y-3">
+        <td colSpan={6} className="px-3 py-3">
+          <div className="space-y-3">
             {/* Show name header */}
             <div className="text-xs font-semibold text-text-primary border-b border-neutral-200 dark:border-white/10 pb-2">
               Room Subscriptions for {show.name}
@@ -728,7 +727,7 @@ export default function ShowsPage() {
   const renderShowRow = (show: Show) => {
     const isExpanded = expandedShows.has(show.id);
     const subs = showSubscriptions[show.id] || [];
-    const subCount = isExpanded ? subs.length : null;
+    const subCount = subs.length;
     
     return (
       <>
@@ -736,20 +735,6 @@ export default function ShowsPage() {
           key={show.id}
           className="hover:bg-neutral-50 dark:hover:bg-white/3 transition-colors duration-150 group"
         >
-          <ResizableTableCell columnId="expand" className="w-8">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 text-text-muted hover:text-text-primary"
-              onClick={() => toggleExpanded(show.id)}
-            >
-              {isExpanded ? (
-                <ChevronDown className="h-3.5 w-3.5" />
-              ) : (
-                <ChevronRight className="h-3.5 w-3.5" />
-              )}
-            </Button>
-          </ResizableTableCell>
           <ResizableTableCell columnId="name" className="font-medium text-text-primary">
             {show.name}
           </ResizableTableCell>
@@ -781,18 +766,24 @@ export default function ShowsPage() {
           <ResizableTableCell columnId="max">
             {renderEditableCell(show, "maxCores", show.defaultMaxCores)}
           </ResizableTableCell>
-          <ResizableTableCell columnId="subs" className="text-xs text-text-muted">
-            {subCount !== null ? (
-              <span>{subCount} {pluralize(subCount, "room")}</span>
-            ) : (
-              <button
-                type="button"
-                onClick={() => toggleExpanded(show.id)}
-                className="text-text-muted hover:text-text-primary hover:underline cursor-pointer"
-              >
-                View
-              </button>
-            )}
+          <ResizableTableCell columnId="subs" className="text-xs">
+            <button
+              type="button"
+              onClick={() => toggleExpanded(show.id)}
+              className={cn(
+                "inline-flex items-center gap-1 px-2 py-1 rounded transition-colors cursor-pointer",
+                isExpanded
+                  ? "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                  : "hover:bg-neutral-100 dark:hover:bg-white/5 text-text-muted hover:text-text-primary"
+              )}
+            >
+              <ChevronDown className={cn("h-3 w-3 transition-transform", !isExpanded && "-rotate-90")} />
+              {subCount > 0 ? (
+                <span>{subCount} {pluralize(subCount, "room")}</span>
+              ) : (
+                <span className="text-amber-600 dark:text-amber-400">None</span>
+              )}
+            </button>
           </ResizableTableCell>
           <ResizableTableCell columnId="actions">
             <div className="flex items-center justify-end gap-0.5">
@@ -839,13 +830,12 @@ export default function ShowsPage() {
     <ResizableTable storageKey={storageKey}>
       <ResizableTableHeader>
         <ResizableTableRow className="hover:bg-transparent border-neutral-200 dark:border-white/6">
-          <ResizableTableHead columnId="expand" resizable={false} minWidth={32} maxWidth={32} />
           <ResizableTableHead columnId="name" minWidth={100} maxWidth={300}>Name</ResizableTableHead>
           <ResizableTableHead columnId="status" minWidth={80} maxWidth={120}>Status</ResizableTableHead>
-          <ResizableTableHead columnId="min" minWidth={50} maxWidth={80}>Min Cores</ResizableTableHead>
-          <ResizableTableHead columnId="max" minWidth={50} maxWidth={80}>Max Cores</ResizableTableHead>
-          <ResizableTableHead columnId="subs" minWidth={80} maxWidth={120}>Subscriptions</ResizableTableHead>
-          <ResizableTableHead columnId="actions" resizable={false} minWidth={80} maxWidth={80} className="text-right">Actions</ResizableTableHead>
+          <ResizableTableHead columnId="min" minWidth={70} maxWidth={100}>Min Cores</ResizableTableHead>
+          <ResizableTableHead columnId="max" minWidth={70} maxWidth={100}>Max Cores</ResizableTableHead>
+          <ResizableTableHead columnId="subs" minWidth={100} maxWidth={150}>Rooms</ResizableTableHead>
+          <ResizableTableHead columnId="actions" resizable={false} minWidth={100} maxWidth={100} className="text-right">Actions</ResizableTableHead>
         </ResizableTableRow>
       </ResizableTableHeader>
       <ResizableTableBody>
