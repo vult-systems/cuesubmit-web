@@ -36,7 +36,6 @@ import {
   Pencil,
   Trash2,
   Monitor,
-  Zap,
   CheckCircle2,
   AlertCircle,
 } from "lucide-react";
@@ -129,8 +128,6 @@ export default function ShowsPage() {
   const [roomAllocations, setRoomAllocations] = useState<RoomAllocation[]>([]);
   const [debugShows, setDebugShows] = useState<DebugShow[]>([]);
   const [loadingRoomData, setLoadingRoomData] = useState(false);
-  const [syncingHosts, setSyncingHosts] = useState(false);
-  const [creatingDebugShows, setCreatingDebugShows] = useState(false);
 
   // Fetch user session on mount
   useEffect(() => {
@@ -196,55 +193,6 @@ export default function ShowsPage() {
       fetchRoomData();
     }
   }, [isAdmin, fetchRoomData]);
-
-  const handleSyncHostsToAllocations = async () => {
-    setSyncingHosts(true);
-    try {
-      const response = await fetch("/api/room-allocations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({})
-      });
-      const data = await response.json();
-      if (response.ok) {
-        toast.success(`Synced hosts: ${data.assigned} assigned, ${data.skipped} already correct`);
-        if (data.errors > 0) {
-          toast.warning(`${data.errors} errors occurred`);
-        }
-        fetchRoomData();
-      } else {
-        toast.error(data.error || "Failed to sync hosts");
-      }
-    } catch (error) {
-      console.error("Failed to sync hosts:", error);
-      toast.error("Failed to sync hosts to allocations");
-    } finally {
-      setSyncingHosts(false);
-    }
-  };
-
-  const handleCreateDebugShows = async () => {
-    setCreatingDebugShows(true);
-    try {
-      const response = await fetch("/api/debug-shows", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" }
-      });
-      const data = await response.json();
-      if (response.ok) {
-        toast.success(`Created ${data.created} debug shows, ${data.subscribed} subscriptions`);
-        fetchRoomData();
-        fetchShows();
-      } else {
-        toast.error(data.error || "Failed to create debug shows");
-      }
-    } catch (error) {
-      console.error("Failed to create debug shows:", error);
-      toast.error("Failed to create debug shows");
-    } finally {
-      setCreatingDebugShows(false);
-    }
-  };
 
   const handleCreateShow = async () => {
     if (!newShowName.trim()) {
@@ -627,47 +575,24 @@ export default function ShowsPage() {
                   Room Allocations
                 </h2>
                 <p className="text-text-muted text-xs mt-1">
-                  Debug shows and host allocations per room (Admin only)
+                  Debug shows per room for isolated testing (Admin only)
                 </p>
               </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleSyncHostsToAllocations}
-                  disabled={syncingHosts}
-                  className="gap-1.5 h-8 text-xs"
-                >
-                  <Zap className={cn("h-3.5 w-3.5", syncingHosts && "animate-pulse")} />
-                  {syncingHosts ? "Syncing..." : "Sync Hosts to Room Allocations"}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleCreateDebugShows}
-                  disabled={creatingDebugShows}
-                  className="gap-1.5 h-8 text-xs"
-                >
-                  <Plus className={cn("h-3.5 w-3.5", creatingDebugShows && "animate-pulse")} />
-                  {creatingDebugShows ? "Creating..." : "Create Debug Shows"}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={fetchRoomData}
-                  disabled={loadingRoomData}
-                  className="h-8 w-8"
-                >
-                  <RefreshCw className={cn("h-3.5 w-3.5", loadingRoomData && "animate-spin")} />
-                </Button>
-              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={fetchRoomData}
+                disabled={loadingRoomData}
+                className="h-8 w-8"
+              >
+                <RefreshCw className={cn("h-3.5 w-3.5", loadingRoomData && "animate-spin")} />
+              </Button>
             </div>
 
             {/* Room Allocation Grid */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
               {roomAllocations.map((alloc) => {
                 const debugShow = debugShows.find(d => d.room.toLowerCase() === alloc.tag?.toLowerCase());
-                const isFullySynced = alloc.hostCount > 0 && alloc.assignedCount === alloc.hostCount;
                 
                 return (
                   <div
@@ -678,7 +603,7 @@ export default function ShowsPage() {
                       <span className="font-medium text-sm text-text-primary">
                         {alloc.tag?.toUpperCase()}
                       </span>
-                      {isFullySynced ? (
+                      {debugShow?.exists ? (
                         <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                       ) : (
                         <AlertCircle className="h-4 w-4 text-amber-500" />
@@ -686,15 +611,11 @@ export default function ShowsPage() {
                     </div>
                     <div className="space-y-1 text-xs text-text-muted">
                       <div className="flex justify-between">
-                        <span>Hosts with tag:</span>
-                        <span className="text-text-secondary">{alloc.hostCount}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Assigned:</span>
+                        <span>Hosts:</span>
                         <span className={cn(
                           "text-text-secondary",
-                          alloc.assignedCount === alloc.hostCount && alloc.hostCount > 0 && "text-emerald-500",
-                          alloc.assignedCount < alloc.hostCount && "text-amber-500"
+                          alloc.assignedCount > 0 && "text-emerald-500",
+                          alloc.assignedCount === 0 && "text-amber-500"
                         )}>
                           {alloc.assignedCount}
                         </span>
@@ -714,7 +635,7 @@ export default function ShowsPage() {
               
               {roomAllocations.length === 0 && !loadingRoomData && (
                 <div className="col-span-full text-center py-6 text-text-muted text-sm">
-                  No room allocations found. Run the setup script first.
+                  No room allocations found.
                 </div>
               )}
               
@@ -724,14 +645,6 @@ export default function ShowsPage() {
                   Loading room data...
                 </div>
               )}
-            </div>
-
-            {/* Instructions */}
-            <div className="p-4 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-lg">
-              <p className="text-xs text-amber-700 dark:text-amber-300">
-                <strong>How it works:</strong> Hosts are auto-assigned to room allocations based on their tags (e.g., host with tag &quot;AD405&quot; goes to local.ad405 allocation).
-                Debug shows like DEBUG_AD405 are subscribed only to their room&apos;s allocation for isolated testing.
-              </p>
             </div>
           </div>
         )}
