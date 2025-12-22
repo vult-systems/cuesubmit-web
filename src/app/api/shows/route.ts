@@ -4,34 +4,12 @@ import { hasPermission } from "@/lib/auth/permissions";
 import { getActiveShows, getShows, createShow, type Show } from "@/lib/opencue/gateway-client";
 import { getAllShowMetadata, setShowSemester } from "@/lib/opencue/database";
 import { config } from "@/lib/config";
-import { SHOWS } from "@/lib/mock-data";
+import { getOfflineShows, setOfflineShows } from "@/lib/offline-shows";
 
 // Helper to extract nested array from gateway response
 function extractShows(data: { shows: Show[] } | Show[]): Show[] {
   if (Array.isArray(data)) return data;
   return data.shows || [];
-}
-
-// In-memory store for offline mode shows - initialized from centralized mock data
-let offlineShows: Show[] = SHOWS.map(s => ({
-  id: s.id,
-  name: s.name,
-  tag: s.tag,
-  description: s.description,
-  active: s.active,
-  defaultMinCores: s.defaultMinCores,
-  defaultMaxCores: s.defaultMaxCores,
-  bookingEnabled: s.bookingEnabled,
-  semester: s.semester
-}));
-
-// Export for use by other routes
-export function getOfflineShows(): Show[] {
-  return offlineShows;
-}
-
-export function setOfflineShows(shows: Show[]): void {
-  offlineShows = shows;
 }
 
 export async function GET(request: Request) {
@@ -45,6 +23,7 @@ export async function GET(request: Request) {
     if (config.mode === "offline") {
       const { searchParams } = new URL(request.url);
       const includeInactive = searchParams.get("all") === "true";
+      const offlineShows = getOfflineShows();
       const filtered = includeInactive ? offlineShows : offlineShows.filter(s => s.active);
       return NextResponse.json({ shows: filtered });
     }
@@ -118,8 +97,9 @@ export async function POST(request: Request) {
 
     // Handle offline mode
     if (config.mode === "offline") {
+      const offlineShowsList = getOfflineShows();
       // Check for duplicate name
-      if (offlineShows.some(s => s.name.toLowerCase() === fullName.toLowerCase())) {
+      if (offlineShowsList.some(s => s.name.toLowerCase() === fullName.toLowerCase())) {
         return NextResponse.json(
           { error: "A show with this name already exists" },
           { status: 400 }
@@ -134,7 +114,7 @@ export async function POST(request: Request) {
         defaultMaxCores: 4,
         semester: semester.toUpperCase()
       };
-      offlineShows.push(newShow);
+      setOfflineShows([...offlineShowsList, newShow]);
       return NextResponse.json({ success: true, show: newShow });
     }
 
