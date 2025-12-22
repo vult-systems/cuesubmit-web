@@ -137,7 +137,6 @@ export default function ShowsPage() {
   
   // Allocations for adding subscriptions
   const [allocations, setAllocations] = useState<{ id: string; name: string }[]>([]);
-  const [addingSubToShow, setAddingSubToShow] = useState<string | null>(null);
   const [newSubAllocation, setNewSubAllocation] = useState("");
   const [addingSubscription, setAddingSubscription] = useState(false);
 
@@ -414,8 +413,9 @@ export default function ShowsPage() {
     }
   };
 
-  const handleAddSubscription = async (showId: string) => {
-    if (!newSubAllocation) return;
+  const handleAddSubscription = async (showId: string, allocationId?: string) => {
+    const allocId = allocationId || newSubAllocation;
+    if (!allocId) return;
     
     setAddingSubscription(true);
     try {
@@ -423,16 +423,15 @@ export default function ShowsPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          allocationId: newSubAllocation,
+          allocationId: allocId,
           size: 0,
           burst: 100,
         }),
       });
       const data = await response.json();
       if (response.ok) {
-        toast.success("Subscription added");
+        toast.success("Room added");
         setNewSubAllocation("");
-        setAddingSubToShow(null);
         fetchSubscriptions(showId);
       } else {
         toast.error(data.error || "Failed to add subscription");
@@ -586,27 +585,27 @@ export default function ShowsPage() {
     const availableAllocs = getAvailableAllocations(show.id);
     
     return (
-      <tr key={`${show.id}-subs`} className="bg-neutral-50/50 dark:bg-white/[0.02]">
-        <td colSpan={7} className="px-3 py-2">
-          <div className="pl-6 space-y-2">
+      <tr key={`${show.id}-subs`} className="bg-neutral-50/50 dark:bg-white/2">
+        <td colSpan={7} className="px-3 py-3">
+          <div className="pl-6 space-y-3">
+            {/* Show name header */}
+            <div className="text-xs font-semibold text-text-primary border-b border-neutral-200 dark:border-white/10 pb-2">
+              Room Subscriptions for {show.name}
+            </div>
+            
             {isLoading && (
-              <div className="text-xs text-text-muted">Loading subscriptions...</div>
+              <div className="text-xs text-text-muted">Loading...</div>
             )}
             
-            {!isLoading && subs.length === 0 && (
-              <div className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 px-2 py-1.5 rounded border border-amber-200 dark:border-amber-500/20">
-                ⚠️ No room subscriptions — this show cannot render
-              </div>
-            )}
-            
+            {/* Current subscriptions */}
             {!isLoading && subs.length > 0 && (
-              <div className="grid gap-1">
+              <div className="space-y-1.5">
                 {subs.map((sub) => (
                   <div
                     key={sub.id}
-                    className="flex items-center gap-3 text-xs bg-white dark:bg-white/5 px-2 py-1.5 rounded border border-neutral-200 dark:border-white/10"
+                    className="flex items-center gap-3 text-xs bg-white dark:bg-white/5 px-3 py-2 rounded border border-neutral-200 dark:border-white/10"
                   >
-                    <span className="font-medium text-text-primary min-w-20">{sub.allocationName}</span>
+                    <span className="font-medium text-text-primary min-w-24">{sub.allocationName}</span>
                     
                     {editingSubscription === sub.id ? (
                       <>
@@ -616,8 +615,8 @@ export default function ShowsPage() {
                             type="number"
                             min={0}
                             value={editSubSize}
-                            onChange={(e) => setEditSubSize(Number(e.target.value) || 0)}
-                            className="h-5 w-14 text-xs px-1"
+                            onChange={(e) => setEditSubSize(Math.floor(Number(e.target.value)) || 0)}
+                            className="h-6 w-16 text-xs px-2"
                           />
                         </div>
                         <div className="flex items-center gap-1">
@@ -626,23 +625,23 @@ export default function ShowsPage() {
                             type="number"
                             min={0}
                             value={editSubBurst}
-                            onChange={(e) => setEditSubBurst(Number(e.target.value) || 0)}
-                            className="h-5 w-14 text-xs px-1"
+                            onChange={(e) => setEditSubBurst(Math.floor(Number(e.target.value)) || 0)}
+                            className="h-6 w-16 text-xs px-2"
                           />
                         </div>
                         <Button
                           size="sm"
                           onClick={() => handleUpdateSubscription(show.id, sub.id)}
                           disabled={savingSubscription}
-                          className="h-5 px-2 text-[10px]"
+                          className="h-6 px-3 text-xs"
                         >
-                          {savingSubscription ? "..." : "Save"}
+                          {savingSubscription ? "Saving..." : "Save"}
                         </Button>
                         <Button
                           size="sm"
                           variant="ghost"
                           onClick={() => setEditingSubscription(null)}
-                          className="h-5 px-2 text-[10px]"
+                          className="h-6 px-2 text-xs"
                         >
                           Cancel
                         </Button>
@@ -657,7 +656,7 @@ export default function ShowsPage() {
                         </span>
                         {sub.reservedCores > 0 && (
                           <span className="text-emerald-600 dark:text-emerald-400">
-                            {sub.reservedCores} cores in use
+                            ({sub.reservedCores} in use)
                           </span>
                         )}
                         <div className="flex-1" />
@@ -665,17 +664,19 @@ export default function ShowsPage() {
                           size="sm"
                           variant="ghost"
                           onClick={() => startEditSubscription(sub)}
-                          className="h-5 px-1.5 text-text-muted hover:text-text-primary"
+                          className="h-6 px-2 text-xs text-text-muted hover:text-text-primary"
                         >
-                          <Pencil className="h-3 w-3" />
+                          <Pencil className="h-3 w-3 mr-1" />
+                          Edit
                         </Button>
                         <Button
                           size="sm"
                           variant="ghost"
                           onClick={() => handleDeleteSubscription(show.id, sub.id)}
-                          className="h-5 px-1.5 text-red-400 hover:text-red-600"
+                          className="h-6 px-2 text-xs text-red-400 hover:text-red-600"
                         >
-                          <Trash2 className="h-3 w-3" />
+                          <Trash2 className="h-3 w-3 mr-1" />
+                          Remove
                         </Button>
                       </>
                     )}
@@ -684,59 +685,37 @@ export default function ShowsPage() {
               </div>
             )}
             
-            {/* Add subscription */}
+            {/* No subscriptions warning */}
+            {!isLoading && subs.length === 0 && (
+              <div className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 rounded border border-amber-200 dark:border-amber-500/20">
+                ⚠️ No room subscriptions — this show cannot render until you add rooms below
+              </div>
+            )}
+            
+            {/* Add rooms section - show all available as buttons */}
             {!isLoading && availableAllocs.length > 0 && (
-              <div className="flex items-center gap-2 pt-1">
-                {addingSubToShow === show.id ? (
-                  <>
-                    <Select value={newSubAllocation} onValueChange={setNewSubAllocation}>
-                      <SelectTrigger className="h-6 text-xs w-40 bg-white dark:bg-white/5">
-                        <SelectValue placeholder="Select room..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableAllocs.map((alloc) => (
-                          <SelectItem key={alloc.id} value={alloc.id} className="text-xs">
-                            {alloc.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+              <div className="pt-2 border-t border-neutral-200 dark:border-white/10">
+                <div className="text-[10px] text-text-muted mb-2">Add room subscription:</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {availableAllocs.map((alloc) => (
                     <Button
+                      key={alloc.id}
                       size="sm"
-                      onClick={() => handleAddSubscription(show.id)}
-                      disabled={!newSubAllocation || addingSubscription}
-                      className="h-6 px-2 text-xs"
+                      variant="outline"
+                      onClick={() => handleAddSubscription(show.id, alloc.id)}
+                      disabled={addingSubscription}
+                      className="h-7 px-3 text-xs"
                     >
-                      {addingSubscription ? "..." : "Add"}
+                      <Plus className="h-3 w-3 mr-1" />
+                      {alloc.name}
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        setAddingSubToShow(null);
-                        setNewSubAllocation("");
-                      }}
-                      className="h-6 px-2 text-xs"
-                    >
-                      Cancel
-                    </Button>
-                  </>
-                ) : (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setAddingSubToShow(show.id)}
-                    className="h-6 px-2 text-xs text-text-muted hover:text-text-primary"
-                  >
-                    <Plus className="h-3 w-3 mr-1" />
-                    Add Room
-                  </Button>
-                )}
+                  ))}
+                </div>
               </div>
             )}
             
             {!isLoading && availableAllocs.length === 0 && subs.length > 0 && (
-              <div className="text-[10px] text-text-muted">
+              <div className="text-xs text-emerald-600 dark:text-emerald-400">
                 ✓ Subscribed to all available rooms
               </div>
             )}
