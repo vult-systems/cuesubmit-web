@@ -382,18 +382,20 @@ export default function ShowsPage() {
     show.name.toLowerCase().includes(globalFilter.toLowerCase())
   );
 
-  // Group shows by semester
+  // Group shows by semester (DEBUG_* shows go into Debug group)
   const showsBySemester = filteredShows.reduce((acc, show) => {
-    const semester = show.semester || "Unknown";
-    if (!acc[semester]) acc[semester] = [];
-    acc[semester].push(show);
+    const group = show.name.startsWith("DEBUG_") ? "Debug" : (show.semester || "Unknown");
+    if (!acc[group]) acc[group] = [];
+    acc[group].push(show);
     return acc;
   }, {} as Record<string, Show[]>);
 
-  // Sort semesters (most recent first)
+  // Sort semesters (most recent first, Debug at the end, Unknown last)
   const sortedSemesters = Object.keys(showsBySemester).sort((a, b) => {
     if (a === "Unknown") return 1;
     if (b === "Unknown") return -1;
+    if (a === "Debug") return 1;
+    if (b === "Debug") return -1;
     const [aSeason, aYear] = [a[0], parseInt(a.slice(1))];
     const [bSeason, bYear] = [b[0], parseInt(b.slice(1))];
     if (aYear !== bYear) return bYear - aYear;
@@ -614,13 +616,6 @@ export default function ShowsPage() {
             {renderTable(showsBySemester[semester], `shows-${semester}`)}
           </GroupedSection>
         ))}
-
-        {/* Info about default subscription */}
-        <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 rounded-lg">
-          <p className="text-xs text-blue-700 dark:text-blue-300">
-            <strong>Note:</strong> All shows are automatically subscribed to <code className="bg-blue-100 dark:bg-blue-500/20 px-1 py-0.5 rounded">local.general</code> allocation by default.
-          </p>
-        </div>
 
         {/* Room Allocations Admin Section */}
         {isAdmin && (
