@@ -5,8 +5,7 @@ import {
   getAllocations, 
   getHosts,
   setHostAllocation,
-  type Allocation,
-  type Host
+  type Allocation
 } from "@/lib/opencue/gateway-client";
 import { config } from "@/lib/config";
 

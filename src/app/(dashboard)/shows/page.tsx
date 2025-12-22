@@ -344,8 +344,8 @@ export default function ShowsPage() {
     if (b === "Unknown") return -1;
     if (a === "Debug") return 1;
     if (b === "Debug") return -1;
-    const [aSeason, aYear] = [a[0], parseInt(a.slice(1))];
-    const [bSeason, bYear] = [b[0], parseInt(b.slice(1))];
+    const [aSeason, aYear] = [a[0], Number.parseInt(a.slice(1))];
+    const bYear = Number.parseInt(b.slice(1));
     if (aYear !== bYear) return bYear - aYear;
     return aSeason === "F" ? -1 : 1;
   });

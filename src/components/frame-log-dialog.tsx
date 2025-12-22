@@ -162,13 +162,11 @@ export function FrameLogDialog({
   const [logs, setLogs] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
-  const [isRealLog, setIsRealLog] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
+    const scrollRef = useRef<HTMLDivElement>(null);
 
   const fetchLogs = useCallback(async () => {
     if (!frame) return;
     setLoading(true);
-    setIsRealLog(false);
     try {
       // Try to fetch real logs from the API
       const response = await fetch(
@@ -178,8 +176,7 @@ export function FrameLogDialog({
       
       if (response.ok && data.logs && !data.error) {
         setLogs(data.logs);
-        setIsRealLog(true);
-      } else {
+        } else {
         // Fall back to mock logs if API fails or returns empty
         console.log("Using mock logs:", data.error || "No logs returned");
         setLogs(generateFrameLog(frame, jobName));

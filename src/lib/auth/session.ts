@@ -1,6 +1,5 @@
 import { getIronSession, IronSession } from 'iron-session';
 import { cookies } from 'next/headers';
-import { NextResponse } from 'next/server';
 
 export interface SessionData {
   userId: string;

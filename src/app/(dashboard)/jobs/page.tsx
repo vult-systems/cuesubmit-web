@@ -289,7 +289,7 @@ export default function JobsPage() {
                               <span className="text-text-muted text-xs">{job.priority}</span>
                             </ResizableTableCell>
                             <ResizableTableCell columnId="actions">
-                              {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events */}
+                              { }
                               <div className="flex items-center justify-end gap-0.5" onClick={(e) => e.stopPropagation()}>
                                 {/* View Logs */}
                                 <Tooltip>
