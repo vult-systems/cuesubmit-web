@@ -56,7 +56,7 @@ export async function GET() {
     }
 
     // Only admins can view room allocation status
-    if (!hasPermission(user.role, "manage_allocations")) {
+    if (!hasPermission(user.role, "manage_shows")) {
       return NextResponse.json({ error: "Permission denied" }, { status: 403 });
     }
 
@@ -123,7 +123,7 @@ export async function POST(request: Request) {
     }
 
     // Only admins can auto-assign
-    if (!hasPermission(user.role, "manage_allocations")) {
+    if (!hasPermission(user.role, "manage_hosts")) {
       return NextResponse.json({ error: "Permission denied" }, { status: 403 });
     }
 
