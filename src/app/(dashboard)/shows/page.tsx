@@ -1125,7 +1125,7 @@ export default function ShowsPage() {
                 disabled={savingSettings}
                 className="h-8 px-4 text-xs font-medium rounded-lg transition-all duration-300"
               >
-                {savingSettings ? "Saving..." : "Save Settings"}}
+                {savingSettings ? "Saving..." : "Save Settings"}
               </Button>
             </div>
           </div>
