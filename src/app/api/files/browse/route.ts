@@ -11,7 +11,7 @@ const UNC_PATH = String.raw`\\REDACTED_IP\RenderOutputRepo`;
 // Convert UNC path to Linux path for filesystem access
 function uncToLinux(uncPath: string): string {
   // Decode URI components first
-  let decoded = decodeURIComponent(uncPath);
+  const decoded = decodeURIComponent(uncPath);
   
   // Normalize backslashes and remove trailing slashes
   const normalized = decoded.replace(/\\/g, "/").replace(/\/+$/, "");

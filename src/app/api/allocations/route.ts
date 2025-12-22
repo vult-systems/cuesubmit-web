@@ -44,7 +44,7 @@ export async function GET() {
     }
 
     return NextResponse.json({ allocations });
-  } catch (error) {
+  } catch {
     // Gateway doesn't implement GetAllocations - return mock data instead of erroring
     // This prevents lag from repeated failed API calls
     console.warn("Allocations API unavailable, using mock data");

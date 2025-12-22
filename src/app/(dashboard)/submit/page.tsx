@@ -20,15 +20,6 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { FileBrowserDialog } from "@/components/file-browser-dialog";
 
-// Department display mappings
-const departmentLabels: Record<string, string> = {
-  model: "Model",
-  lookdev: "Lookdev",
-  light: "Light",
-  anim: "Anim",
-  fx: "FX",
-};
-
 // Render type (Output) display mappings
 const renderTypeLabels: Record<string, string> = {
   still: "Still",
