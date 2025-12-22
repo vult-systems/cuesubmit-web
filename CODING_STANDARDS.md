@@ -198,9 +198,19 @@ The following directories are excluded from linting:
 
 ## Enforcement
 
-These standards are enforced via:
+All rules are enforced via:
 
-- **ESLint** - `eslint.config.mjs`
-- **SonarLint** - `sonar-project.properties`
-- **markdownlint** - VS Code extension
-- **TypeScript** - `tsconfig.json` strict mode
+- **ESLint** - Configured in `eslint.config.mjs`
+- **SonarLint** - Uses `sonar-project.properties` for exclusions
+- **TypeScript** - Strict mode enabled in `tsconfig.json`
+- **Pre-commit** - Run `npm run lint` before committing
+
+### Running Linting
+
+```bash
+# Check for issues
+npm run lint
+
+# Auto-fix where possible
+npm run lint -- --fix
+```

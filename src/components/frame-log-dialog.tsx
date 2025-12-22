@@ -37,110 +37,137 @@ interface FrameLogDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
+// Helper functions for log generation
+function formatLogTime(ts: number): string {
+  if (!ts) return "N/A";
+  return new Date(ts).toISOString().replace('T', ' ').slice(0, -5);
+}
+
+function createLogLine(startTime: number, offset: number, level: string, message: string): string {
+  const ts = new Date(startTime + offset).toISOString().replace('T', ' ').slice(0, -5);
+  return `[${ts}] ${level}: ${message}`;
+}
+
+function generateLogHeader(frame: Frame, jobName: string, hostName: string, coreCount: number, duration: string): string[] {
+  const exitInfo = getExitCodeInfo(frame.exitStatus);
+  const separator = `================================================================================`;
+  
+  return [
+    separator,
+    `OpenCue Frame Log`,
+    separator,
+    `Job:         ${jobName}`,
+    `Frame:       ${frame.number} (${frame.name})`,
+    `Chunk:       ${frame.chunkNumber || 'N/A'} (size: ${frame.chunkSize || 'N/A'})`,
+    `Host:        ${hostName}`,
+    `Cores:       ${coreCount}`,
+    `Start Time:  ${formatLogTime(frame.startTime)}`,
+    `Stop Time:   ${formatLogTime(frame.stopTime)}`,
+    `Duration:    ${duration}s`,
+    `Exit Status: ${frame.exitStatus} (${exitInfo.label} - ${exitInfo.description})`,
+    `Retries:     ${frame.retryCount}`,
+    separator,
+    ``,
+  ];
+}
+
+function generateInitLogs(startTime: number, frameNumber: number, hostName: string, coreCount: number): string[] {
+  return [
+    createLogLine(startTime, 0, "INFO", `Frame ${frameNumber} started on ${hostName}`),
+    createLogLine(startTime, 100, "INFO", `Allocated ${coreCount} cores for rendering`),
+    createLogLine(startTime, 200, "INFO", `Loading scene data...`),
+    createLogLine(startTime, 500, "INFO", `Scene loaded successfully`),
+    createLogLine(startTime, 700, "INFO", `Initializing renderer (Arnold 7.2.1)`),
+    createLogLine(startTime, 900, "DEBUG", `Setting thread count to ${Math.floor(coreCount)}`),
+    createLogLine(startTime, 1000, "INFO", `Loading textures...`),
+    createLogLine(startTime, 1500, "DEBUG", `Loaded 156 textures (2.4 GB)`),
+    createLogLine(startTime, 1700, "INFO", `Building acceleration structures...`),
+    createLogLine(startTime, 2500, "DEBUG", `BVH build complete (0.8s)`),
+    createLogLine(startTime, 2700, "INFO", `Starting render...`),
+    createLogLine(startTime, 3000, "DEBUG", `Bucket size: 64x64`),
+    createLogLine(startTime, 3200, "DEBUG", `Camera samples: 6`),
+    createLogLine(startTime, 3500, "DEBUG", `Diffuse samples: 3`),
+    createLogLine(startTime, 3800, "DEBUG", `Specular samples: 3`),
+  ];
+}
+
+function generateProgressLogs(startTime: number, renderDuration: number): string[] {
+  const logs: string[] = [];
+  for (let progress = 10; progress <= 100; progress += 10) {
+    const offset = 4000 + (progress / 100) * (renderDuration - 5000);
+    logs.push(createLogLine(startTime, offset, "INFO", `Render progress: ${progress}%`));
+    
+    if (progress === 50) {
+      logs.push(createLogLine(startTime, offset + 50, "DEBUG", `Peak memory usage: ${(Math.random() * 8 + 4).toFixed(1)} GB`));
+    }
+    if (progress === 80 && Math.random() > 0.7) {
+      logs.push(createLogLine(startTime, offset + 50, "WARN", `Memory usage high: ${(Math.random() * 2 + 10).toFixed(1)} GB`));
+    }
+  }
+  return logs;
+}
+
+function generateStateLogs(frame: Frame, startTime: number, renderDuration: number, duration: string): string[] {
+  const logs: string[] = [];
+  
+  if (frame.state === "SUCCEEDED") {
+    logs.push(
+      createLogLine(startTime, renderDuration - 500, "INFO", `Render complete`),
+      createLogLine(startTime, renderDuration - 300, "INFO", `Writing output: frame_${String(frame.number).padStart(4, '0')}.exr`),
+      createLogLine(startTime, renderDuration - 100, "INFO", `Output written successfully`),
+      createLogLine(startTime, renderDuration, "INFO", `Frame ${frame.number} completed in ${duration}s`),
+      createLogLine(startTime, renderDuration + 50, "INFO", `Exit code: 0`)
+    );
+  } else if (frame.state === "DEAD") {
+    logs.push(createLogLine(startTime, renderDuration - 1000, "ERROR", `Render failed at ${Math.floor(Math.random() * 40 + 50)}%`));
+    const errorMsg = Math.random() > 0.5 
+      ? `Out of memory: requested 16.2 GB, available 12.0 GB`
+      : `License server connection lost`;
+    logs.push(
+      createLogLine(startTime, renderDuration - 800, "ERROR", errorMsg),
+      createLogLine(startTime, renderDuration - 500, "ERROR", `Fatal error, aborting render`),
+      createLogLine(startTime, renderDuration, "ERROR", `Frame ${frame.number} failed after ${frame.retryCount} retries`),
+      createLogLine(startTime, renderDuration + 50, "INFO", `Exit code: ${frame.exitStatus}`)
+    );
+  } else if (frame.state === "RUNNING") {
+    const elapsed = Date.now() - frame.startTime;
+    const progress = Math.min(95, Math.floor((elapsed / 60000) * 50));
+    logs.push(
+      createLogLine(startTime, elapsed - 1000, "INFO", `Render in progress: ~${progress}%`),
+      ``,
+      `[LIVE] Frame is currently rendering...`
+    );
+  }
+  
+  return logs;
+}
+
 // Generate mock render log for a specific frame
 function generateFrameLog(frame: Frame, jobName: string): string {
-  const formatTime = (ts: number) => {
-    if (!ts) return "N/A";
-    return new Date(ts).toISOString().replace('T', ' ').slice(0, -5);
-  };
-
   const host = frame.lastResource || "unknown-host";
   const [hostName, cores] = host.split("/");
-  const coreCount = cores ? parseFloat(cores) : 1;
+  const coreCount = cores ? Number.parseFloat(cores) : 1;
   
   const duration = frame.stopTime && frame.startTime 
     ? ((frame.stopTime - frame.startTime) / 1000).toFixed(1) 
     : "N/A";
 
-  const lines: string[] = [];
-  
-  const exitInfo = getExitCodeInfo(frame.exitStatus);
-  
-  // Header info
-  lines.push(`================================================================================`);
-  lines.push(`OpenCue Frame Log`);
-  lines.push(`================================================================================`);
-  lines.push(`Job:         ${jobName}`);
-  lines.push(`Frame:       ${frame.number} (${frame.name})`);
-  lines.push(`Chunk:       ${frame.chunkNumber || 'N/A'} (size: ${frame.chunkSize || 'N/A'})`);
-  lines.push(`Host:        ${hostName}`);
-  lines.push(`Cores:       ${coreCount}`);
-  lines.push(`Start Time:  ${formatTime(frame.startTime)}`);
-  lines.push(`Stop Time:   ${formatTime(frame.stopTime)}`);
-  lines.push(`Duration:    ${duration}s`);
-  lines.push(`Exit Status: ${frame.exitStatus} (${exitInfo.label} - ${exitInfo.description})`);
-  lines.push(`Retries:     ${frame.retryCount}`);
-  lines.push(`================================================================================`);
-  lines.push(``);
-
-  // Simulated render log
   const startTime = frame.startTime || Date.now() - 60000;
-  const addLogLine = (offset: number, level: string, message: string) => {
-    const ts = new Date(startTime + offset).toISOString().replace('T', ' ').slice(0, -5);
-    lines.push(`[${ts}] ${level}: ${message}`);
-  };
-
-  addLogLine(0, "INFO", `Frame ${frame.number} started on ${hostName}`);
-  addLogLine(100, "INFO", `Allocated ${coreCount} cores for rendering`);
-  addLogLine(200, "INFO", `Loading scene data...`);
-  addLogLine(500, "INFO", `Scene loaded successfully`);
-  addLogLine(700, "INFO", `Initializing renderer (Arnold 7.2.1)`);
-  addLogLine(900, "DEBUG", `Setting thread count to ${Math.floor(coreCount)}`);
-  addLogLine(1000, "INFO", `Loading textures...`);
-  addLogLine(1500, "DEBUG", `Loaded 156 textures (2.4 GB)`);
-  addLogLine(1700, "INFO", `Building acceleration structures...`);
-  addLogLine(2500, "DEBUG", `BVH build complete (0.8s)`);
-  addLogLine(2700, "INFO", `Starting render...`);
-  addLogLine(3000, "DEBUG", `Bucket size: 64x64`);
-  addLogLine(3200, "DEBUG", `Camera samples: 6`);
-  addLogLine(3500, "DEBUG", `Diffuse samples: 3`);
-  addLogLine(3800, "DEBUG", `Specular samples: 3`);
-
-  // Add progress updates
   const renderDuration = (frame.stopTime && frame.startTime) 
     ? (frame.stopTime - frame.startTime) 
     : 45000;
-  
-  for (let progress = 10; progress <= 100; progress += 10) {
-    const offset = 4000 + (progress / 100) * (renderDuration - 5000);
-    addLogLine(offset, "INFO", `Render progress: ${progress}%`);
-    
-    if (progress === 50) {
-      addLogLine(offset + 50, "DEBUG", `Peak memory usage: ${(Math.random() * 8 + 4).toFixed(1)} GB`);
-    }
-    if (progress === 80 && Math.random() > 0.7) {
-      addLogLine(offset + 50, "WARN", `Memory usage high: ${(Math.random() * 2 + 10).toFixed(1)} GB`);
-    }
-  }
 
-  if (frame.state === "SUCCEEDED") {
-    addLogLine(renderDuration - 500, "INFO", `Render complete`);
-    addLogLine(renderDuration - 300, "INFO", `Writing output: frame_${String(frame.number).padStart(4, '0')}.exr`);
-    addLogLine(renderDuration - 100, "INFO", `Output written successfully`);
-    addLogLine(renderDuration, "INFO", `Frame ${frame.number} completed in ${duration}s`);
-    addLogLine(renderDuration + 50, "INFO", `Exit code: 0`);
-  } else if (frame.state === "DEAD") {
-    addLogLine(renderDuration - 1000, "ERROR", `Render failed at ${Math.floor(Math.random() * 40 + 50)}%`);
-    if (Math.random() > 0.5) {
-      addLogLine(renderDuration - 800, "ERROR", `Out of memory: requested 16.2 GB, available 12.0 GB`);
-    } else {
-      addLogLine(renderDuration - 800, "ERROR", `License server connection lost`);
-    }
-    addLogLine(renderDuration - 500, "ERROR", `Fatal error, aborting render`);
-    addLogLine(renderDuration, "ERROR", `Frame ${frame.number} failed after ${frame.retryCount} retries`);
-    addLogLine(renderDuration + 50, "INFO", `Exit code: ${frame.exitStatus}`);
-  } else if (frame.state === "RUNNING") {
-    const elapsed = Date.now() - frame.startTime;
-    const progress = Math.min(95, Math.floor((elapsed / 60000) * 50));
-    addLogLine(elapsed - 1000, "INFO", `Render in progress: ~${progress}%`);
-    lines.push(``);
-    lines.push(`[LIVE] Frame is currently rendering...`);
-  }
-
-  lines.push(``);
-  lines.push(`================================================================================`);
-  lines.push(`End of log`);
-  lines.push(`================================================================================`);
+  const separator = `================================================================================`;
+  const lines = [
+    ...generateLogHeader(frame, jobName, hostName, coreCount, duration),
+    ...generateInitLogs(startTime, frame.number, hostName, coreCount),
+    ...generateProgressLogs(startTime, renderDuration),
+    ...generateStateLogs(frame, startTime, renderDuration, duration),
+    ``,
+    separator,
+    `End of log`,
+    separator,
+  ];
 
   return lines.join('\n');
 }
@@ -158,7 +185,7 @@ export function FrameLogDialog({
   jobName,
   open,
   onOpenChange,
-}: FrameLogDialogProps) {
+}: Readonly<FrameLogDialogProps>) {
   const [logs, setLogs] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
@@ -208,10 +235,10 @@ export function FrameLogDialog({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${jobName.replace(/[^a-z0-9]/gi, '_')}_frame_${frame.number}_log.txt`;
+    a.download = `${jobName.replaceAll(/[^a-z0-9]/gi, '_')}_frame_${frame.number}_log.txt`;
     document.body.appendChild(a);
     a.click();
-    document.body.removeChild(a);
+    a.remove();
     URL.revokeObjectURL(url);
     toast.success("Log downloaded");
   };
@@ -292,7 +319,7 @@ export function FrameLogDialog({
               <div className="text-text-muted animate-pulse">Loading logs...</div>
             ) : (
               logs.split('\n').map((line, i) => (
-                <div key={i} className={cn("whitespace-pre-wrap", getLogLineColor(line))}>
+                <div key={`log-${i}-${line.slice(0, 20)}`} className={cn("whitespace-pre-wrap", getLogLineColor(line))}>
                   {line || '\u00A0'}
                 </div>
               ))
