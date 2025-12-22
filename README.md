@@ -8,13 +8,14 @@ A modern web interface for [OpenCue](https://www.opencue.io/) render farm manage
 
 ## Features
 
-- **Job Submission** - Submit render jobs with auto-versioning job names
+- **Job Submission** - Submit render jobs with auto-versioning job names and DTD-compliant XML specs
 - **Job Monitoring** - View job progress, frames, and logs in real-time
-- **Host Management** - Monitor render nodes grouped by lab (AD400, AD404, etc.)
+- **Host Management** - Monitor render nodes grouped by lab with resizable columns and metadata display
 - **Show Management** - Create and manage shows with semester organization
 - **User Management** - Role-based access (admin, instructor, student)
 - **File Browser** - Browse network paths for scene selection
-- **Offline Mode** - Works without OpenCue connection for testing
+- **Offline Mode** - Graceful fallback when OpenCue connection unavailable
+- **Resizable Tables** - Drag-to-resize columns with localStorage persistence
 
 ## Prerequisites
 
@@ -60,9 +61,17 @@ ADMIN_INITIAL_PASSWORD=changeme             # Initial admin password
 ```text
 src/
 ├── app/                    # Next.js App Router
-│   ├── (dashboard)/       # Dashboard pages (jobs, hosts, shows, etc.)
-│   └── api/               # API routes
+│   ├── (dashboard)/       # Dashboard pages
+│   │   ├── admin/         # Admin settings
+│   │   ├── hosts/         # Host management
+│   │   ├── jobs/          # Job monitoring
+│   │   ├── shows/         # Show management
+│   │   └── submit/        # Job submission
+│   ├── api/               # API routes
+│   └── login/             # Authentication
 ├── components/            # React components
+│   ├── ui/               # shadcn/ui components (resizable-table, etc.)
+│   └── *.tsx             # Feature components
 └── lib/
     ├── opencue/          # OpenCue client (gateway-client, spec-builder)
     └── db/               # SQLite for local metadata
@@ -76,6 +85,8 @@ opencue/                   # OpenCue reference codebase (NOT part of build)
 └── uiw3d_machinelist/    # Lab machine inventory (Excel)
 
 launcher/                  # Native desktop launcher (Zig)
+scripts/                   # Build/deployment scripts (sync-db.js)
+data/                      # Local database (cuesubmit.db)
 ```
 
 ## Documentation

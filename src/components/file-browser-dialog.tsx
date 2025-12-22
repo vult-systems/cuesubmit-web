@@ -65,8 +65,8 @@ export function FileBrowserDialog({
   mode,
   title,
   fileExtensions,
-}: FileBrowserDialogProps) {
-  const [currentPath, setCurrentPath] = useState("\\\\REDACTED_IP\\RenderOutputRepo");
+}: Readonly<FileBrowserDialogProps>) {
+  const [currentPath, setCurrentPath] = useState(String.raw`\\REDACTED_IP\RenderOutputRepo`);
   const [parentPath, setParentPath] = useState<string | null>(null);
   const [items, setItems] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -135,17 +135,16 @@ export function FileBrowserDialog({
       // Collapse
       newExpanded.delete(item.path);
       setExpandedPaths(newExpanded);
+    } else if (childrenCache[item.path]) {
+      // Already cached - just expand
+      newExpanded.add(item.path);
+      setExpandedPaths(newExpanded);
     } else {
-      // Expand - fetch children if not cached
-      if (!childrenCache[item.path]) {
-        // Mark as loading
-        setExpandedPaths(new Set([...newExpanded, item.path]));
-        const children = await fetchDirectory(item.path, true);
-        setChildrenCache(prev => ({ ...prev, [item.path]: children || [] }));
-      } else {
-        newExpanded.add(item.path);
-        setExpandedPaths(newExpanded);
-      }
+      // Expand - fetch children since not cached
+      // Mark as loading
+      setExpandedPaths(new Set([...newExpanded, item.path]));
+      const children = await fetchDirectory(item.path, true);
+      setChildrenCache(prev => ({ ...prev, [item.path]: children || [] }));
     }
   };
 
@@ -192,6 +191,17 @@ export function FileBrowserDialog({
 
   const canSelect = mode === "directory" || (selectedItem && !selectedItem.isDirectory);
 
+  // Get chevron icon for directory expand/collapse state
+  const getChevronIcon = (isLoadingChildren: boolean, isExpanded: boolean) => {
+    if (isLoadingChildren) {
+      return <Loader2 className="h-3 w-3 animate-spin text-text-muted" />;
+    }
+    if (isExpanded) {
+      return <ChevronDown className="h-3 w-3 text-text-muted" />;
+    }
+    return <ChevronRight className="h-3 w-3 text-text-muted" />;
+  };
+
   // Recursive render function for tree items
   const renderItem = (item: FileItem, depth: number = 0) => {
     const isExpanded = expandedPaths.has(item.path);
@@ -200,13 +210,24 @@ export function FileBrowserDialog({
     const children = childrenCache[item.path] || [];
     const isLoadingChildren = isExpanded && !childrenCache[item.path];
 
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        handleItemDoubleClick(item);
+      } else if (e.key === ' ') {
+        e.preventDefault();
+        handleItemClick(item);
+      }
+    };
+
     return (
       <div key={item.path}>
-        <div
+        <button
+          type="button"
           onClick={() => handleItemClick(item)}
           onDoubleClick={() => handleItemDoubleClick(item)}
+          onKeyDown={handleKeyDown}
           className={cn(
-            "flex items-center gap-1 py-1.5 rounded-md cursor-pointer transition-colors",
+            "flex items-center gap-1 py-1.5 rounded-md cursor-pointer transition-colors w-full text-left",
             isSelected
               ? "bg-blue-500/20 text-blue-400"
               : "hover:bg-neutral-100 dark:hover:bg-white/5"
@@ -216,13 +237,7 @@ export function FileBrowserDialog({
           {/* Expand/collapse chevron for directories */}
           {item.isDirectory ? (
             <span className="w-4 h-4 flex items-center justify-center shrink-0">
-              {isLoadingChildren ? (
-                <Loader2 className="h-3 w-3 animate-spin text-text-muted" />
-              ) : isExpanded ? (
-                <ChevronDown className="h-3 w-3 text-text-muted" />
-              ) : (
-                <ChevronRight className="h-3 w-3 text-text-muted" />
-              )}
+              {getChevronIcon(isLoadingChildren, isExpanded)}
             </span>
           ) : (
             <span className="w-4 h-4 shrink-0" />
@@ -234,7 +249,7 @@ export function FileBrowserDialog({
             )}
           />
           <span className="text-sm truncate">{item.name}</span>
-        </div>
+        </button>
         
         {/* Render children if expanded */}
         {isExpanded && children.length > 0 && (
@@ -275,20 +290,23 @@ export function FileBrowserDialog({
           </div>
 
           {/* File List */}
-          <ScrollArea className="h-[400px] border rounded-lg">
-            {loading ? (
+          <ScrollArea className="h-100 border rounded-lg">
+            {loading && (
               <div className="flex items-center justify-center h-full">
                 <Loader2 className="h-6 w-6 animate-spin text-text-muted" />
               </div>
-            ) : error ? (
+            )}
+            {!loading && error && (
               <div className="flex items-center justify-center h-full text-red-500 text-sm">
                 {error}
               </div>
-            ) : items.length === 0 ? (
+            )}
+            {!loading && !error && items.length === 0 && (
               <div className="flex items-center justify-center h-full text-text-muted text-sm">
                 Empty directory
               </div>
-            ) : (
+            )}
+            {!loading && !error && items.length > 0 && (
               <div className="py-1">
                 {items.map(item => renderItem(item, 0))}
               </div>

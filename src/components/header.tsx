@@ -34,7 +34,7 @@ const navItems = [
   { href: "/shows", label: "Shows" },
 ];
 
-export function Header({ user, mode }: HeaderProps) {
+export function Header({ user, mode }: Readonly<HeaderProps>) {
   const pathname = usePathname();
   const router = useRouter();
   const { theme, setTheme } = useTheme();
@@ -57,7 +57,7 @@ export function Header({ user, mode }: HeaderProps) {
       {/* Background with blur */}
       <div className="absolute inset-0 bg-white/80 dark:bg-black/20 backdrop-blur-2xl" />
       {/* Bottom fade gradient */}
-      <div className="absolute bottom-0 left-0 right-0 h-8 -mb-8 bg-gradient-to-b from-white/80 to-transparent dark:from-neutral-950/80 dark:to-transparent pointer-events-none" />
+      <div className="absolute bottom-0 left-0 right-0 h-8 -mb-8 bg-linear-to-b from-white/80 to-transparent dark:from-neutral-950/80 dark:to-transparent pointer-events-none" />
       {/* Content container */}
       <div className="relative max-w-350 mx-auto px-6 sm:px-8 lg:px-12">
         <div className="flex h-16 items-center justify-between">

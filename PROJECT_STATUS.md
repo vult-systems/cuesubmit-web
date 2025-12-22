@@ -2,9 +2,18 @@
 
 **Last Updated:** December 22, 2025
 
-## Current State: ✅ Job Submission Working
+## Current State: ✅ Production Ready
 
-The web-based job submission interface for OpenCue is now functional. Jobs can be submitted from the production server at `http://REDACTED_IP:3000`.
+The web-based job submission interface for OpenCue is fully functional. Jobs can be submitted from the production server at `http://REDACTED_IP:3000`.
+
+### Completed Features
+
+- ✅ Job submission with DTD-compliant XML specs
+- ✅ Job monitoring with real-time updates
+- ✅ Host management with lab grouping
+- ✅ Resizable table columns with persistence
+- ✅ Graceful API fallbacks for unavailable endpoints
+- ✅ Code quality: 40+ linting issues resolved
 
 ### 🌐 Custom URL Ideas
 
@@ -62,7 +71,7 @@ ssh REDACTED_USER@REDACTED_IP "docker logs --tail 50 cuesubmit-web"
 
 ## Known Issues / TODO
 
-### 1. 🔴 Logs Not Working
+### 1. 🔴 Logs Not Working (Priority: High)
 
 Frame logs are not displaying correctly. Need to investigate:
 
@@ -70,7 +79,7 @@ Frame logs are not displaying correctly. Need to investigate:
 - API endpoint `/api/jobs/[id]/logs`
 - Windows UNC path handling
 
-### 2. 🟡 Job Names Too Long
+### 2. 🟡 Job Names Too Long (Priority: Low)
 
 OpenCue generates verbose job names like:
 
@@ -84,33 +93,44 @@ Consider:
 - UI truncation with tooltips
 - Job name format configuration
 
-### 3. ✅ UI/UX Improvements - COMPLETED (Dec 22, 2025)
+### 3. 🟢 Minor Warnings (Non-blocking)
 
-- ✅ Hosts table: Resizable columns with drag handles
-- ✅ Hosts table: IP address shown above system name
-- ✅ Table consistency: Unified padding (px-3 py-2) across all tables
-- ✅ Created reusable `ResizableTable` component with localStorage persistence
+- `SESSION_SECRET not set in production` warnings during build (cosmetic only)
 
-### 4. 🟢 Minor Warnings (Non-blocking)
+## Completed Items
 
-- `SESSION_SECRET not set in production` warnings during build (cosmetic)
-- ~~Allocations API returns 501~~ **FIXED** - Now falls back to mock data gracefully
+### ✅ UI/UX Improvements (Dec 22, 2025)
 
-### 5. ✅ Performance Issue - FIXED
+- Hosts table: Resizable columns with drag handles
+- Hosts table: IP address shown above system name
+- Table consistency: Unified padding (px-3 py-2) across all tables
+- Created reusable `ResizableTable` component with localStorage persistence
+
+### ✅ Performance Issue - Fixed
 
 **Problem**: Website was laggy due to repeated failed API calls to `GetAllocations` (method unimplemented in gateway).
 
-**Solution**: Modified `/api/allocations` to return mock allocation data when gateway fails instead of throwing errors. This prevents the frontend from getting stuck retrying failed requests.
+**Solution**: Modified `/api/allocations` to return mock allocation data when gateway fails instead of throwing errors.
+
+### ✅ Allocations API - Fixed
+
+Now falls back to mock data gracefully when gateway returns 501.
 
 ## Recent Fixes (Dec 22, 2025)
 
-1. **UI/UX Table Improvements**
+1. **SonarLint Code Quality Fixes** - Additional cleanup
+   - `frame-log-dialog.tsx`: Reduced cognitive complexity from 17→15, extracted helper functions
+   - `file-browser-dialog.tsx`: Fixed accessibility (button element), `String.raw` for paths
+   - `header.tsx`: Added `Readonly<>` props wrapper, canonical Tailwind classes
+   - All components: Proper `Readonly<>` wrappers on props
+
+2. **UI/UX Table Improvements**
    - Created `ResizableTable` component with drag-to-resize columns
    - Column widths persist to localStorage per table
    - Hosts page: IP shown on top, system name below
    - Unified table styling: `px-3 py-2` padding, `text-xs` cells, `text-[10px] uppercase` headers
 
-2. **Linting & Code Quality** - Fixed 40+ issues
+3. **Linting & Code Quality** - Fixed 40+ issues
    - Replaced all `count !== 1 ? "s" : ""` with `pluralize()` utility
    - Fixed nested ternaries → logical AND patterns  
    - Fixed `parseInt()` → `Number.parseInt()` with radix
@@ -119,11 +139,11 @@ Consider:
    - Added `Readonly<>` wrappers to component props
    - Removed unused variables (`lockStateColors`, `CompactUsageBar`, `setShowAll`)
 
-3. **Database Sync Script**
+4. **Database Sync Script**
    - Added `npm run sync-db` to pull database from production
    - Handles SQLite WAL checkpointing automatically
 
-4. **Project Configuration**
+5. **Project Configuration**
    - Added `sonar-project.properties` for SonarLint exclusions
    - Added `.vscode/settings.json` for workspace settings
    - Updated `eslint.config.mjs` to exclude `scripts/`
