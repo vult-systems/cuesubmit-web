@@ -74,11 +74,12 @@ export async function POST(
       return NextResponse.json({ error: "Cannot create subscriptions in offline mode" }, { status: 400 });
     }
 
+    console.log("Creating subscription:", { showId, allocationId, size, burst });
     const response = await createSubscription(showId, allocationId, size, burst);
     return NextResponse.json({ subscription: response.subscription });
   } catch (error) {
     console.error("Failed to create subscription:", error);
-    const message = error instanceof Error ? error.message : "Failed to create subscription";
+    const message = error instanceof Error ? error.message : String(error);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

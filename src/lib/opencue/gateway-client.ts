@@ -386,8 +386,8 @@ export interface Allocation {
   facility: string;
 }
 
-export async function getAllocations(): Promise<{ allocations: Allocation[] }> {
-  return gatewayCall('facility.FacilityInterface', 'GetAllocations', {});
+export async function getAllocations(): Promise<{ allocations: Allocation[] | { allocations: Allocation[] } }> {
+  return gatewayCall('facility.AllocationInterface', 'GetAll', {});
 }
 
 // Show API
