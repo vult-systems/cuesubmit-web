@@ -2,13 +2,13 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  ResizableTable,
+  ResizableTableBody,
+  ResizableTableCell,
+  ResizableTableHead,
+  ResizableTableHeader,
+  ResizableTableRow,
+} from "@/components/ui/resizable-table";
 import {
   Dialog,
   DialogContent,
@@ -33,7 +33,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { RefreshCw, Lock, Unlock, Search, Power, Settings, Tag, X, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -71,13 +70,6 @@ const stateColors: Record<string, string> = {
   UNKNOWN: "bg-surface-muted text-text-muted border-border",
 };
 
-const lockStateColors: Record<string, string> = {
-  OPEN: "bg-success/15 dark:bg-success/10 text-success border-success/30 dark:border-success/20",
-  LOCKED: "bg-warning/15 dark:bg-warning/10 text-warning border-warning/30 dark:border-warning/20",
-  NIMBY_LOCKED: "bg-warning/15 dark:bg-warning/10 text-warning border-warning/30 dark:border-warning/20",
-  UNKNOWN: "bg-surface-muted text-text-muted border-border",
-};
-
 function formatMemory(bytes: number): string {
   const gb = bytes / (1024 * 1024 * 1024);
   if (gb >= 1) {
@@ -106,13 +98,13 @@ function UsageBar({
   isMemory = false,
   showPercentage = true,
   colorMode = "default"
-}: {
+}: Readonly<{
   used: number;
   total: number;
   isMemory?: boolean;
   showPercentage?: boolean;
   colorMode?: "default" | "cores" | "load";
-}) {
+}>) {
   const percentage = total > 0 ? (used / total) * 100 : 0;
 
   // Color based on usage level and mode
@@ -135,17 +127,17 @@ function UsageBar({
   };
 
   return (
-    <div className="space-y-0.5 min-w-24">
+    <div className="space-y-0.5 min-w-0 w-full">
       <div className="flex items-center justify-between text-[10px] gap-1">
         {showPercentage && (
           <span className={cn(
-            "font-medium",
+            "font-medium shrink-0",
             percentage > 0 ? "text-text-primary" : "text-text-muted"
           )}>
             {Math.round(percentage)}%
           </span>
         )}
-        <span className="text-text-muted">
+        <span className="text-text-muted truncate">
           {isMemory
             ? `${formatMemoryFromBytes(used)}/${formatMemoryFromBytes(total)}`
             : `${used}/${total}`
@@ -159,63 +151,6 @@ function UsageBar({
         />
       </div>
     </div>
-  );
-}
-
-// Compact usage bar for table cells
-function CompactUsageBar({
-  used,
-  total,
-  label,
-  colorMode = "default"
-}: {
-  used: number;
-  total: number;
-  label: string;
-  colorMode?: "default" | "cores" | "load" | "memory";
-}) {
-  const percentage = total > 0 ? (used / total) * 100 : 0;
-
-  const getBarColor = () => {
-    if (colorMode === "cores") {
-      if (percentage > 0) return "bg-emerald-500";
-      return "bg-neutral-300 dark:bg-neutral-700";
-    }
-    if (colorMode === "load") {
-      if (percentage > 80) return "bg-red-500";
-      if (percentage > 50) return "bg-amber-500";
-      if (percentage > 0) return "bg-emerald-500";
-      return "bg-neutral-300 dark:bg-neutral-700";
-    }
-    if (colorMode === "memory") {
-      if (percentage > 90) return "bg-red-500";
-      if (percentage > 70) return "bg-amber-500";
-      return "bg-blue-500";
-    }
-    return "bg-blue-500";
-  };
-
-  return (
-    <TooltipProvider delayDuration={100}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div className="w-20 space-y-0.5 cursor-default">
-            <div className="h-2 bg-neutral-200 dark:bg-neutral-800 rounded-full overflow-hidden">
-              <div
-                className={cn("h-full rounded-full transition-all duration-500", getBarColor())}
-                style={{ width: `${Math.min(100, percentage)}%` }}
-              />
-            </div>
-            <div className="text-[9px] text-text-muted text-center">
-              {label}
-            </div>
-          </div>
-        </TooltipTrigger>
-        <TooltipContent side="top" className="text-xs">
-          {Math.round(percentage)}% used
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
   );
 }
 
@@ -474,7 +409,7 @@ export default function HostsPage() {
 
   // Group color mapping
   const groupColorMap = useMemo(() => {
-    const groups = [...new Set(hosts.map(h => getGroupFromId(h.id)))].sort();
+    const groups = [...new Set(hosts.map(h => getGroupFromId(h.id)))].sort((a, b) => a.localeCompare(b));
     return groups.reduce((acc, group, index) => {
       acc[group] = accentColorList[index % accentColorList.length];
       return acc;
@@ -530,21 +465,23 @@ export default function HostsPage() {
       </div>
 
       {/* Grouped by ID prefix */}
-      {loading ? (
+      {loading && (
         <div className="rounded-xl border border-neutral-200/80 dark:border-white/6 bg-white/80 dark:bg-neutral-950/60 backdrop-blur-xl p-8">
           <div className="flex flex-col items-center gap-3">
             <div className="w-6 h-6 border-2 border-neutral-300 dark:border-white/20 border-t-neutral-700 dark:border-t-white rounded-full animate-spin" />
             <span className="text-text-muted text-sm">Loading hosts...</span>
           </div>
         </div>
-      ) : hostsByGroup.length === 0 ? (
+      )}
+      {!loading && hostsByGroup.length === 0 && (
         <div className="rounded-xl border border-neutral-200/80 dark:border-white/6 bg-white/80 dark:bg-neutral-950/60 backdrop-blur-xl p-8">
           <div className="flex flex-col items-center gap-2">
             <span className="text-text-muted">No hosts found</span>
             <span className="text-text-muted/50 text-xs">Try adjusting your search</span>
           </div>
         </div>
-      ) : (
+      )}
+      {!loading && hostsByGroup.length > 0 && (
         <div className="space-y-4">
           {hostsByGroup.map(([group, groupHosts]) => {
             const colors = groupColorMap[group];
@@ -560,21 +497,21 @@ export default function HostsPage() {
                 stats={`${groupUpHosts} up • ${groupUsedCores}/${groupTotalCores} cores`}
                 accentColors={colors}
               >
-                <Table>
-                  <TableHeader>
-                    <TableRow className="hover:bg-transparent border-neutral-200 dark:border-white/6">
-                      <TableHead className="w-24">ID</TableHead>
-                      <TableHead>System Name</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="w-24">Cores</TableHead>
-                      <TableHead className="w-24">Mem</TableHead>
-                      <TableHead className="w-24">Swap</TableHead>
-                      <TableHead className="w-20">Load</TableHead>
-                      <TableHead>Tags</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+                <ResizableTable storageKey={`hosts-${group}`}>
+                  <ResizableTableHeader>
+                    <ResizableTableRow className="hover:bg-transparent border-neutral-200 dark:border-white/6">
+                      <ResizableTableHead columnId="id" minWidth={70} maxWidth={120}>ID</ResizableTableHead>
+                      <ResizableTableHead columnId="system" minWidth={120} maxWidth={250}>System Name</ResizableTableHead>
+                      <ResizableTableHead columnId="status" minWidth={80} maxWidth={140}>Status</ResizableTableHead>
+                      <ResizableTableHead columnId="cores" minWidth={80} maxWidth={140}>Cores</ResizableTableHead>
+                      <ResizableTableHead columnId="mem" minWidth={80} maxWidth={140}>Mem</ResizableTableHead>
+                      <ResizableTableHead columnId="swap" minWidth={80} maxWidth={140}>Swap</ResizableTableHead>
+                      <ResizableTableHead columnId="load" minWidth={70} maxWidth={120}>Load</ResizableTableHead>
+                      <ResizableTableHead columnId="tags" minWidth={80} maxWidth={200}>Tags</ResizableTableHead>
+                      <ResizableTableHead columnId="actions" resizable={false} minWidth={100} maxWidth={100} className="text-right">Actions</ResizableTableHead>
+                    </ResizableTableRow>
+                  </ResizableTableHeader>
+                  <ResizableTableBody>
                     {groupHosts.map((host, index) => {
                       const isLocked = host.lockState === "LOCKED";
                       const isNimbyLocked = host.lockState === "NIMBY_LOCKED";
@@ -597,7 +534,7 @@ export default function HostsPage() {
                       const displayTags = host.tags || [];
 
                       return (
-                        <TableRow
+                        <ResizableTableRow
                           key={host.id}
                           className={cn(
                             "hover:bg-neutral-50 dark:hover:bg-white/3 transition-all duration-200 group",
@@ -606,94 +543,96 @@ export default function HostsPage() {
                           style={{ animationDelay: `${index * 30}ms` }}
                         >
                           {/* ID */}
-                          <TableCell className="font-medium text-text-primary">
+                          <ResizableTableCell columnId="id" className="font-medium text-text-primary">
                             <div className="flex items-center gap-2">
                               {isRendering && (
-                                <span className="relative flex h-2 w-2">
+                                <span className="relative flex h-2 w-2 shrink-0">
                                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                                 </span>
                               )}
-                              {displayId}
+                              <span className="truncate">{displayId}</span>
                             </div>
-                          </TableCell>
+                          </ResizableTableCell>
 
-                          {/* System Name + IP */}
-                          <TableCell>
-                            <div className="space-y-0.5">
-                              <div className="font-medium text-xs text-text-primary">{systemName}</div>
-                              <div className="font-mono text-[10px] text-text-muted">{ipAddress}</div>
+                          {/* IP + System Name */}
+                          <ResizableTableCell columnId="system">
+                            <div className="space-y-0.5 min-w-0">
+                              <div className="font-mono text-xs text-text-primary truncate">{ipAddress}</div>
+                              <div className="text-[10px] text-text-muted truncate">{systemName}</div>
                             </div>
-                          </TableCell>
+                          </ResizableTableCell>
 
                           {/* Status - Combined state info */}
-                          <TableCell>
+                          <ResizableTableCell columnId="status">
                             <div className="flex items-center gap-1.5">
-                              {!isUp ? (
-                                <Badge variant="outline" className={cn(stateColors[host.state], "text-[10px]")}>
-                                  {host.state}
-                                </Badge>
-                              ) : isRendering ? (
+                              {isUp && isRendering && (
                                 <Badge variant="outline" className="text-[10px] bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
                                   Rendering
                                 </Badge>
-                              ) : (
+                              )}
+                              {isUp && !isRendering && (
                                 <Badge variant="outline" className="text-[10px] bg-neutral-100 dark:bg-neutral-800 text-text-muted border-neutral-200 dark:border-neutral-700">
                                   Idle
                                 </Badge>
                               )}
+                              {!isUp && (
+                                <Badge variant="outline" className={cn(stateColors[host.state], "text-[10px]")}>
+                                  {host.state}
+                                </Badge>
+                              )}
                               {(isLocked || isNimbyLocked) && (
-                                <Lock className="h-3 w-3 text-amber-500" />
+                                <Lock className="h-3 w-3 text-amber-500 shrink-0" />
                               )}
                             </div>
-                          </TableCell>
+                          </ResizableTableCell>
 
                           {/* Cores Usage - shows reserved vs total */}
-                          <TableCell>
+                          <ResizableTableCell columnId="cores">
                             <UsageBar
                               used={coresUsed}
                               total={host.cores}
                               colorMode="cores"
                             />
-                          </TableCell>
+                          </ResizableTableCell>
 
                           {/* Physical Memory - shows used vs total */}
-                          <TableCell>
+                          <ResizableTableCell columnId="mem">
                             <UsageBar
                               used={memoryUsed}
                               total={host.memory}
                               isMemory={true}
                               colorMode="default"
                             />
-                          </TableCell>
+                          </ResizableTableCell>
 
                           {/* Swap - shows used vs total */}
-                          <TableCell>
+                          <ResizableTableCell columnId="swap">
                             <UsageBar
                               used={host.swap - host.freeSwap}
                               total={host.swap}
                               isMemory={true}
                               colorMode="default"
                             />
-                          </TableCell>
+                          </ResizableTableCell>
 
                           {/* Load per core (like CueGUI) */}
-                          <TableCell>
+                          <ResizableTableCell columnId="load">
                             <UsageBar
                               used={loadPerCore}
                               total={100}
                               colorMode="load"
                             />
-                          </TableCell>
+                          </ResizableTableCell>
 
                           {/* Tags */}
-                          <TableCell>
-                            <div className="flex flex-wrap gap-1 max-w-32">
+                          <ResizableTableCell columnId="tags">
+                            <div className="flex flex-wrap gap-1 min-w-0">
                               {displayTags.slice(0, 2).map((tag) => (
                                 <Badge
                                   key={tag}
                                   variant="outline"
-                                  className="text-[10px] px-1.5 py-0 bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20"
+                                  className="text-[10px] px-1.5 py-0 bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20 truncate max-w-20"
                                 >
                                   {tag}
                                 </Badge>
@@ -705,8 +644,8 @@ export default function HostsPage() {
                                 <span className="text-xs text-text-muted">-</span>
                               )}
                             </div>
-                          </TableCell>
-                          <TableCell>
+                          </ResizableTableCell>
+                          <ResizableTableCell columnId="actions">
                             <TooltipProvider delayDuration={200}>
                               <div className="flex items-center justify-end gap-0.5">
                                 <Tooltip>
@@ -741,10 +680,10 @@ export default function HostsPage() {
                                     </Button>
                                   </TooltipTrigger>
                                   <TooltipContent side="top">
-                                    {isUp
-                                      ? (isLocked || isNimbyLocked ? "Unlock Host" : "Lock Host")
-                                      : "Host must be UP to lock/unlock"
-                                    }
+                                    {(() => {
+                                      if (!isUp) return "Host must be UP to lock/unlock";
+                                      return isLocked || isNimbyLocked ? "Unlock Host" : "Lock Host";
+                                    })()}
                                   </TooltipContent>
                                 </Tooltip>
                                 <Tooltip>
@@ -764,12 +703,12 @@ export default function HostsPage() {
                                 </Tooltip>
                               </div>
                             </TooltipProvider>
-                          </TableCell>
-                        </TableRow>
+                          </ResizableTableCell>
+                        </ResizableTableRow>
                       );
                     })}
-                  </TableBody>
-                </Table>
+                  </ResizableTableBody>
+                </ResizableTable>
               </GroupedSection>
             );
           })}

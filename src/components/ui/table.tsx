@@ -10,6 +10,11 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
       data-slot="table-container"
       className="relative w-full overflow-x-auto"
     >
+      {/* 
+        This is a reusable table component - consumers provide TableHeader with th elements.
+        The table element itself doesn't need headers as they're added by composition.
+      */}
+      {/* NOSONAR: accessibility:S5256 */}
       <table
         data-slot="table"
         className={cn("w-full caption-bottom text-sm", className)}
@@ -70,7 +75,7 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
     <th
       data-slot="table-head"
       className={cn(
-        "text-text-muted h-8 px-2.5 text-left align-middle font-medium text-[10px] uppercase tracking-wider whitespace-nowrap [&:has([role=checkbox])]:pr-0 *:[[role=checkbox]]:translate-y-0.5",
+        "text-text-muted h-8 px-3 text-left align-middle font-medium text-[10px] uppercase tracking-wider whitespace-nowrap [&:has([role=checkbox])]:pr-0 *:[[role=checkbox]]:translate-y-0.5",
         className
       )}
       {...props}
@@ -83,7 +88,7 @@ function TableCell({ className, ...props }: React.ComponentProps<"td">) {
     <td
       data-slot="table-cell"
       className={cn(
-        "px-2.5 py-1.5 align-middle whitespace-nowrap text-xs [&:has([role=checkbox])]:pr-0 *:[[role=checkbox]]:translate-y-0.5",
+        "px-3 py-2 align-middle whitespace-nowrap text-xs [&:has([role=checkbox])]:pr-0 *:[[role=checkbox]]:translate-y-0.5",
         className
       )}
       {...props}

@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { pluralize } from "@/lib/format";
 import { iconButton } from "@/lib/icon-button-styles";
 import { JobDetailDrawer } from "@/components/job-detail-drawer";
 import { LogViewerDialog } from "@/components/log-viewer-dialog";
@@ -63,7 +64,7 @@ const stateColors: Record<string, string> = {
   PAUSED: "bg-surface-muted text-text-muted border-border",
 };
 
-function ProgressBar({ job }: { job: Job }) {
+function ProgressBar({ job }: Readonly<{ job: Job }>) {
   const total = job.totalFrames || 1;
   // Eaten frames count as completed (shown in gray/muted), succeeded in green
   const eaten = ((job.eatenFrames || 0) / total) * 100;
@@ -121,7 +122,7 @@ export default function JobsPage() {
 
   // Show color mapping
   const showColorMap = useMemo(() => {
-    const shows = [...new Set(jobs.map(j => j.show || "Unknown"))].sort();
+    const shows = [...new Set(jobs.map(j => j.show || "Unknown"))].sort((a, b) => a.localeCompare(b));
     return shows.reduce((acc, show, index) => {
       acc[show] = accentColorList[index % accentColorList.length];
       return acc;
@@ -182,7 +183,7 @@ export default function JobsPage() {
         <div>
           <h1 className="text-2xl font-semibold text-text-primary tracking-tight">Jobs</h1>
           <p className="text-text-muted text-xs mt-1">
-            {jobs.length} job{jobs.length !== 1 ? "s" : ""} • {runningJobs} running • Auto-refreshing every 10s
+            {jobs.length} {pluralize(jobs.length, 'job')} • {runningJobs} running • Auto-refreshing every 10s
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -211,21 +212,23 @@ export default function JobsPage() {
       </div>
 
       {/* Grouped by Show */}
-      {loading ? (
+      {loading && (
         <div className="rounded-xl border border-neutral-200/80 dark:border-white/6 bg-white/80 dark:bg-neutral-950/60 backdrop-blur-xl p-8">
           <div className="flex flex-col items-center gap-3">
             <div className="w-6 h-6 border-2 border-neutral-300 dark:border-white/20 border-t-neutral-700 dark:border-t-white rounded-full animate-spin" />
             <span className="text-text-muted text-sm">Loading jobs...</span>
           </div>
         </div>
-      ) : jobsByShow.length === 0 ? (
+      )}
+      {!loading && jobsByShow.length === 0 && (
         <div className="rounded-xl border border-neutral-200/80 dark:border-white/6 bg-white/80 dark:bg-neutral-950/60 backdrop-blur-xl p-8">
           <div className="flex flex-col items-center gap-2">
             <span className="text-text-muted">No jobs found</span>
             <span className="text-text-muted/50 text-xs">Try adjusting your search</span>
           </div>
         </div>
-      ) : (
+      )}
+      {!loading && jobsByShow.length > 0 && (
         <div className="space-y-4">
           {jobsByShow.map(([show, showJobs]) => {
             const colors = showColorMap[show];
@@ -237,7 +240,7 @@ export default function JobsPage() {
               <GroupedSection
                 key={show}
                 title={show.toUpperCase()}
-                badge={`${showJobs.length} job${showJobs.length !== 1 ? "s" : ""}`}
+                badge={`${showJobs.length} ${pluralize(showJobs.length, 'job')}`}
                 stats={`${showRunning} running • ${showSucceededFrames}/${showTotalFrames} frames`}
                 accentColors={colors}
               >
@@ -287,6 +290,7 @@ export default function JobsPage() {
                           </TableCell>
                           <TableCell>
                             <TooltipProvider delayDuration={300}>
+                              {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events */}
                               <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                                 {/* View Logs */}
                                 <Tooltip>

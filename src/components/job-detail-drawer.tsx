@@ -87,7 +87,7 @@ export function JobDetailDrawer({
   open,
   onOpenChange,
   onJobUpdated,
-}: JobDetailDrawerProps) {
+}: Readonly<JobDetailDrawerProps>) {
   const [frames, setFrames] = useState<Frame[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedFrames, setSelectedFrames] = useState<Set<string>>(new Set());
@@ -318,20 +318,20 @@ export function JobDetailDrawer({
               <Table>
                 <TableHeader>
                   <TableRow className="border-neutral-200 dark:border-white/6 hover:bg-transparent">
-                    <TableHead className="w-10 text-text-muted py-2 text-xs"></TableHead>
-                    <TableHead className="text-text-muted py-2 text-xs">Frame</TableHead>
-                    <TableHead className="text-text-muted py-2 text-xs">Chunk</TableHead>
-                    <TableHead className="text-text-muted py-2 text-xs">State</TableHead>
-                    <TableHead className="text-text-muted py-2 text-xs">Retries</TableHead>
-                    <TableHead className="text-text-muted py-2 text-xs">Exit</TableHead>
-                    <TableHead className="text-text-muted py-2 text-xs">Host</TableHead>
-                    <TableHead className="text-text-muted py-2 text-xs">Start</TableHead>
-                    <TableHead className="text-text-muted py-2 text-xs">Stop</TableHead>
-                    <TableHead className="w-10 text-text-muted py-2 text-xs"></TableHead>
+                    <TableHead className="w-10"></TableHead>
+                    <TableHead>Frame</TableHead>
+                    <TableHead>Chunk</TableHead>
+                    <TableHead>State</TableHead>
+                    <TableHead>Retries</TableHead>
+                    <TableHead>Exit</TableHead>
+                    <TableHead>Host</TableHead>
+                    <TableHead>Start</TableHead>
+                    <TableHead>Stop</TableHead>
+                    <TableHead className="w-10"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {loading ? (
+                  {loading && (
                     <TableRow>
                       <TableCell
                         colSpan={10}
@@ -340,7 +340,8 @@ export function JobDetailDrawer({
                         Loading frames...
                       </TableCell>
                     </TableRow>
-                  ) : frames.length === 0 ? (
+                  )}
+                  {!loading && frames.length === 0 && (
                     <TableRow>
                       <TableCell
                         colSpan={10}
@@ -349,8 +350,8 @@ export function JobDetailDrawer({
                         No frames found
                       </TableCell>
                     </TableRow>
-                  ) : (
-                    frames.map((frame) => (
+                  )}
+                  {!loading && frames.length > 0 && frames.map((frame) => (
                       <TableRow
                         key={frame.id}
                         className={cn(
@@ -358,20 +359,20 @@ export function JobDetailDrawer({
                           selectedFrames.has(frame.id) && "bg-blue-500/10"
                         )}
                       >
-                        <TableCell className="py-1.5">
+                        <TableCell>
                           <Checkbox
                             checked={selectedFrames.has(frame.id)}
                             onCheckedChange={() => toggleFrame(frame.id)}
                             disabled={frame.state !== "DEAD"}
                           />
                         </TableCell>
-                        <TableCell className="font-mono text-text-primary py-1.5 text-sm">
+                        <TableCell className="font-mono text-text-primary">
                           {frame.number}
                         </TableCell>
-                        <TableCell className="text-text-muted py-1.5 font-mono text-xs">
+                        <TableCell className="text-text-muted font-mono">
                           {frame.chunkNumber || "-"}
                         </TableCell>
-                        <TableCell className="py-1.5">
+                        <TableCell>
                           <Badge
                             variant="outline"
                             className={cn(
@@ -383,28 +384,27 @@ export function JobDetailDrawer({
                             {frame.state}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-text-muted py-1.5 text-sm">
+                        <TableCell className="text-text-muted">
                           {frame.retryCount}
                         </TableCell>
                         <TableCell
                           className={cn(
-                            "py-1.5 text-sm",
                             getExitCodeColorClass(frame.exitStatus)
                           )}
                           title={`Exit code: ${frame.exitStatus}`}
                         >
                           {getExitCodeLabel(frame.exitStatus)}
                         </TableCell>
-                        <TableCell className="text-text-muted truncate max-w-50 py-1.5 text-sm">
+                        <TableCell className="text-text-muted truncate max-w-50">
                           {frame.lastResource || "-"}
                         </TableCell>
-                        <TableCell className="text-text-muted py-1.5 text-sm">
+                        <TableCell className="text-text-muted">
                           {formatTime(frame.startTime)}
                         </TableCell>
-                        <TableCell className="text-text-muted py-1.5 text-sm">
+                        <TableCell className="text-text-muted">
                           {formatTime(frame.stopTime)}
                         </TableCell>
-                        <TableCell className="py-1.5">
+                        <TableCell>
                           {(frame.state === "SUCCEEDED" || frame.state === "DEAD" || frame.state === "RUNNING") && (
                             <Button
                               variant="ghost"
@@ -418,8 +418,7 @@ export function JobDetailDrawer({
                           )}
                         </TableCell>
                       </TableRow>
-                    ))
-                  )}
+                    ))}
                 </TableBody>
               </Table>
             </div>

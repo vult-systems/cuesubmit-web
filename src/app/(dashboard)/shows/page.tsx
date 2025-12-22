@@ -40,6 +40,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { pluralize } from "@/lib/format";
 import { iconButton } from "@/lib/icon-button-styles";
 import { GroupedSection } from "@/components/grouped-section";
 import { accentColorList } from "@/lib/accent-colors";
@@ -57,8 +58,10 @@ function generateSemesterOptions(): { value: string; label: string }[] {
   
   for (let year = currentYear + 1; year >= currentYear - 2; year--) {
     const shortYear = year.toString().slice(-2);
-    options.push({ value: `F${shortYear}`, label: `Fall ${year} (F${shortYear})` });
-    options.push({ value: `S${shortYear}`, label: `Spring ${year} (S${shortYear})` });
+    options.push(
+      { value: `F${shortYear}`, label: `Fall ${year} (F${shortYear})` },
+      { value: `S${shortYear}`, label: `Spring ${year} (S${shortYear})` }
+    );
   }
   
   return options;
@@ -94,7 +97,7 @@ export default function ShowsPage() {
   const [shows, setShows] = useState<Show[]>([]);
   const [loading, setLoading] = useState(true);
   const [globalFilter, setGlobalFilter] = useState("");
-  const [showAll, setShowAll] = useState(true);
+  const [showAll] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newShowName, setNewShowName] = useState("");
   const [newShowSemester, setNewShowSemester] = useState("");
@@ -364,10 +367,11 @@ export default function ShowsPage() {
   // Get semester sort order (most recent first)
   const getSemesterOrder = (semester: string): number => {
     if (!semester || semester === "UNASSIGNED") return -1;
-    const match = semester.match(/^([FS])(\d{2})$/i);
+    const regex = /^([FS])(\d{2})$/i;
+    const match = regex.exec(semester);
     if (!match) return -1;
     const season = match[1].toUpperCase();
-    const year = parseInt(match[2]);
+    const year = Number.parseInt(match[2], 10);
     // Higher year = higher priority, Fall > Spring within same year
     return year * 10 + (season === "F" ? 1 : 0);
   };
@@ -388,7 +392,8 @@ export default function ShowsPage() {
   // Get full semester name for display
   const getSemesterLabel = (semester: string): string => {
     if (!semester || semester === "UNASSIGNED") return "UNASSIGNED";
-    const match = semester.match(/^([FS])(\d{2})$/i);
+    const regex = /^([FS])(\d{2})$/i;
+    const match = regex.exec(semester);
     if (!match) return semester;
     const season = match[1].toUpperCase() === "F" ? "FALL" : "SPRING";
     const year = `20${match[2]}`;
@@ -541,7 +546,7 @@ export default function ShowsPage() {
         <div>
           <h1 className="text-2xl font-semibold text-text-primary tracking-tight">Shows</h1>
           <p className="text-text-muted text-xs mt-1">
-            {filteredShows.length} show{filteredShows.length !== 1 ? "s" : ""} across {sortedSemesters.length} semester{sortedSemesters.length !== 1 ? "s" : ""}
+            {filteredShows.length} {pluralize(filteredShows.length, 'show')} across {sortedSemesters.length} {pluralize(sortedSemesters.length, 'semester')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -736,14 +741,14 @@ export default function ShowsPage() {
             {/* Subscription warning */}
             {deleteSubscriptionCount !== null && deleteSubscriptionCount > 0 && (
               <div className="text-xs bg-amber-500/10 text-amber-600 dark:text-amber-400 px-3 py-2 rounded-lg border border-amber-500/20">
-                ⚠️ This show has {deleteSubscriptionCount} subscription{deleteSubscriptionCount !== 1 ? 's' : ''} that will be deleted.
+                ⚠️ This show has {deleteSubscriptionCount} {pluralize(deleteSubscriptionCount, 'subscription')} that will be deleted.
               </div>
             )}
             
             {/* Job history warning */}
             {deleteJobCount !== null && deleteJobCount > 0 && (
               <div className="text-xs bg-red-500/10 text-red-600 dark:text-red-400 px-3 py-2 rounded-lg border border-red-500/20">
-                🗄️ This show has <strong>{deleteJobCount}</strong> job{deleteJobCount !== 1 ? 's' : ''} in history.
+                🗄️ This show has <strong>{deleteJobCount}</strong> {pluralize(deleteJobCount, 'job')} in history.
                 {!forceDelete && " Enable Force Delete to remove all job history."}
               </div>
             )}
@@ -758,7 +763,7 @@ export default function ShowsPage() {
                   className="rounded border-neutral-300 text-red-600 focus:ring-red-500"
                 />
                 <span className="text-text-secondary">
-                  <strong className="text-red-600 dark:text-red-400">Force Delete</strong> — permanently remove all {deleteJobCount} job record{deleteJobCount !== 1 ? 's' : ''} and subscriptions
+                  <strong className="text-red-600 dark:text-red-400">Force Delete</strong> — permanently remove all {deleteJobCount} job {pluralize(deleteJobCount ?? 0, 'record')} and subscriptions
                 </span>
               </label>
             )}
@@ -787,7 +792,9 @@ export default function ShowsPage() {
               variant="destructive"
               className="h-8 px-4 text-xs font-medium rounded-lg transition-all duration-300"
             >
-              {deleting ? "Deleting..." : forceDelete ? "Force Delete" : "Delete Show"}
+              {deleting && "Deleting..."}
+              {!deleting && forceDelete && "Force Delete"}
+              {!deleting && !forceDelete && "Delete Show"}
             </Button>
           </div>
         </DialogContent>
@@ -832,7 +839,7 @@ export default function ShowsPage() {
                 type="number"
                 min={0}
                 value={minCores}
-                onChange={(e) => setMinCores(parseInt(e.target.value) || 0)}
+                onChange={(e) => setMinCores(Number.parseInt(e.target.value, 10) || 0)}
                 className="h-8 text-xs bg-white dark:bg-white/3 border-neutral-200 dark:border-white/8 focus:border-neutral-400 dark:focus:border-white/20 focus:bg-neutral-50 dark:focus:bg-white/5 rounded-lg transition-all duration-300"
               />
             </div>
@@ -845,7 +852,7 @@ export default function ShowsPage() {
                 type="number"
                 min={0}
                 value={maxCores}
-                onChange={(e) => setMaxCores(parseInt(e.target.value) || 0)}
+                onChange={(e) => setMaxCores(Number.parseInt(e.target.value, 10) || 0)}
                 className="h-8 text-xs bg-white dark:bg-white/3 border-neutral-200 dark:border-white/8 focus:border-neutral-400 dark:focus:border-white/20 focus:bg-neutral-50 dark:focus:bg-white/5 rounded-lg transition-all duration-300"
               />
             </div>
@@ -855,11 +862,13 @@ export default function ShowsPage() {
               <Label className="text-text-muted text-xs font-medium">
                 Subscriptions ({loadingSubscriptions ? "..." : subscriptions.length})
               </Label>
-              {loadingSubscriptions ? (
+              {loadingSubscriptions && (
                 <div className="text-xs text-text-muted py-2">Loading subscriptions...</div>
-              ) : subscriptions.length === 0 ? (
+              )}
+              {!loadingSubscriptions && subscriptions.length === 0 && (
                 <div className="text-xs text-text-muted py-2">No subscriptions for this show.</div>
-              ) : (
+              )}
+              {!loadingSubscriptions && subscriptions.length > 0 && (
                 <div className="space-y-1.5 max-h-32 overflow-y-auto">
                   {subscriptions.map((sub) => (
                     <div
