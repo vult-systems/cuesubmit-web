@@ -57,7 +57,7 @@ ADMIN_INITIAL_PASSWORD=changeme             # Initial admin password
 
 ## Project Structure
 
-```
+```text
 src/
 ├── app/                    # Next.js App Router
 │   ├── (dashboard)/       # Dashboard pages (jobs, hosts, shows, etc.)
@@ -67,22 +67,37 @@ src/
     ├── opencue/          # OpenCue client (gateway-client, spec-builder)
     └── db/               # SQLite for local metadata
 
-opencue/                   # OpenCue reference codebase
-├── rqd/                  # Render Queue Daemon
+opencue/                   # OpenCue reference codebase (NOT part of build)
+├── cuebot/               # Java scheduler service
+├── rqd/                  # Render Queue Daemon (Python)
 ├── pycue/                # Python client library
-├── uiw3d_installers/     # Windows deployment tools
+├── cuegui/               # Desktop GUI (PyQt)
+├── uiw3d_installers/     # Windows deployment scripts
 └── uiw3d_machinelist/    # Lab machine inventory (Excel)
+
+launcher/                  # Native desktop launcher (Zig)
 ```
+
+## Documentation
+
+- [PROJECT_STATUS.md](PROJECT_STATUS.md) - Current status, known issues, recent fixes
+- [CODING_STANDARDS.md](CODING_STANDARDS.md) - Code style and linting rules
 
 ## Deployment
 
-### Docker
+### Docker (Production)
 
 ```bash
-# Production build
-docker compose up -d
+# Build and deploy
+docker compose up -d --build
 
-# Development with hot reload
+# View logs
+docker logs --tail 50 cuesubmit-web
+```
+
+### Docker (Development)
+
+```bash
 docker compose -f docker-compose.dev.yml up
 ```
 
@@ -91,11 +106,8 @@ docker compose -f docker-compose.dev.yml up
 A native launcher that bundles the Next.js app:
 
 ```powershell
-# Windows
 cd launcher
 .\build.bat
-
-# Run
 .\zig-out\bin\cueweb-launcher.exe --mode online --port 3000
 ```
 
@@ -103,27 +115,38 @@ cd launcher
 
 The app maintains local metadata for render hosts (display IDs, system names) in SQLite at `data/cuesubmit.db`. This supplements OpenCue's host data with lab-specific naming.
 
+Sync from production:
+
+```bash
+npm run sync-db
+```
+
 ## Lab Setup
 
 Machine inventory is tracked in `opencue/uiw3d_machinelist/labs.xlsx`. The deployment scripts in `opencue/uiw3d_installers/` automate RQD installation on Windows lab machines.
 
 ## API Routes
 
-| Route | Description |
-|-------|-------------|
-| `/api/jobs` | List/manage render jobs |
-| `/api/shows` | List/manage shows |
+| Route        | Description              |
+| ------------ | ------------------------ |
+| `/api/jobs`  | List/manage render jobs  |
+| `/api/shows` | List/manage shows        |
 | `/api/hosts` | List/manage render hosts |
-| `/api/submit` | Submit new render jobs |
-| `/api/users` | User management |
+| `/api/submit`| Submit new render jobs   |
+| `/api/users` | User management          |
 
 ## Tech Stack
 
-- **Framework**: Next.js 16 (App Router)
-- **Language**: TypeScript
-- **UI**: Tailwind CSS, shadcn/ui
+- **Framework**: Next.js 16 (App Router, Turbopack)
+- **Language**: TypeScript 5 (strict mode)
+- **UI**: Tailwind CSS, shadcn/ui, Radix primitives
 - **Database**: SQLite (better-sqlite3) for local metadata
 - **Auth**: Cookie-based sessions with bcrypt
+- **Linting**: ESLint, SonarLint, markdownlint
+
+## Contributing
+
+See [CODING_STANDARDS.md](CODING_STANDARDS.md) for code style guidelines.
 
 ## License
 

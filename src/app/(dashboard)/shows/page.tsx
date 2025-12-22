@@ -2,13 +2,13 @@
 
 import { useState, useEffect, useCallback } from "react";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  ResizableTable,
+  ResizableTableBody,
+  ResizableTableCell,
+  ResizableTableHead,
+  ResizableTableHeader,
+  ResizableTableRow,
+} from "@/components/ui/resizable-table";
 import {
   Dialog,
   DialogContent,
@@ -401,23 +401,28 @@ export default function ShowsPage() {
   };
 
   const renderShowRow = (show: Show) => (
-    <TableRow
+    <ResizableTableRow
       key={show.id}
-      className="hover:bg-neutral-50 dark:hover:bg-white/3 transition-all duration-200 group border-neutral-200 dark:border-white/6"
+      className="hover:bg-neutral-50 dark:hover:bg-white/3 transition-colors duration-150 group"
     >
-      <TableCell className="pl-8 font-medium text-text-primary text-sm">
+      <ResizableTableCell columnId="name" className="font-medium text-text-primary">
         {show.name}
-      </TableCell>
-      <TableCell className="text-center">
-        <span className="font-mono text-xs text-text-muted bg-surface-muted px-1.5 py-0.5 rounded">
-          {show.tag || "-"}
-        </span>
-      </TableCell>
-      <TableCell className="text-center">
+      </ResizableTableCell>
+      <ResizableTableCell columnId="subscription">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 px-2 text-xs text-text-muted hover:text-text-primary hover:bg-neutral-100 dark:hover:bg-white/5"
+          onClick={() => openSettingsDialog(show)}
+        >
+          View
+        </Button>
+      </ResizableTableCell>
+      <ResizableTableCell columnId="status">
         <Badge
           variant="outline"
           className={cn(
-            "text-xs",
+            "text-[10px]",
             show.active
               ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
               : "bg-surface-muted text-text-muted border-border"
@@ -425,118 +430,116 @@ export default function ShowsPage() {
         >
           {show.active ? "Active" : "Inactive"}
         </Badge>
-      </TableCell>
-      <TableCell className="text-text-muted text-sm text-center">
+      </ResizableTableCell>
+      <ResizableTableCell columnId="min" className="text-text-muted text-xs">
         {show.defaultMinCores}
-      </TableCell>
-      <TableCell className="text-text-secondary text-sm text-center">
+      </ResizableTableCell>
+      <ResizableTableCell columnId="max" className="text-text-secondary text-xs">
         {show.defaultMaxCores}
-      </TableCell>
-      <TableCell className="text-center">
+      </ResizableTableCell>
+      <ResizableTableCell columnId="booking">
         <span className={cn(
           "text-xs font-medium",
           show.bookingEnabled ? "text-emerald-500" : "text-text-muted"
         )}>
           {show.bookingEnabled ? "Yes" : "No"}
         </span>
-      </TableCell>
-      <TableCell className="pr-8">
-        <TooltipProvider delayDuration={300}>
-          <div className="flex items-center justify-center gap-0.5">
-            {/* Activate/Deactivate Toggle */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className={show.active ? iconButton.activate : iconButton.settings}
-                  onClick={() => handleShowAction(show.id, show.active ? "deactivate" : "activate")}
-                >
-                  {show.active ? (
-                    <Power className="h-3.5 w-3.5" />
-                  ) : (
-                    <PowerOff className="h-3.5 w-3.5" />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{show.active ? "Deactivate" : "Activate"}</p>
-              </TooltipContent>
-            </Tooltip>
+      </ResizableTableCell>
+      <ResizableTableCell columnId="actions">
+        <div className="flex items-center justify-end gap-0.5">
+          {/* Activate/Deactivate Toggle */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={show.active ? iconButton.activate : iconButton.settings}
+                onClick={() => handleShowAction(show.id, show.active ? "deactivate" : "activate")}
+              >
+                {show.active ? (
+                  <Power className="h-3.5 w-3.5" />
+                ) : (
+                  <PowerOff className="h-3.5 w-3.5" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{show.active ? "Deactivate" : "Activate"}</p>
+            </TooltipContent>
+          </Tooltip>
 
-            {/* Rename */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className={iconButton.edit}
-                  onClick={() => openRenameDialog(show)}
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Rename</p>
-              </TooltipContent>
-            </Tooltip>
+          {/* Rename */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={iconButton.edit}
+                onClick={() => openRenameDialog(show)}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Rename</p>
+            </TooltipContent>
+          </Tooltip>
 
-            {/* Settings */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className={iconButton.settings}
-                  onClick={() => openSettingsDialog(show)}
-                >
-                  <Settings className="h-3.5 w-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Settings</p>
-              </TooltipContent>
-            </Tooltip>
+          {/* Settings */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={iconButton.settings}
+                onClick={() => openSettingsDialog(show)}
+              >
+                <Settings className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Settings</p>
+            </TooltipContent>
+          </Tooltip>
 
-            {/* Delete */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className={iconButton.delete}
-                  onClick={() => openDeleteDialog(show)}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Delete</p>
-              </TooltipContent>
-            </Tooltip>
-          </div>
-        </TooltipProvider>
-      </TableCell>
-    </TableRow>
+          {/* Delete */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={iconButton.delete}
+                onClick={() => openDeleteDialog(show)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Delete</p>
+            </TooltipContent>
+          </Tooltip>
+        </div>
+      </ResizableTableCell>
+    </ResizableTableRow>
   );
 
-  const renderTable = (showsList: Show[]) => (
-    <Table>
-      <TableHeader>
-        <TableRow className="hover:bg-transparent border-neutral-200 dark:border-white/6">
-          <TableHead className="pl-8">Name</TableHead>
-          <TableHead className="text-center">Tag</TableHead>
-          <TableHead className="text-center">Status</TableHead>
-          <TableHead className="text-center">Min</TableHead>
-          <TableHead className="text-center">Max</TableHead>
-          <TableHead className="text-center">Booking</TableHead>
-          <TableHead className="text-center pr-8">Actions</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
+  const renderTable = (showsList: Show[], storageKey: string) => (
+    <ResizableTable storageKey={storageKey}>
+      <ResizableTableHeader>
+        <ResizableTableRow className="hover:bg-transparent border-neutral-200 dark:border-white/6">
+          <ResizableTableHead columnId="name" minWidth={100} maxWidth={300}>Name</ResizableTableHead>
+          <ResizableTableHead columnId="subscription" minWidth={80} maxWidth={120}>Subscription</ResizableTableHead>
+          <ResizableTableHead columnId="status" minWidth={70} maxWidth={100}>Status</ResizableTableHead>
+          <ResizableTableHead columnId="min" minWidth={50} maxWidth={80}>Min</ResizableTableHead>
+          <ResizableTableHead columnId="max" minWidth={50} maxWidth={80}>Max</ResizableTableHead>
+          <ResizableTableHead columnId="booking" minWidth={60} maxWidth={100}>Booking</ResizableTableHead>
+          <ResizableTableHead columnId="actions" resizable={false} minWidth={120} maxWidth={120} className="text-right">Actions</ResizableTableHead>
+        </ResizableTableRow>
+      </ResizableTableHeader>
+      <ResizableTableBody>
         {showsList.map(renderShowRow)}
-      </TableBody>
-    </Table>
+      </ResizableTableBody>
+    </ResizableTable>
   );
 
   return (
@@ -660,19 +663,21 @@ export default function ShowsPage() {
 
       {/* Grouped Sections */}
       {!loading && filteredShows.length > 0 && (
-        <div className="space-y-3">
-          {sortedSemesters.map((semester, index) => (
-            <GroupedSection
-              key={semester}
-              title={getSemesterLabel(semester)}
-              badge={`${showsBySemester[semester].length}`}
-              accentColors={accentColorList[index % accentColorList.length]}
-              defaultOpen={true}
-            >
-              {renderTable(showsBySemester[semester])}
-            </GroupedSection>
-          ))}
-        </div>
+        <TooltipProvider delayDuration={200}>
+          <div className="space-y-3">
+            {sortedSemesters.map((semester, index) => (
+              <GroupedSection
+                key={semester}
+                title={getSemesterLabel(semester)}
+                badge={`${showsBySemester[semester].length}`}
+                accentColors={accentColorList[index % accentColorList.length]}
+                defaultOpen={true}
+              >
+                {renderTable(showsBySemester[semester], `shows-${semester}`)}
+              </GroupedSection>
+            ))}
+          </div>
+        </TooltipProvider>
       )}
 
       {/* Rename Dialog */}

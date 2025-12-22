@@ -1,0 +1,6 @@
+# Red Hat Dependency Analytics configuration
+# Exclude reference codebases from vulnerability scanning
+
+ignored:
+  - "opencue/**"
+  - "launcher/**"

@@ -2,13 +2,13 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  ResizableTable,
+  ResizableTableBody,
+  ResizableTableCell,
+  ResizableTableHead,
+  ResizableTableHeader,
+  ResizableTableRow,
+} from "@/components/ui/resizable-table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -229,69 +229,68 @@ export default function JobsPage() {
         </div>
       )}
       {!loading && jobsByShow.length > 0 && (
-        <div className="space-y-4">
-          {jobsByShow.map(([show, showJobs]) => {
-            const colors = showColorMap[show];
-            const showRunning = showJobs.filter(j => j.state === "RUNNING" || (j.runningFrames > 0 && !j.isPaused)).length;
-            const showTotalFrames = showJobs.reduce((sum, j) => sum + j.totalFrames, 0);
-            const showSucceededFrames = showJobs.reduce((sum, j) => sum + j.succeededFrames, 0);
-            
-            return (
-              <GroupedSection
-                key={show}
-                title={show.toUpperCase()}
-                badge={`${showJobs.length} ${pluralize(showJobs.length, 'job')}`}
-                stats={`${showRunning} running • ${showSucceededFrames}/${showTotalFrames} frames`}
-                accentColors={colors}
-              >
-                <Table>
-                  <TableHeader>
-                    <TableRow className="hover:bg-transparent border-neutral-200 dark:border-white/6">
-                      <TableHead>Job Name</TableHead>
-                      <TableHead>State</TableHead>
-                      <TableHead>User</TableHead>
-                      <TableHead>Progress</TableHead>
-                      <TableHead>Priority</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {showJobs.map((job, index) => {
-                      const state = job.isPaused ? "PAUSED" : job.state;
+        <TooltipProvider delayDuration={200}>
+          <div className="space-y-4">
+            {jobsByShow.map(([show, showJobs]) => {
+              const colors = showColorMap[show];
+              const showRunning = showJobs.filter(j => j.state === "RUNNING" || (j.runningFrames > 0 && !j.isPaused)).length;
+              const showTotalFrames = showJobs.reduce((sum, j) => sum + j.totalFrames, 0);
+              const showSucceededFrames = showJobs.reduce((sum, j) => sum + j.succeededFrames, 0);
+              
+              return (
+                <GroupedSection
+                  key={show}
+                  title={show.toUpperCase()}
+                  badge={`${showJobs.length} ${pluralize(showJobs.length, 'job')}`}
+                  stats={`${showRunning} running • ${showSucceededFrames}/${showTotalFrames} frames`}
+                  accentColors={colors}
+                >
+                  <ResizableTable storageKey={`jobs-${show}`}>
+                    <ResizableTableHeader>
+                      <ResizableTableRow className="hover:bg-transparent border-neutral-200 dark:border-white/6">
+                        <ResizableTableHead columnId="name" minWidth={150} maxWidth={400}>Job Name</ResizableTableHead>
+                        <ResizableTableHead columnId="state" minWidth={80} maxWidth={120}>State</ResizableTableHead>
+                        <ResizableTableHead columnId="user" minWidth={80} maxWidth={150}>User</ResizableTableHead>
+                        <ResizableTableHead columnId="progress" minWidth={150} maxWidth={250}>Progress</ResizableTableHead>
+                        <ResizableTableHead columnId="priority" minWidth={60} maxWidth={100}>Priority</ResizableTableHead>
+                        <ResizableTableHead columnId="actions" resizable={false} minWidth={140} maxWidth={140} className="text-right">Actions</ResizableTableHead>
+                      </ResizableTableRow>
+                    </ResizableTableHeader>
+                    <ResizableTableBody>
+                      {showJobs.map((job) => {
+                        const state = job.isPaused ? "PAUSED" : job.state;
                       
-                      return (
-                        <TableRow
-                          key={job.id}
-                          className="hover:bg-neutral-50 dark:hover:bg-white/3 cursor-pointer transition-all duration-200 group"
-                          onClick={() => {
-                            setSelectedJob(job);
-                            setDrawerOpen(true);
-                          }}
-                          style={{ animationDelay: `${index * 30}ms` }}
-                        >
-                          <TableCell>
-                            <div className="font-medium text-text-primary truncate max-w-xs">
-                              {job.name}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className={cn(stateColors[state])}>
-                              {state}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <span className="text-text-secondary">{job.user}</span>
-                          </TableCell>
-                          <TableCell>
-                            <ProgressBar job={job} />
-                          </TableCell>
-                          <TableCell>
-                            <span className="text-text-muted">{job.priority}</span>
-                          </TableCell>
-                          <TableCell>
-                            <TooltipProvider delayDuration={300}>
+                        return (
+                          <ResizableTableRow
+                            key={job.id}
+                            className="hover:bg-neutral-50 dark:hover:bg-white/3 cursor-pointer transition-colors duration-150 group"
+                            onClick={() => {
+                              setSelectedJob(job);
+                              setDrawerOpen(true);
+                            }}
+                          >
+                            <ResizableTableCell columnId="name">
+                              <div className="font-medium text-text-primary truncate">
+                                {job.name}
+                              </div>
+                            </ResizableTableCell>
+                            <ResizableTableCell columnId="state">
+                              <Badge variant="outline" className={cn(stateColors[state], "text-[10px]")}>
+                                {state}
+                              </Badge>
+                            </ResizableTableCell>
+                            <ResizableTableCell columnId="user">
+                              <span className="text-text-secondary text-xs">{job.user}</span>
+                            </ResizableTableCell>
+                            <ResizableTableCell columnId="progress">
+                              <ProgressBar job={job} />
+                            </ResizableTableCell>
+                            <ResizableTableCell columnId="priority">
+                              <span className="text-text-muted text-xs">{job.priority}</span>
+                            </ResizableTableCell>
+                            <ResizableTableCell columnId="actions">
                               {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events */}
-                              <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center justify-end gap-0.5" onClick={(e) => e.stopPropagation()}>
                                 {/* View Logs */}
                                 <Tooltip>
                                   <TooltipTrigger asChild>
@@ -401,17 +400,17 @@ export default function JobsPage() {
                                   </TooltipContent>
                                 </Tooltip>
                               </div>
-                            </TooltipProvider>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </GroupedSection>
-            );
-          })}
-        </div>
+                            </ResizableTableCell>
+                          </ResizableTableRow>
+                        );
+                      })}
+                    </ResizableTableBody>
+                  </ResizableTable>
+                </GroupedSection>
+              );
+            })}
+          </div>
+        </TooltipProvider>
       )}
 
       <JobDetailDrawer
