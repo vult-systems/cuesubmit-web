@@ -458,14 +458,14 @@ export async function createSubscription(
 export async function setSubscriptionSize(subscriptionId: string, size: number): Promise<void> {
   await gatewayCall('subscription.SubscriptionInterface', 'SetSize', {
     subscription: { id: subscriptionId },
-    new_size: size
+    new_size: Math.floor(size)
   });
 }
 
 export async function setSubscriptionBurst(subscriptionId: string, burst: number): Promise<void> {
   await gatewayCall('subscription.SubscriptionInterface', 'SetBurst', {
     subscription: { id: subscriptionId },
-    burst
+    burst: Math.floor(burst)
   });
 }
 
