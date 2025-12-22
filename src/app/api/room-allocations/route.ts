@@ -84,10 +84,10 @@ export async function GET() {
     const roomAllocations = allocations
       .filter(a => ROOM_ALLOCATIONS.includes(a.tag?.toLowerCase() || ''))
       .map(alloc => {
-        const tag = alloc.tag?.toLowerCase() || '';
-        // Count hosts with this tag
+        const tag = alloc.tag?.toUpperCase() || '';
+        // Count hosts with this tag (tags are uppercase like "AD405")
         const hostsWithTag = hosts.filter(h => 
-          h.tags?.some(t => t.toLowerCase() === tag.toUpperCase())
+          h.tags?.some(t => t.toUpperCase() === tag)
         );
         // Count hosts assigned to this allocation
         const assignedHosts = hosts.filter(h => {
