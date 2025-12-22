@@ -128,6 +128,13 @@ export default function ShowsPage() {
   // Subscriptions state
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [loadingSubscriptions, setLoadingSubscriptions] = useState(false);
+  const [allocations, setAllocations] = useState<{ id: string; name: string }[]>([]);
+  const [editingSubscription, setEditingSubscription] = useState<string | null>(null);
+  const [editSize, setEditSize] = useState(0);
+  const [editBurst, setEditBurst] = useState(100);
+  const [savingSubscription, setSavingSubscription] = useState(false);
+  const [addingSubscription, setAddingSubscription] = useState(false);
+  const [newSubAllocation, setNewSubAllocation] = useState("");
 
   const fetchShows = useCallback(async () => {
     try {
@@ -146,9 +153,22 @@ export default function ShowsPage() {
     }
   }, [showAll]);
 
+  const fetchAllocations = useCallback(async () => {
+    try {
+      const response = await fetch("/api/allocations");
+      const data = await response.json();
+      if (response.ok) {
+        setAllocations(data.allocations || []);
+      }
+    } catch (error) {
+      console.error("Failed to fetch allocations:", error);
+    }
+  }, []);
+
   useEffect(() => {
     fetchShows();
-  }, [fetchShows]);
+    fetchAllocations();
+  }, [fetchShows, fetchAllocations]);
 
   const handleCreateShow = async () => {
     if (!newShowName.trim()) {
@@ -348,15 +368,109 @@ export default function ShowsPage() {
     }
   };
 
+  const handleAddSubscription = async () => {
+    if (!showToEdit || !newSubAllocation) return;
+    
+    setAddingSubscription(true);
+    try {
+      const response = await fetch(`/api/shows/${showToEdit.id}/subscriptions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          allocationId: newSubAllocation,
+          size: 0,
+          burst: 100,
+        }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        toast.success("Subscription created");
+        setNewSubAllocation("");
+        fetchSubscriptions(showToEdit.id);
+      } else {
+        toast.error(data.error || "Failed to create subscription");
+      }
+    } catch (error) {
+      console.error("Failed to create subscription:", error);
+      toast.error("Failed to create subscription");
+    } finally {
+      setAddingSubscription(false);
+    }
+  };
+
+  const handleUpdateSubscription = async (subscriptionId: string) => {
+    if (!showToEdit) return;
+    
+    setSavingSubscription(true);
+    try {
+      const response = await fetch(`/api/shows/${showToEdit.id}/subscriptions`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          subscriptionId,
+          size: editSize,
+          burst: editBurst,
+        }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        toast.success("Subscription updated");
+        setEditingSubscription(null);
+        fetchSubscriptions(showToEdit.id);
+      } else {
+        toast.error(data.error || "Failed to update subscription");
+      }
+    } catch (error) {
+      console.error("Failed to update subscription:", error);
+      toast.error("Failed to update subscription");
+    } finally {
+      setSavingSubscription(false);
+    }
+  };
+
+  const handleDeleteSubscription = async (subscriptionId: string) => {
+    if (!showToEdit) return;
+    
+    try {
+      const response = await fetch(
+        `/api/shows/${showToEdit.id}/subscriptions?subscriptionId=${subscriptionId}`,
+        { method: "DELETE" }
+      );
+      const data = await response.json();
+      if (response.ok) {
+        toast.success("Subscription removed");
+        fetchSubscriptions(showToEdit.id);
+      } else {
+        toast.error(data.error || "Failed to remove subscription");
+      }
+    } catch (error) {
+      console.error("Failed to delete subscription:", error);
+      toast.error("Failed to remove subscription");
+    }
+  };
+
+  const startEditSubscription = (sub: Subscription) => {
+    setEditingSubscription(sub.id);
+    setEditSize(sub.size);
+    setEditBurst(sub.burst);
+  };
+
   const openSettingsDialog = (show: Show) => {
     setShowToEdit(show);
     setMinCores(show.defaultMinCores);
     setMaxCores(show.defaultMaxCores);
     setEditSemester(show.semester || "");
     setSubscriptions([]);
+    setEditingSubscription(null);
+    setNewSubAllocation("");
     setSettingsDialogOpen(true);
     fetchSubscriptions(show.id);
   };
+
+  // Get allocations that don't have subscriptions yet
+  const availableAllocations = allocations.filter(
+    (alloc) => !subscriptions.some((sub) => sub.allocationName === alloc.name)
+  );
 
   // Filter shows
   const filteredShows = shows.filter((show) =>
@@ -807,7 +921,7 @@ export default function ShowsPage() {
 
       {/* Settings Dialog */}
       <Dialog open={settingsDialogOpen} onOpenChange={setSettingsDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle className="text-lg font-semibold text-text-primary">Show Settings</DialogTitle>
             <DialogDescription className="text-text-muted text-sm">
@@ -835,57 +949,165 @@ export default function ShowsPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="minCores" className="text-text-muted text-xs font-medium">
-                Default Min Cores
-              </Label>
-              <Input
-                id="minCores"
-                type="number"
-                min={0}
-                value={minCores}
-                onChange={(e) => setMinCores(Number.parseInt(e.target.value, 10) || 0)}
-                className="h-8 text-xs bg-white dark:bg-white/3 border-neutral-200 dark:border-white/8 focus:border-neutral-400 dark:focus:border-white/20 focus:bg-neutral-50 dark:focus:bg-white/5 rounded-lg transition-all duration-300"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="maxCores" className="text-text-muted text-xs font-medium">
-                Default Max Cores
-              </Label>
-              <Input
-                id="maxCores"
-                type="number"
-                min={0}
-                value={maxCores}
-                onChange={(e) => setMaxCores(Number.parseInt(e.target.value, 10) || 0)}
-                className="h-8 text-xs bg-white dark:bg-white/3 border-neutral-200 dark:border-white/8 focus:border-neutral-400 dark:focus:border-white/20 focus:bg-neutral-50 dark:focus:bg-white/5 rounded-lg transition-all duration-300"
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="minCores" className="text-text-muted text-xs font-medium">
+                  Default Min Cores
+                </Label>
+                <Input
+                  id="minCores"
+                  type="number"
+                  min={0}
+                  value={minCores}
+                  onChange={(e) => setMinCores(Number.parseInt(e.target.value, 10) || 0)}
+                  className="h-8 text-xs bg-white dark:bg-white/3 border-neutral-200 dark:border-white/8 focus:border-neutral-400 dark:focus:border-white/20 focus:bg-neutral-50 dark:focus:bg-white/5 rounded-lg transition-all duration-300"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="maxCores" className="text-text-muted text-xs font-medium">
+                  Default Max Cores
+                </Label>
+                <Input
+                  id="maxCores"
+                  type="number"
+                  min={0}
+                  value={maxCores}
+                  onChange={(e) => setMaxCores(Number.parseInt(e.target.value, 10) || 0)}
+                  className="h-8 text-xs bg-white dark:bg-white/3 border-neutral-200 dark:border-white/8 focus:border-neutral-400 dark:focus:border-white/20 focus:bg-neutral-50 dark:focus:bg-white/5 rounded-lg transition-all duration-300"
+                />
+              </div>
             </div>
             
             {/* Subscriptions Section */}
-            <div className="space-y-2 pt-2 border-t border-neutral-200 dark:border-white/8">
-              <Label className="text-text-muted text-xs font-medium">
-                Subscriptions ({loadingSubscriptions ? "..." : subscriptions.length})
-              </Label>
+            <div className="space-y-3 pt-3 border-t border-neutral-200 dark:border-white/8">
+              <div className="flex items-center justify-between">
+                <Label className="text-text-muted text-xs font-medium">
+                  Room Subscriptions ({loadingSubscriptions ? "..." : subscriptions.length})
+                </Label>
+              </div>
+              
+              <p className="text-[10px] text-text-muted">
+                Subscriptions control which render rooms this show can use. Set <strong>Size</strong> for guaranteed cores, 
+                <strong> Burst</strong> for maximum when available.
+              </p>
+              
               {loadingSubscriptions && (
                 <div className="text-xs text-text-muted py-2">Loading subscriptions...</div>
               )}
+              
               {!loadingSubscriptions && subscriptions.length === 0 && (
-                <div className="text-xs text-text-muted py-2">No subscriptions for this show.</div>
+                <div className="text-xs text-text-muted py-2 px-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded">
+                  ⚠️ No subscriptions. This show cannot render until you add room subscriptions below.
+                </div>
               )}
+              
               {!loadingSubscriptions && subscriptions.length > 0 && (
-                <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                <div className="space-y-2 max-h-48 overflow-y-auto">
                   {subscriptions.map((sub) => (
                     <div
                       key={sub.id}
-                      className="flex items-center justify-between text-xs bg-surface-muted px-2 py-1.5 rounded"
+                      className="flex items-center gap-2 text-xs bg-surface-muted px-3 py-2 rounded-lg"
                     >
-                      <span className="text-text-secondary font-medium">{sub.allocationName}</span>
-                      <span className="text-text-muted">
-                        Size: {sub.size} / Burst: {sub.burst}
-                      </span>
+                      <span className="text-text-primary font-medium min-w-24">{sub.allocationName}</span>
+                      
+                      {editingSubscription === sub.id ? (
+                        <>
+                          <div className="flex items-center gap-1">
+                            <span className="text-text-muted text-[10px]">Size:</span>
+                            <Input
+                              type="number"
+                              min={0}
+                              value={editSize}
+                              onChange={(e) => setEditSize(Number.parseInt(e.target.value, 10) || 0)}
+                              className="h-6 w-16 text-xs px-1.5"
+                            />
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="text-text-muted text-[10px]">Burst:</span>
+                            <Input
+                              type="number"
+                              min={0}
+                              value={editBurst}
+                              onChange={(e) => setEditBurst(Number.parseInt(e.target.value, 10) || 0)}
+                              className="h-6 w-16 text-xs px-1.5"
+                            />
+                          </div>
+                          <Button
+                            size="sm"
+                            onClick={() => handleUpdateSubscription(sub.id)}
+                            disabled={savingSubscription}
+                            className="h-6 px-2 text-[10px]"
+                          >
+                            {savingSubscription ? "..." : "Save"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setEditingSubscription(null)}
+                            className="h-6 px-2 text-[10px]"
+                          >
+                            Cancel
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-text-muted flex-1">
+                            Size: <span className="text-text-secondary">{sub.size}</span> / 
+                            Burst: <span className="text-text-secondary">{sub.burst}</span>
+                          </span>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => startEditSubscription(sub)}
+                            className="h-6 px-2 text-[10px] hover:bg-white/50 dark:hover:bg-white/10"
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDeleteSubscription(sub.id)}
+                            className="h-6 px-2 text-[10px] text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </>
+                      )}
                     </div>
                   ))}
+                </div>
+              )}
+              
+              {/* Add Subscription */}
+              {!loadingSubscriptions && availableAllocations.length > 0 && (
+                <div className="flex items-center gap-2 pt-2">
+                  <Select value={newSubAllocation} onValueChange={setNewSubAllocation}>
+                    <SelectTrigger className="h-8 text-xs flex-1 bg-white dark:bg-white/3 border-neutral-200 dark:border-white/8 rounded-lg">
+                      <SelectValue placeholder="Add room subscription..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableAllocations.map((alloc) => (
+                        <SelectItem key={alloc.id} value={alloc.id} className="text-xs">
+                          {alloc.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    size="sm"
+                    onClick={handleAddSubscription}
+                    disabled={!newSubAllocation || addingSubscription}
+                    className="h-8 px-3 text-xs"
+                  >
+                    <Plus className="h-3.5 w-3.5 mr-1" />
+                    {addingSubscription ? "Adding..." : "Add"}
+                  </Button>
+                </div>
+              )}
+              
+              {!loadingSubscriptions && availableAllocations.length === 0 && subscriptions.length > 0 && (
+                <div className="text-[10px] text-text-muted">
+                  ✓ Subscribed to all available rooms
                 </div>
               )}
             </div>
@@ -903,7 +1125,7 @@ export default function ShowsPage() {
                 disabled={savingSettings}
                 className="h-8 px-4 text-xs font-medium rounded-lg transition-all duration-300"
               >
-                {savingSettings ? "Saving..." : "Save Settings"}
+                {savingSettings ? "Saving..." : "Save Settings"}}
               </Button>
             </div>
           </div>
