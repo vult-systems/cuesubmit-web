@@ -441,6 +441,34 @@ export async function getShowSubscriptions(showId: string): Promise<{ subscripti
   });
 }
 
+export async function createSubscription(
+  showId: string,
+  allocationId: string,
+  size: number,
+  burst: number
+): Promise<{ subscription: Subscription }> {
+  return gatewayCall('show.ShowInterface', 'CreateSubscription', {
+    show: { id: showId },
+    allocation_id: allocationId,
+    size,
+    burst
+  });
+}
+
+export async function setSubscriptionSize(subscriptionId: string, size: number): Promise<void> {
+  await gatewayCall('subscription.SubscriptionInterface', 'SetSize', {
+    subscription: { id: subscriptionId },
+    new_size: size
+  });
+}
+
+export async function setSubscriptionBurst(subscriptionId: string, burst: number): Promise<void> {
+  await gatewayCall('subscription.SubscriptionInterface', 'SetBurst', {
+    subscription: { id: subscriptionId },
+    burst
+  });
+}
+
 export async function deleteSubscription(subscriptionId: string): Promise<void> {
   await gatewayCall('subscription.SubscriptionInterface', 'Delete', {
     subscription: { id: subscriptionId }
