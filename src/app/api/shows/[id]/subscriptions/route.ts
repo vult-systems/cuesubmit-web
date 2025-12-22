@@ -54,8 +54,8 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Only admins and instructors can manage subscriptions
-    if (user.role !== "admin" && user.role !== "instructor") {
+    // Only admins and managers can manage subscriptions
+    if (user.role !== "admin" && user.role !== "manager") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -94,7 +94,7 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (user.role !== "admin" && user.role !== "instructor") {
+    if (user.role !== "admin" && user.role !== "manager") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -142,7 +142,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (user.role !== "admin" && user.role !== "instructor") {
+    if (user.role !== "admin" && user.role !== "manager") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
