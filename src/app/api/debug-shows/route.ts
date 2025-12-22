@@ -72,14 +72,19 @@ export async function GET() {
     const allocResult = await getAllocations();
     const allocations = extractAllocations(allocResult);
 
-    // Check which debug shows exist
+    // Check which debug shows exist (case-insensitive match)
     const debugShows = ROOMS.map(room => {
-      const showName = `DEBUG_${room}`;
-      const show = shows.find(s => s.name === showName);
+      const showNameUpper = `DEBUG_${room}`;
+      const showNameLower = `debug_${room.toLowerCase()}`;
+      // Check both uppercase and lowercase variants
+      const show = shows.find(s => 
+        s.name.toLowerCase() === showNameLower.toLowerCase() ||
+        s.name.toUpperCase() === showNameUpper.toUpperCase()
+      );
       const alloc = allocations.find(a => a.tag?.toLowerCase() === room.toLowerCase());
       
       return {
-        name: showName,
+        name: show?.name || showNameUpper,
         room,
         exists: !!show,
         hasAllocation: !!alloc,
