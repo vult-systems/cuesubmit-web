@@ -14,12 +14,9 @@ export async function GET(request: Request) {
     const user_filter = searchParams.get("user") || undefined;
     const includeFinished = searchParams.get("includeFinished") === "true";
 
-    // Students can only see their own jobs
-    const effectiveUser = user.role === "student" ? user.username : user_filter;
-
     const result = await getJobs({
       show,
-      user: effectiveUser,
+      user: user_filter,
       includeFinished,
     });
 
