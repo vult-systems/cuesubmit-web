@@ -27,55 +27,6 @@ interface LogViewerDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-// Mock log generator for offline mode
-function generateMockLogs(jobName: string): string {
-  const timestamp = () => {
-    const now = new Date();
-    return now.toISOString().replace('T', ' ').slice(0, -5);
-  };
-  
-  const lines = [
-    `[${timestamp()}] INFO: Starting job: ${jobName}`,
-    `[${timestamp()}] INFO: Initializing render environment...`,
-    `[${timestamp()}] INFO: Loading scene file...`,
-    `[${timestamp()}] INFO: Scene loaded successfully`,
-    `[${timestamp()}] INFO: Checking licenses...`,
-    `[${timestamp()}] INFO: License acquired: Arnold Renderer`,
-    `[${timestamp()}] INFO: Setting up render parameters...`,
-    `[${timestamp()}] INFO: Resolution: 1920x1080`,
-    `[${timestamp()}] INFO: Frame range: 1-100`,
-    `[${timestamp()}] INFO: Samples: 6`,
-    `[${timestamp()}] INFO: Starting frame 1...`,
-    `[${timestamp()}] DEBUG: Parsing geometry...`,
-    `[${timestamp()}] DEBUG: Building BVH acceleration structure...`,
-    `[${timestamp()}] DEBUG: Loading textures (24 files)...`,
-    `[${timestamp()}] DEBUG: Compiling shaders...`,
-    `[${timestamp()}] INFO: Rendering frame 1...`,
-    `[${timestamp()}] INFO: Frame 1 completed in 45.2s`,
-    `[${timestamp()}] INFO: Writing output: frame_0001.exr`,
-    `[${timestamp()}] INFO: Starting frame 2...`,
-    `[${timestamp()}] DEBUG: Reusing cached BVH structure`,
-    `[${timestamp()}] INFO: Rendering frame 2...`,
-    `[${timestamp()}] INFO: Frame 2 completed in 42.8s`,
-    `[${timestamp()}] INFO: Writing output: frame_0002.exr`,
-    `[${timestamp()}] INFO: Starting frame 3...`,
-    `[${timestamp()}] INFO: Rendering frame 3...`,
-    `[${timestamp()}] WARN: Memory usage at 85%`,
-    `[${timestamp()}] INFO: Frame 3 completed in 48.1s`,
-    `[${timestamp()}] INFO: Writing output: frame_0003.exr`,
-    `[${timestamp()}] INFO: Starting frame 4...`,
-    `[${timestamp()}] INFO: Rendering frame 4...`,
-    `[${timestamp()}] INFO: Frame 4 completed in 44.5s`,
-    `[${timestamp()}] INFO: Writing output: frame_0004.exr`,
-    `[${timestamp()}] INFO: Progress: 4/100 frames (4%)`,
-    `[${timestamp()}] INFO: Estimated time remaining: 1h 52m`,
-    `[${timestamp()}] INFO: Starting frame 5...`,
-    `[${timestamp()}] INFO: Rendering frame 5...`,
-  ];
-  
-  return lines.join('\n');
-}
-
 export function LogViewerDialog({
   job,
   open,
@@ -90,21 +41,17 @@ export function LogViewerDialog({
     if (!job) return;
     setLoading(true);
     try {
-      // Always try the real API first
       const response = await fetch(`/api/jobs/${job.id}/logs`);
       const data = await response.json();
       
       if (response.ok && data.logs) {
         setLogs(data.logs);
       } else {
-        // Fall back to mock logs if API fails
-        console.log("Using mock logs:", data.error || "No logs returned");
-        setLogs(generateMockLogs(job.name));
+        setLogs(data.error || data.logs || "No logs available for this job.");
       }
     } catch (error) {
       console.error("Failed to fetch logs:", error);
-      // Fallback to mock logs on error
-      setLogs(generateMockLogs(job.name));
+      setLogs(`Failed to fetch logs: ${error instanceof Error ? error.message : "Connection error"}`);
     } finally {
       setLoading(false);
     }

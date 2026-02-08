@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -28,12 +28,13 @@ import {
   RefreshCw,
   CheckSquare,
   Square,
-  FileText,
+  Download,
+  ArrowDown,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { iconButton } from "@/lib/icon-button-styles";
-import { FrameLogDialog } from "@/components/frame-log-dialog";
 import { getExitCodeLabel, getExitCodeColorClass } from "@/lib/exit-codes";
 
 interface Frame {
@@ -82,6 +83,17 @@ const frameStateColors: Record<string, string> = {
   CHECKPOINT: "bg-blue-500/15 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30 dark:border-blue-500/20",
 };
 
+// Subtle row background tints per frame state
+const frameRowColors: Record<string, string> = {
+  WAITING: "",
+  RUNNING: "bg-blue-500/[0.04] dark:bg-blue-500/[0.03] hover:bg-blue-500/[0.07] dark:hover:bg-blue-500/[0.06]",
+  SUCCEEDED: "bg-emerald-500/[0.04] dark:bg-emerald-500/[0.03] hover:bg-emerald-500/[0.07] dark:hover:bg-emerald-500/[0.06]",
+  DEAD: "bg-red-500/[0.06] dark:bg-red-500/[0.05] hover:bg-red-500/[0.09] dark:hover:bg-red-500/[0.08]",
+  DEPEND: "bg-amber-500/[0.04] dark:bg-amber-500/[0.03] hover:bg-amber-500/[0.07] dark:hover:bg-amber-500/[0.06]",
+  EATEN: "bg-neutral-500/[0.03] dark:bg-neutral-500/[0.02] hover:bg-neutral-500/[0.06] dark:hover:bg-neutral-500/[0.05]",
+  CHECKPOINT: "bg-blue-500/[0.04] dark:bg-blue-500/[0.03] hover:bg-blue-500/[0.07] dark:hover:bg-blue-500/[0.06]",
+};
+
 export function JobDetailDrawer({
   job,
   open,
@@ -92,7 +104,49 @@ export function JobDetailDrawer({
   const [loading, setLoading] = useState(false);
   const [selectedFrames, setSelectedFrames] = useState<Set<string>>(new Set());
   const [actionLoading, setActionLoading] = useState(false);
-  const [selectedFrameForLog, setSelectedFrameForLog] = useState<Frame | null>(null);
+  // Host IP/name → display ID lookup map
+  const [hostLookup, setHostLookup] = useState<Record<string, string>>({});
+  // Frame selected for log viewing (single click)
+  const [activeFrame, setActiveFrame] = useState<Frame | null>(null);
+  // Log viewer state
+  const [logs, setLogs] = useState<string>("");
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [autoScroll, setAutoScroll] = useState(true);
+  const [logPanelCollapsed, setLogPanelCollapsed] = useState(false);
+  const logScrollRef = useRef<HTMLDivElement>(null);
+  // Draggable log panel height (in pixels)
+  const [logPanelHeight, setLogPanelHeight] = useState(400);
+  const isDraggingRef = useRef(false);
+  const dragStartYRef = useRef(0);
+  const dragStartHeightRef = useRef(0);
+
+  // Drag handlers for resizable log panel
+  const handleDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isDraggingRef.current = true;
+    dragStartYRef.current = e.clientY;
+    dragStartHeightRef.current = logPanelHeight;
+
+    const handleDragMove = (moveEvent: MouseEvent) => {
+      if (!isDraggingRef.current) return;
+      const delta = dragStartYRef.current - moveEvent.clientY;
+      const newHeight = Math.max(120, Math.min(800, dragStartHeightRef.current + delta));
+      setLogPanelHeight(newHeight);
+    };
+
+    const handleDragEnd = () => {
+      isDraggingRef.current = false;
+      document.removeEventListener("mousemove", handleDragMove);
+      document.removeEventListener("mouseup", handleDragEnd);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+
+    document.addEventListener("mousemove", handleDragMove);
+    document.addEventListener("mouseup", handleDragEnd);
+    document.body.style.cursor = "row-resize";
+    document.body.style.userSelect = "none";
+  }, [logPanelHeight]);
 
   const fetchFrames = useCallback(async () => {
     if (!job) return;
@@ -117,8 +171,56 @@ export function JobDetailDrawer({
     if (open && job) {
       fetchFrames();
       setSelectedFrames(new Set());
+      setActiveFrame(null);
+      setLogs("");
+      // Fetch host lookup map
+      fetch("/api/host-lookup")
+        .then(r => r.json())
+        .then(d => setHostLookup(d.lookup || {}))
+        .catch(() => {});
     }
   }, [open, job, fetchFrames]);
+
+  // Fetch logs when activeFrame changes
+  const fetchLogs = useCallback(async () => {
+    if (!activeFrame || !job) return;
+    setLogsLoading(true);
+    try {
+      const response = await fetch(
+        `/api/jobs/${job.id}/logs?frame=${activeFrame.number}&layer=render`
+      );
+      const data = await response.json();
+      
+      if (response.ok && data.logs && !data.error) {
+        setLogs(data.logs);
+      } else {
+        setLogs(data.logs || data.error || "No logs available for this frame.");
+      }
+    } catch (error) {
+      console.error("Failed to fetch frame logs:", error);
+      setLogs(`Failed to fetch logs: ${error instanceof Error ? error.message : "Connection error"}`);
+    } finally {
+      setLogsLoading(false);
+    }
+  }, [activeFrame, job]);
+
+  useEffect(() => {
+    if (activeFrame) {
+      fetchLogs();
+      setLogPanelCollapsed(false);
+    }
+  }, [activeFrame, fetchLogs]);
+
+  useEffect(() => {
+    if (autoScroll && logScrollRef.current) {
+      // Use requestAnimationFrame to ensure DOM has rendered new content
+      requestAnimationFrame(() => {
+        if (logScrollRef.current) {
+          logScrollRef.current.scrollTop = logScrollRef.current.scrollHeight;
+        }
+      });
+    }
+  }, [logs, autoScroll]);
 
   const handleJobAction = async (action: string, frameIds?: string[]) => {
     if (!job) return;
@@ -176,40 +278,73 @@ export function JobDetailDrawer({
     return new Date(timestamp * 1000).toLocaleTimeString();
   };
 
+  // Resolve lastResource (e.g. "REDACTED_IP/1.0/3300") to display ID (e.g. "AD405-01")
+  const resolveHost = (lastResource: string | undefined) => {
+    if (!lastResource) return "-";
+    const hostPart = lastResource.split("/")[0];
+    return hostLookup[hostPart] || hostPart.toUpperCase();
+  };
+
+  const handleFrameClick = (frame: Frame) => {
+    setActiveFrame(frame);
+  };
+
+  const handleDownloadLog = () => {
+    if (!activeFrame || !logs || !job) return;
+    const blob = new Blob([logs], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${job.name.replaceAll(/[^a-z0-9]/gi, "_")}_frame_${activeFrame.number}_log.txt`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    toast.success("Log downloaded");
+  };
+
+  const getLogLineColor = (line: string) => {
+    if (line.includes("ERROR") || line.includes("FATAL")) return "text-red-600 dark:text-red-400";
+    if (line.includes("WARN")) return "text-amber-600 dark:text-amber-400";
+    if (line.includes("DEBUG")) return "text-text-muted";
+    if (line.includes("INFO")) return "text-text-secondary";
+    if (line.includes("[LIVE]")) return "text-blue-600 dark:text-blue-400 animate-pulse";
+    if (line.startsWith("===")) return "text-text-muted opacity-50";
+    return "text-text-muted";
+  };
+
   if (!job) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-7xl w-[98vw] h-[92vh] p-0 flex flex-col gap-0 overflow-hidden">
-        <DialogHeader className="border-b border-neutral-200 dark:border-white/8 px-5 py-4 shrink-0">
+      <DialogContent className="max-w-7xl w-[98vw] h-[94vh] p-0 flex flex-col gap-0 overflow-hidden">
+        {/* Header */}
+        <DialogHeader className="border-b border-neutral-200 dark:border-white/8 px-5 py-3 shrink-0">
           <DialogTitle className="text-text-primary text-lg font-semibold pr-8">
             {job.name}
           </DialogTitle>
-          <div className="flex items-center gap-6 text-sm text-text-muted mt-2">
+          <div className="flex items-center gap-6 text-sm text-text-muted mt-1.5">
             <span>User: <span className="text-text-secondary">{job.user}</span></span>
             <span>Show: <span className="text-text-secondary">{job.show}</span></span>
             <span>Priority: <span className="text-text-secondary">{job.priority}</span></span>
           </div>
         </DialogHeader>
 
-        <div className="px-5 py-4 space-y-3 flex-1 overflow-hidden flex flex-col min-h-0">
-          {/* Job Actions */}
-          <div className="flex items-center gap-2 flex-wrap shrink-0">
+        {/* Main content area - split between frames and logs */}
+        <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+          {/* Job Actions Bar */}
+          <div className="px-5 py-2.5 flex items-center gap-2 flex-wrap shrink-0 border-b border-neutral-200/60 dark:border-white/5">
             <Button
               variant="outline"
               size="default"
               onClick={() => handleJobAction(job.isPaused ? "resume" : "pause")}
               disabled={actionLoading}
-              className="border-neutral-200 dark:border-white/10 bg-white dark:bg-white/3 hover:bg-neutral-50 dark:hover:bg-white/6 text-text-primary h-8 px-3 text-sm rounded-lg"
+              className="border-neutral-200 dark:border-white/10 bg-white dark:bg-white/3 hover:bg-neutral-50 dark:hover:bg-white/6 text-text-primary h-7 px-2.5 text-xs rounded-lg"
             >
               {job.isPaused ? (
-                <>
-                  <Play className="h-3.5 w-3.5 mr-1.5" /> Resume
-                </>
+                <><Play className="h-3 w-3 mr-1" /> Resume</>
               ) : (
-                <>
-                  <Pause className="h-3.5 w-3.5 mr-1.5" /> Pause
-                </>
+                <><Pause className="h-3 w-3 mr-1" /> Pause</>
               )}
             </Button>
             <Button
@@ -217,216 +352,206 @@ export function JobDetailDrawer({
               size="default"
               onClick={() => handleJobAction("retry")}
               disabled={actionLoading || deadFrames.length === 0}
-              className="border-neutral-200 dark:border-white/10 bg-white dark:bg-white/3 hover:bg-neutral-50 dark:hover:bg-white/6 text-text-primary h-8 px-3 text-sm rounded-lg"
+              className="border-neutral-200 dark:border-white/10 bg-white dark:bg-white/3 hover:bg-neutral-50 dark:hover:bg-white/6 text-text-primary h-7 px-2.5 text-xs rounded-lg"
             >
-              <RotateCcw className="h-3.5 w-3.5 mr-1.5" /> Retry All Dead ({deadFrames.length})
+              <RotateCcw className="h-3 w-3 mr-1" /> Retry Dead ({deadFrames.length})
             </Button>
             <Button
               variant="outline"
               size="default"
               onClick={() => handleJobAction("eat")}
               disabled={actionLoading || deadFrames.length === 0}
-              className="border-neutral-200 dark:border-white/10 bg-white dark:bg-white/3 hover:bg-neutral-50 dark:hover:bg-white/6 text-text-primary h-8 px-3 text-sm rounded-lg"
+              className="border-neutral-200 dark:border-white/10 bg-white dark:bg-white/3 hover:bg-neutral-50 dark:hover:bg-white/6 text-text-primary h-7 px-2.5 text-xs rounded-lg"
             >
-              <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Eat All Dead
+              <Trash2 className="h-3 w-3 mr-1" /> Eat Dead
             </Button>
             <Button
               variant="destructive"
               size="default"
               onClick={() => handleJobAction("kill")}
               disabled={actionLoading}
-              className="h-8 px-3 text-sm rounded-lg"
+              className="h-7 px-2.5 text-xs rounded-lg"
             >
-              <XCircle className="h-3.5 w-3.5 mr-1.5" /> Kill Job
+              <XCircle className="h-3 w-3 mr-1" /> Kill
             </Button>
-          </div>
 
-          {/* Selection Actions */}
-          {selectedFrames.size > 0 && (
-            <div className="flex items-center gap-2 px-3 py-2 bg-blue-500/10 rounded-lg border border-blue-500/20">
-              <span className="text-sm text-text-primary font-medium">
-                {selectedFrames.size} frame(s) selected
-              </span>
+            {/* Selection actions */}
+            {selectedFrames.size > 0 && (
+              <div className="flex items-center gap-1.5 ml-2 pl-2 border-l border-neutral-200 dark:border-white/10">
+                <span className="text-xs text-text-muted font-medium">
+                  {selectedFrames.size} selected
+                </span>
+                <Button
+                  variant="outline"
+                  size="default"
+                  onClick={() => handleJobAction("retry", Array.from(selectedFrames))}
+                  disabled={actionLoading || selectedDeadFrames.length === 0}
+                  className="border-neutral-200 dark:border-white/10 bg-white dark:bg-white/3 h-6 px-2 text-[10px] rounded-md"
+                >
+                  <RotateCcw className="h-2.5 w-2.5 mr-0.5" /> Retry
+                </Button>
+                <Button
+                  variant="outline"
+                  size="default"
+                  onClick={() => handleJobAction("eat", Array.from(selectedFrames))}
+                  disabled={actionLoading || selectedDeadFrames.length === 0}
+                  className="border-neutral-200 dark:border-white/10 bg-white dark:bg-white/3 h-6 px-2 text-[10px] rounded-md"
+                >
+                  <Trash2 className="h-2.5 w-2.5 mr-0.5" /> Eat
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="default"
+                  onClick={clearSelection}
+                  className="text-text-muted hover:text-text-primary h-6 px-2 text-[10px] rounded-md"
+                >
+                  Clear
+                </Button>
+              </div>
+            )}
+
+            {/* Quick tools */}
+            <div className="flex items-center gap-1 ml-auto">
               <Button
-                variant="outline"
+                variant="ghost"
                 size="default"
-                onClick={() =>
-                  handleJobAction("retry", Array.from(selectedFrames))
-                }
-                disabled={actionLoading || selectedDeadFrames.length === 0}
-                className="border-neutral-200 dark:border-white/10 bg-white dark:bg-white/3 hover:bg-neutral-50 dark:hover:bg-white/6 text-text-primary h-7 px-2.5 text-xs rounded-md"
+                onClick={selectAllDead}
+                disabled={deadFrames.length === 0}
+                className="text-text-muted hover:text-text-primary h-6 px-2 text-[10px] rounded-md"
               >
-                <RotateCcw className="h-3 w-3 mr-1" /> Retry Selected
-              </Button>
-              <Button
-                variant="outline"
-                size="default"
-                onClick={() =>
-                  handleJobAction("eat", Array.from(selectedFrames))
-                }
-                disabled={actionLoading || selectedDeadFrames.length === 0}
-                className="border-neutral-200 dark:border-white/10 bg-white dark:bg-white/3 hover:bg-neutral-50 dark:hover:bg-white/6 text-text-primary h-7 px-2.5 text-xs rounded-md"
-              >
-                <Trash2 className="h-3 w-3 mr-1" /> Eat Selected
+                <CheckSquare className="h-2.5 w-2.5 mr-0.5" /> Select Dead
               </Button>
               <Button
                 variant="ghost"
                 size="default"
                 onClick={clearSelection}
-                className="text-text-muted hover:text-text-primary hover:bg-neutral-100 dark:hover:bg-white/5 h-7 px-2.5 text-xs rounded-md"
+                disabled={selectedFrames.size === 0}
+                className="text-text-muted hover:text-text-primary h-6 px-2 text-[10px] rounded-md"
               >
-                Clear
+                <Square className="h-2.5 w-2.5 mr-0.5" /> Clear
+              </Button>
+              <Button
+                variant="ghost"
+                size="default"
+                onClick={fetchFrames}
+                disabled={loading}
+                className="text-text-muted hover:text-text-primary h-6 px-2 text-[10px] rounded-md"
+              >
+                <RefreshCw className={cn("h-2.5 w-2.5 mr-0.5", loading && "animate-spin")} />
+                Refresh
               </Button>
             </div>
-          )}
-
-          {/* Quick Select */}
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="default"
-              onClick={selectAllDead}
-              disabled={deadFrames.length === 0}
-              className="text-text-muted hover:text-text-primary hover:bg-neutral-100 dark:hover:bg-white/5 h-7 px-2.5 text-xs rounded-md"
-            >
-              <CheckSquare className="h-3 w-3 mr-1" /> Select Dead
-            </Button>
-            <Button
-              variant="ghost"
-              size="default"
-              onClick={clearSelection}
-              disabled={selectedFrames.size === 0}
-              className="text-text-muted hover:text-text-primary hover:bg-neutral-100 dark:hover:bg-white/5 h-7 px-2.5 text-xs rounded-md"
-            >
-              <Square className="h-3 w-3 mr-1" /> Clear All
-            </Button>
-            <Button
-              variant="ghost"
-              size="default"
-              onClick={fetchFrames}
-              disabled={loading}
-              className="text-text-muted hover:text-text-primary hover:bg-neutral-100 dark:hover:bg-white/5 ml-auto h-7 px-2.5 text-xs rounded-md"
-            >
-              <RefreshCw className={cn("h-3 w-3 mr-1", loading && "animate-spin")} />
-              Refresh
-            </Button>
           </div>
 
-          {/* Frames Table */}
-          <ScrollArea className="flex-1 min-h-0">
-            <div className="rounded-lg border border-neutral-200/80 dark:border-white/6 bg-white/60 dark:bg-white/2">
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-neutral-200 dark:border-white/6 hover:bg-transparent">
-                    <TableHead className="w-10"></TableHead>
-                    <TableHead>Frame</TableHead>
-                    <TableHead>Chunk</TableHead>
-                    <TableHead>State</TableHead>
-                    <TableHead>Retries</TableHead>
-                    <TableHead>Exit</TableHead>
-                    <TableHead>Host</TableHead>
-                    <TableHead>Start</TableHead>
-                    <TableHead>Stop</TableHead>
-                    <TableHead className="w-10"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {loading && (
-                    <TableRow>
-                      <TableCell
-                        colSpan={10}
-                        className="h-32 text-center text-text-muted"
-                      >
-                        Loading frames...
-                      </TableCell>
+          {/* Frames Table - takes remaining height */}
+          <div className="overflow-hidden flex flex-col min-h-0 flex-1">
+            <ScrollArea className="flex-1 min-h-0">
+              <div className="rounded-lg border border-neutral-200/80 dark:border-white/6 bg-white/60 dark:bg-white/2 mx-4 my-2">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-neutral-200 dark:border-white/6 hover:bg-transparent">
+                      <TableHead className="w-8 pl-3"></TableHead>
+                      <TableHead className="text-xs">Frame</TableHead>
+                      <TableHead className="text-xs">Layer</TableHead>
+                      <TableHead className="text-xs">State</TableHead>
+                      <TableHead className="text-xs">Retries</TableHead>
+                      <TableHead className="text-xs">Exit</TableHead>
+                      <TableHead className="text-xs">Host</TableHead>
+                      <TableHead className="text-xs">Start</TableHead>
+                      <TableHead className="text-xs">Stop</TableHead>
+                      <TableHead className="text-xs">Duration</TableHead>
                     </TableRow>
-                  )}
-                  {!loading && frames.length === 0 && (
-                    <TableRow>
-                      <TableCell
-                        colSpan={10}
-                        className="h-32 text-center text-text-muted"
-                      >
-                        No frames found
-                      </TableCell>
-                    </TableRow>
-                  )}
-                  {!loading && frames.length > 0 && frames.map((frame) => (
-                      <TableRow
-                        key={frame.id}
-                        className={cn(
-                          "border-neutral-200 dark:border-white/6 hover:bg-neutral-50 dark:hover:bg-white/3",
-                          selectedFrames.has(frame.id) && "bg-blue-500/10"
-                        )}
-                      >
-                        <TableCell>
-                          <Checkbox
-                            checked={selectedFrames.has(frame.id)}
-                            onCheckedChange={() => toggleFrame(frame.id)}
-                            disabled={frame.state !== "DEAD"}
-                          />
-                        </TableCell>
-                        <TableCell className="font-mono text-text-primary">
-                          {frame.number}
-                        </TableCell>
-                        <TableCell className="text-text-muted font-mono">
-                          {frame.chunkNumber || "-"}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "text-xs",
-                              frameStateColors[frame.state] ||
-                                "bg-surface-muted text-text-muted"
-                            )}
-                          >
-                            {frame.state}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-text-muted">
-                          {frame.retryCount}
-                        </TableCell>
-                        <TableCell
-                          className={cn(
-                            getExitCodeColorClass(frame.exitStatus)
-                          )}
-                          title={`Exit code: ${frame.exitStatus}`}
-                        >
-                          {getExitCodeLabel(frame.exitStatus)}
-                        </TableCell>
-                        <TableCell className="text-text-muted truncate max-w-50">
-                          {frame.lastResource || "-"}
-                        </TableCell>
-                        <TableCell className="text-text-muted">
-                          {formatTime(frame.startTime)}
-                        </TableCell>
-                        <TableCell className="text-text-muted">
-                          {formatTime(frame.stopTime)}
-                        </TableCell>
-                        <TableCell>
-                          {(frame.state === "SUCCEEDED" || frame.state === "DEAD" || frame.state === "RUNNING") && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className={iconButton.logsSmall}
-                              onClick={() => setSelectedFrameForLog(frame)}
-                              title="View frame log"
-                            >
-                              <FileText className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
+                  </TableHeader>
+                  <TableBody>
+                    {loading && (
+                      <TableRow>
+                        <TableCell colSpan={10} className="h-24 text-center text-text-muted text-sm">
+                          Loading frames...
                         </TableCell>
                       </TableRow>
-                    ))}
-                </TableBody>
-              </Table>
-            </div>
-          </ScrollArea>
+                    )}
+                    {!loading && frames.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={10} className="h-24 text-center text-text-muted text-sm">
+                          No frames found
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {!loading && frames.length > 0 && frames.map((frame) => {
+                      const isActive = activeFrame?.id === frame.id;
+                      const duration = frame.stopTime && frame.startTime
+                        ? ((frame.stopTime - frame.startTime) / 1000).toFixed(1) + "s"
+                        : frame.state === "RUNNING" && frame.startTime
+                          ? ((Date.now() / 1000 - frame.startTime)).toFixed(0) + "s..."
+                          : "-";
+                      
+                      return (
+                        <TableRow
+                          key={frame.id}
+                          className={cn(
+                            "border-neutral-200 dark:border-white/6 cursor-pointer transition-colors duration-100",
+                            isActive 
+                              ? "bg-blue-500/10 dark:bg-blue-500/8 hover:bg-blue-500/15 dark:hover:bg-blue-500/12" 
+                              : frameRowColors[frame.state] || "hover:bg-neutral-50 dark:hover:bg-white/3",
+                            selectedFrames.has(frame.id) && !isActive && "bg-blue-500/5"
+                          )}
+                          onClick={() => handleFrameClick(frame)}
+                        >
+                          <TableCell className="pl-3" onClick={(e) => e.stopPropagation()}>
+                            <Checkbox
+                              checked={selectedFrames.has(frame.id)}
+                              onCheckedChange={() => toggleFrame(frame.id)}
+                              disabled={frame.state !== "DEAD"}
+                              className="h-3.5 w-3.5"
+                            />
+                          </TableCell>
+                          <TableCell className="font-mono text-text-primary text-xs py-1.5">
+                            {frame.number}
+                          </TableCell>
+                          <TableCell className="text-text-muted font-mono text-xs py-1.5">
+                            {frame.name || "-"}
+                          </TableCell>
+                          <TableCell className="py-1.5">
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "text-[10px] px-1.5 py-0",
+                                frameStateColors[frame.state] || "bg-surface-muted text-text-muted"
+                              )}
+                            >
+                              {frame.state}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-text-muted text-xs py-1.5">
+                            {frame.retryCount}
+                          </TableCell>
+                          <TableCell className={cn("text-xs py-1.5", getExitCodeColorClass(frame.exitStatus))} title={`Exit code: ${frame.exitStatus}`}>
+                            {getExitCodeLabel(frame.exitStatus)}
+                          </TableCell>
+                          <TableCell className="text-text-muted text-xs truncate max-w-36 py-1.5" title={frame.lastResource || undefined}>
+                            {resolveHost(frame.lastResource)}
+                          </TableCell>
+                          <TableCell className="text-text-muted text-xs py-1.5">
+                            {formatTime(frame.startTime)}
+                          </TableCell>
+                          <TableCell className="text-text-muted text-xs py-1.5">
+                            {formatTime(frame.stopTime)}
+                          </TableCell>
+                          <TableCell className="text-text-muted text-xs py-1.5 font-mono">
+                            {duration}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </ScrollArea>
+          </div>
 
-          {/* Frame Summary */}
-          <div className="flex items-center gap-4 text-xs border-t border-neutral-200 dark:border-white/8 pt-3 shrink-0">
-            <span className="text-emerald-400 font-medium">
+          {/* Frame Summary Bar */}
+          <div className="flex items-center gap-4 text-[10px] border-t border-neutral-200 dark:border-white/8 px-5 py-1.5 shrink-0 bg-neutral-50/50 dark:bg-white/2">
+            <span className="text-emerald-500 font-medium">
               Succeeded: {job.succeededFrames}
             </span>
             <span className="text-blue-400 font-medium">
@@ -436,17 +561,122 @@ export function JobDetailDrawer({
             <span className="text-red-400 font-medium">Dead: {job.deadFrames}</span>
             <span className="ml-auto text-text-primary font-semibold">Total: {job.totalFrames}</span>
           </div>
+
+          {/* Integrated Log Viewer Panel - bottom, resizable */}
+          {activeFrame && (
+            <div
+              className={cn(
+                "border-t border-neutral-200 dark:border-white/8 flex flex-col shrink-0",
+                logPanelCollapsed && "h-9"
+              )}
+              style={logPanelCollapsed ? undefined : { height: logPanelHeight }}
+            >
+              {/* Drag Handle */}
+              {!logPanelCollapsed && (
+                <div
+                  className="h-1.5 cursor-row-resize bg-transparent hover:bg-blue-500/20 active:bg-blue-500/30 transition-colors shrink-0 group flex items-center justify-center"
+                  onMouseDown={handleDragStart}
+                >
+                  <div className="w-8 h-0.5 rounded-full bg-neutral-300 dark:bg-white/10 group-hover:bg-blue-400 group-active:bg-blue-500 transition-colors" />
+                </div>
+              )}
+              {/* Log Panel Header */}
+              <div className="flex items-center justify-between px-4 py-1.5 bg-neutral-50/80 dark:bg-white/3 border-b border-neutral-200/60 dark:border-white/5 shrink-0">
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setLogPanelCollapsed(!logPanelCollapsed)}
+                    className="text-text-muted hover:text-text-primary transition-colors"
+                  >
+                    {logPanelCollapsed ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                  </button>
+                  <span className="text-xs font-medium text-text-primary">
+                    Frame {activeFrame.number} Log
+                  </span>
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "text-[10px] px-1.5 py-0",
+                      frameStateColors[activeFrame.state] || "bg-surface-muted text-text-muted"
+                    )}
+                  >
+                    {activeFrame.state}
+                  </Badge>
+                  <span className="text-[10px] text-text-muted font-mono">
+                    Host: {resolveHost(activeFrame.lastResource)}
+                  </span>
+                  <span className={cn("text-[10px] font-mono", getExitCodeColorClass(activeFrame.exitStatus))}>
+                    Exit: {getExitCodeLabel(activeFrame.exitStatus)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant={autoScroll ? "default" : "outline"}
+                    size="default"
+                    onClick={() => setAutoScroll(!autoScroll)}
+                    className={cn(
+                      "h-6 px-2 text-[10px] rounded-md",
+                      autoScroll && "bg-emerald-500 hover:bg-emerald-600 text-white"
+                    )}
+                  >
+                    <ArrowDown className="h-2.5 w-2.5 mr-0.5" />
+                    Auto-scroll
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="default"
+                    onClick={handleDownloadLog}
+                    disabled={!logs}
+                    className="h-6 px-2 text-[10px] rounded-md border-neutral-200 dark:border-white/10"
+                  >
+                    <Download className="h-2.5 w-2.5 mr-0.5" />
+                    Download
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="default"
+                    onClick={fetchLogs}
+                    disabled={logsLoading}
+                    className="h-6 px-2 text-[10px] rounded-md border-neutral-200 dark:border-white/10"
+                  >
+                    <RefreshCw className={cn("h-2.5 w-2.5 mr-0.5", logsLoading && "animate-spin")} />
+                    Refresh
+                  </Button>
+                </div>
+              </div>
+
+              {/* Log Content */}
+              {!logPanelCollapsed && (
+                <div className="flex-1 min-h-0 overflow-y-auto" ref={logScrollRef}>
+                  <div className="p-3 font-mono text-xs leading-relaxed bg-neutral-950 dark:bg-black/40 min-h-full">
+                    {logsLoading ? (
+                      <div className="text-neutral-500 animate-pulse py-8 text-center">Loading logs...</div>
+                    ) : logs ? (
+                      logs.split("\n").map((line, i) => (
+                        <div key={`log-${i}-${line.slice(0, 16)}`} className={cn("whitespace-pre-wrap", getLogLineColor(line))}>
+                          {line || "\u00A0"}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-neutral-500 py-8 text-center">
+                        Select a frame to view its render log
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* No frame selected prompt */}
+          {!activeFrame && frames.length > 0 && !loading && (
+            <div className="border-t border-neutral-200 dark:border-white/8 px-5 py-3 text-center shrink-0 bg-neutral-50/50 dark:bg-white/2">
+              <span className="text-xs text-text-muted">
+                Click on a frame row to view its render log
+              </span>
+            </div>
+          )}
         </div>
       </DialogContent>
-
-      {/* Frame Log Dialog */}
-      <FrameLogDialog
-        frame={selectedFrameForLog}
-        jobId={job.id}
-        jobName={job.name}
-        open={selectedFrameForLog !== null}
-        onOpenChange={(open) => !open && setSelectedFrameForLog(null)}
-      />
     </Dialog>
   );
 }

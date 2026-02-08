@@ -27,6 +27,8 @@ import {
   Search,
   Trash2,
   FileText,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -45,6 +47,7 @@ interface Job {
   user: string;
   show: string;
   priority: number;
+  startTime: number;
   pendingFrames: number;
   runningFrames: number;
   deadFrames: number;
@@ -63,6 +66,14 @@ const stateColors: Record<string, string> = {
   DEAD: "bg-danger/15 dark:bg-danger/10 text-danger border-danger/30 dark:border-danger/20",
   PAUSED: "bg-surface-muted text-text-muted border-border",
 };
+
+type JobTab = "active" | "finished" | "all";
+
+const TAB_CONFIG: { key: JobTab; label: string; description: string }[] = [
+  { key: "active", label: "Active", description: "Running, pending & problematic jobs" },
+  { key: "finished", label: "Finished", description: "Completed jobs" },
+  { key: "all", label: "All", description: "All jobs including finished" },
+];
 
 function ProgressBar({ job }: Readonly<{ job: Job }>) {
   const total = job.totalFrames || 1;
@@ -98,18 +109,54 @@ export default function JobsPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [logJob, setLogJob] = useState<Job | null>(null);
   const [logDialogOpen, setLogDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<JobTab>("active");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
 
-  // Group jobs by show
-  const jobsByShow = useMemo(() => {
+  const PAGE_SIZE_OPTIONS = [20, 50, 100] as const;
+
+  // Filter jobs based on active tab (client-side filtering after API response)
+  const filteredByTab = useMemo(() => {
+    switch (activeTab) {
+      case "active":
+        return jobs.filter(j => j.state !== "FINISHED");
+      case "finished":
+        return jobs.filter(j => j.state === "FINISHED");
+      case "all":
+      default:
+        return jobs;
+    }
+  }, [jobs, activeTab]);
+
+  // Text-filtered jobs (before pagination), sorted newest first
+  const textFiltered = useMemo(() => {
     const filtered = globalFilter
-      ? jobs.filter(job =>
+      ? filteredByTab.filter(job =>
           job.name.toLowerCase().includes(globalFilter.toLowerCase()) ||
           job.user.toLowerCase().includes(globalFilter.toLowerCase()) ||
           job.show.toLowerCase().includes(globalFilter.toLowerCase())
         )
-      : jobs;
-    
-    const grouped = filtered.reduce((acc, job) => {
+      : filteredByTab;
+    return [...filtered].sort((a, b) => (b.startTime || 0) - (a.startTime || 0));
+  }, [filteredByTab, globalFilter]);
+
+  // Pagination
+  const totalFiltered = textFiltered.length;
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedJobs = useMemo(() => {
+    const start = (safePage - 1) * pageSize;
+    return textFiltered.slice(start, start + pageSize);
+  }, [textFiltered, safePage, pageSize]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, globalFilter, pageSize]);
+
+  // Group paginated jobs by show
+  const jobsByShow = useMemo(() => {
+    const grouped = paginatedJobs.reduce((acc, job) => {
       const show = job.show || "Unknown";
       if (!acc[show]) acc[show] = [];
       acc[show].push(job);
@@ -118,7 +165,7 @@ export default function JobsPage() {
     
     // Sort shows alphabetically
     return Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b));
-  }, [jobs, globalFilter]);
+  }, [paginatedJobs]);
 
   // Show color mapping
   const showColorMap = useMemo(() => {
@@ -131,7 +178,10 @@ export default function JobsPage() {
 
   const fetchJobs = useCallback(async () => {
     try {
-      const response = await fetch("/api/jobs");
+      // Active tab only needs active jobs (faster query)
+      // Finished & All tabs need includeFinished=true
+      const includeFinished = activeTab !== "active";
+      const response = await fetch(`/api/jobs?includeFinished=${includeFinished}`);
       const data = await response.json();
       if (response.ok) {
         setJobs(data.jobs || []);
@@ -144,9 +194,10 @@ export default function JobsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [activeTab]);
 
   useEffect(() => {
+    setLoading(true);
     fetchJobs();
     const interval = setInterval(fetchJobs, 10000); // Auto-refresh every 10s
     return () => clearInterval(interval);
@@ -174,16 +225,24 @@ export default function JobsPage() {
   };
 
   // Calculate summary stats
-  const runningJobs = jobs.filter(j => j.state === "RUNNING" || (j.runningFrames > 0 && !j.isPaused)).length;
+  const activeJobs = filteredByTab.length;
+  const runningJobs = filteredByTab.filter(j => j.state === "RUNNING" || (j.runningFrames > 0 && !j.isPaused)).length;
+
+  // Tab counts (from full dataset)
+  const tabCounts = useMemo(() => ({
+    active: jobs.filter(j => j.state !== "FINISHED").length,
+    finished: jobs.filter(j => j.state === "FINISHED").length,
+    all: jobs.length,
+  }), [jobs]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-text-primary tracking-tight">Jobs</h1>
           <p className="text-text-muted text-xs mt-1">
-            {jobs.length} {pluralize(jobs.length, 'job')} • {runningJobs} running • Auto-refreshing every 10s
+            {activeJobs} {pluralize(activeJobs, 'job')} • {runningJobs} running • Auto-refreshing every 10s
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -209,6 +268,40 @@ export default function JobsPage() {
             <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
           </Button>
         </div>
+      </div>
+
+      {/* Tab Bar */}
+      <div className="flex items-center gap-1 p-0.5 rounded-lg bg-neutral-100 dark:bg-white/5 w-fit">
+        {TAB_CONFIG.map(({ key, label, description }) => {
+          const count = activeTab === "active" && key !== "active" 
+            ? undefined  // Don't show counts for tabs that haven't fetched yet
+            : tabCounts[key];
+          return (
+            <button
+              key={key}
+              onClick={() => setActiveTab(key)}
+              title={description}
+              className={cn(
+                "px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-200 flex items-center gap-1.5",
+                activeTab === key
+                  ? "bg-white dark:bg-white/10 text-text-primary shadow-sm"
+                  : "text-text-muted hover:text-text-secondary hover:bg-white/50 dark:hover:bg-white/5"
+              )}
+            >
+              {label}
+              {count !== undefined && (
+                <span className={cn(
+                  "text-[10px] px-1.5 py-0 rounded-full min-w-5 text-center",
+                  activeTab === key
+                    ? "bg-neutral-100 dark:bg-white/10 text-text-secondary"
+                    : "bg-neutral-200/60 dark:bg-white/5 text-text-muted"
+                )}>
+                  {count}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* Grouped by Show */}
@@ -411,6 +504,61 @@ export default function JobsPage() {
             })}
           </div>
         </TooltipProvider>
+      )}
+
+      {/* Pagination Footer */}
+      {!loading && totalFiltered > 0 && (
+        <div className="flex items-center justify-between rounded-xl border border-neutral-200/80 dark:border-white/6 bg-white/80 dark:bg-neutral-950/60 backdrop-blur-xl px-4 py-2.5">
+          <div className="flex items-center gap-2 text-xs text-text-muted">
+            <span>Show</span>
+            <div className="flex items-center gap-0.5 p-0.5 rounded-md bg-neutral-100 dark:bg-white/5">
+              {PAGE_SIZE_OPTIONS.map(size => (
+                <button
+                  key={size}
+                  onClick={() => setPageSize(size)}
+                  className={cn(
+                    "px-2 py-0.5 text-xs rounded transition-all duration-150",
+                    pageSize === size
+                      ? "bg-white dark:bg-white/10 text-text-primary shadow-sm font-medium"
+                      : "text-text-muted hover:text-text-secondary"
+                  )}
+                >
+                  {size}
+                </button>
+              ))}
+            </div>
+            <span>per page</span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-text-muted">
+              {((safePage - 1) * pageSize) + 1}–{Math.min(safePage * pageSize, totalFiltered)} of {totalFiltered}
+            </span>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-7 w-7 border-neutral-200 dark:border-white/10"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={safePage <= 1}
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </Button>
+              <span className="text-xs text-text-secondary font-medium min-w-12 text-center">
+                {safePage} / {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-7 w-7 border-neutral-200 dark:border-white/10"
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={safePage >= totalPages}
+              >
+                <ChevronRight className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
 
       <JobDetailDrawer
