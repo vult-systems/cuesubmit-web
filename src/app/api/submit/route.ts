@@ -87,6 +87,7 @@ export async function POST(request: Request) {
         chunk: number;
         cores: number;
         memoryGb: number;
+        tags?: string;
         services?: string[];
         env?: Record<string, string>;
       }) => ({
@@ -96,6 +97,7 @@ export async function POST(request: Request) {
         chunk: layer.chunk || 1,
         cores: layer.cores || 1,
         memory: layer.memoryGb || 4,
+        tags: layer.tags,
         services: layer.services,
         env: layer.env,
       })),

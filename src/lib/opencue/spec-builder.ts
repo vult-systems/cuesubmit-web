@@ -7,6 +7,7 @@ export interface LayerSpec {
   chunk: number;
   cores: number;
   memory: number; // in GB
+  tags?: string; // pipe-separated, e.g. "maya|gpu"
   services?: string[];
   env?: Record<string, string>;
 }
@@ -54,7 +55,11 @@ export function buildJobSpec(spec: JobSpec): string {
       // Layer type must be: Render, Util, or Post (capitalized)
       // Memory in spec must be specified with 'g' suffix for GB (e.g., "8g" for 8GB)
       // Otherwise OpenCue interprets raw numbers as GB multiplied by CueUtil.GB (1048576 KB)
-      return `<layer name="${escapeXml(layer.name)}" type="Render"><cmd>${escapeXml(layer.command)}</cmd><range>${escapeXml(layer.range)}</range><chunk>${layer.chunk}</chunk><cores>${layer.cores}</cores><memory>${layer.memory}g</memory>${envXml}${servicesXml}</layer>`;
+      const tagsXml = layer.tags
+        ? `<tags>${escapeXml(layer.tags)}</tags>`
+        : "";
+
+      return `<layer name="${escapeXml(layer.name)}" type="Render"><cmd>${escapeXml(layer.command)}</cmd><range>${escapeXml(layer.range)}</range><chunk>${layer.chunk}</chunk><cores>${layer.cores}</cores><memory>${layer.memory}g</memory>${tagsXml}${envXml}${servicesXml}</layer>`;
     })
     .join("");
 

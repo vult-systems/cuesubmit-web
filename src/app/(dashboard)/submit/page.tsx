@@ -30,6 +30,14 @@ const renderTypeLabels: Record<string, string> = {
   playblast: "Playblast",
 };
 
+// Maya format flag values for the -of CLI option
+const mayaFormatFlags: Record<string, string> = {
+  png: "png",
+  exr: "exr",
+  tiff: "tif",
+  jpg: "jpeg",
+};
+
 const formSchema = z.object({
   user: z.string().min(1, "Username is required"),
   show: z.string().min(1, "Show is required"),
@@ -65,19 +73,25 @@ const formSchema = z.object({
   projectPath: z.string().optional(),
   sceneFile: z.string().min(1, "Scene file is required"),
   outputPath: z.string().min(1, "Output path is required"),
+  // Optional render overrides
+  useRenderLayer: z.boolean().optional(),
   renderLayer: z.string().optional(),
+  useCamera: z.boolean().optional(),
   camera: z.string().optional(),
-  imageFormat: z.string().min(1),
+  useFormat: z.boolean().optional(),
+  imageFormat: z.string().optional(),
+  useResolution: z.boolean().optional(),
+  resWidth: z.number().min(1).optional(),
+  resHeight: z.number().min(1).optional(),
   // Frames
   frameStart: z.number().min(1),
   frameEnd: z.number().min(1),
-  chunk: z.number().min(1),
+  frameStep: z.number().min(1).optional(),
+  // Tags
+  tags: z.string().optional(),
   // Advanced
   envVars: z.string().optional(),
   customArgs: z.string().optional(),
-  pauseOnStart: z.boolean().optional(),
-  skipExistingFrames: z.boolean().optional(),
-  autoRetry: z.boolean().optional(),
 }).refine(
   (data) => {
     // Rendered frame name is required when scope is "shot"
@@ -118,17 +132,21 @@ const defaultValues: FormData = {
   projectPath: "",
   sceneFile: "\\\\REDACTED_IP\\RenderOutputRepo\\",
   outputPath: "\\\\REDACTED_IP\\RenderOutputRepo\\",
-  renderLayer: "defaultRenderLayer",
-  camera: "persp",
-  imageFormat: "exr",
+  useRenderLayer: false,
+  renderLayer: "",
+  useCamera: false,
+  camera: "",
+  useFormat: false,
+  imageFormat: "png",
+  useResolution: false,
+  resWidth: 1920,
+  resHeight: 1080,
   frameStart: 1,
   frameEnd: 100,
-  chunk: 10,
+  frameStep: 1,
+  tags: "",
   envVars: "",
   customArgs: "",
-  pauseOnStart: false,
-  skipExistingFrames: true,
-  autoRetry: true,
 };
 
 // Generate short show tag from full show name
@@ -298,14 +316,15 @@ export default function SubmitPage() {
 
   const frameStart = watch("frameStart");
   const frameEnd = watch("frameEnd");
-  const chunk = watch("chunk");
+  const frameStep = watch("frameStep") || 1;
   const show = watch("show");
   const projectCode = watch("projectCode");
   const scope = watch("scope");
   const subject = watch("subject");
   const renderType = watch("renderType");
   const renderedFrameName = watch("renderedFrameName");
-  const imageFormat = watch("imageFormat");
+  const useFormat = watch("useFormat");
+  const imageFormat = watch("imageFormat") || "png";
   const useAct = watch("useAct");
   const useSequence = watch("useSequence");
   const useScene = watch("useScene");
@@ -314,9 +333,12 @@ export default function SubmitPage() {
   const sequence = watch("sequence");
   const scene = watch("scene");
   const shot = watch("shot");
+  const useRenderLayer = watch("useRenderLayer");
+  const useCamera = watch("useCamera");
+  const useResolution = watch("useResolution");
 
-  const frameCount = Math.max(0, frameEnd - frameStart + 1);
-  const chunkCount = Math.ceil(frameCount / chunk);
+  const frameCount = Math.max(0, Math.ceil((frameEnd - frameStart + 1) / frameStep));
+  const chunkCount = frameCount; // 1 frame per task (no chunk)
 
   // Generate job name preview
   const jobNamePreview = generateJobName({ show, subject, renderType });
@@ -349,8 +371,31 @@ export default function SubmitPage() {
     setIsSubmitting(true);
     try {
       let command = "";
+      const step = data.frameStep && data.frameStep > 1 ? data.frameStep : 0;
       if (data.service === "maya") {
-        command = `Render -r ${data.renderer} -s #IFRAME# -e #IFRAME# -rd "${data.outputPath}" "${data.sceneFile}"`;
+        // Build Maya Render CLI command matching CueSubmit.py
+        command = `Render -r ${data.renderer} -s #IFRAME# -e #IFRAME#`;
+        // Resolution override
+        if (data.useResolution && data.resWidth && data.resHeight) {
+          command += ` -x ${data.resWidth} -y ${data.resHeight}`;
+        }
+        // Image format override
+        if (data.useFormat && data.imageFormat) {
+          const flag = mayaFormatFlags[data.imageFormat] || data.imageFormat;
+          command += ` -of ${flag}`;
+        }
+        // Output directory
+        command += ` -rd "${data.outputPath}"`;
+        // Render layer override
+        if (data.useRenderLayer && data.renderLayer) {
+          command += ` -rl ${data.renderLayer}`;
+        }
+        // Camera override
+        if (data.useCamera && data.camera) {
+          command += ` -cam ${data.camera}`;
+        }
+        // Scene file (always last)
+        command += ` "${data.sceneFile}"`;
       } else if (data.service === "houdini") {
         command = `hython -c "hou.hipFile.load('${data.sceneFile}'); hou.node('/out/mantra1').render(frame_range=(#IFRAME#, #IFRAME#))"`;
       }
@@ -369,6 +414,11 @@ export default function SubmitPage() {
         renderType: data.renderType,
       });
 
+      // Build frame range string with step (e.g., "1-100x2" for every 2nd frame)
+      const frameRangeStr = step > 1
+        ? `${data.frameStart}-${data.frameEnd}x${step}`
+        : `${data.frameStart}-${data.frameEnd}`;
+
       const response = await fetch("/api/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -380,7 +430,7 @@ export default function SubmitPage() {
           maxRetries: 3,
           // Rendered frame naming
           renderedFrameName: frameBaseName,
-          frameOutputPattern: `${frameBaseName}._####.${data.imageFormat}`,
+          frameOutputPattern: `${frameBaseName}._####.${data.imageFormat || "png"}`,
           // Include all structured metadata
           metadata: {
             user: data.user,
@@ -396,12 +446,13 @@ export default function SubmitPage() {
           },
           layers: [
             {
-              name: data.renderLayer || "render",
+              name: (data.useRenderLayer && data.renderLayer) ? data.renderLayer : "render",
               command,
-              frameRange: `${data.frameStart}-${data.frameEnd}`,
-              chunk: data.chunk,
+              frameRange: frameRangeStr,
+              chunk: 1,
               cores: 1,
               memoryGb: 8,
+              tags: data.tags || undefined,
             },
           ],
         }),
@@ -744,12 +795,12 @@ export default function SubmitPage() {
                 />
               </div>
               <div className="col-span-2 space-y-1">
-                <FieldLabel required accent="warm">Chunk Size</FieldLabel>
+                <FieldLabel accent="warm">Every Nth Frame</FieldLabel>
                 <Input
                   type="number"
-                  {...register("chunk", { valueAsNumber: true })}
+                  {...register("frameStep", { valueAsNumber: true })}
                   min={1}
-                  
+                  placeholder="1"
                 />
               </div>
             </div>
@@ -796,37 +847,112 @@ export default function SubmitPage() {
               </div>
             </div>
 
-            {/* Layer, Camera, Format */}
+            {/* Layer, Camera, Format — optional with toggle */}
             <div className="grid grid-cols-6 gap-3">
               <div className="col-span-2 space-y-1">
-                <FieldLabel accent="warm">Render Layer</FieldLabel>
+                <div className="flex items-center gap-1.5">
+                  <Checkbox
+                    id="useRenderLayer"
+                    checked={useRenderLayer}
+                    onCheckedChange={(checked) => setValue("useRenderLayer", !!checked)}
+                    className="border-neutral-300 dark:border-white/15 h-3.5 w-3.5 data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500"
+                  />
+                  <FieldLabel htmlFor="useRenderLayer" accent="warm">Render Layer</FieldLabel>
+                </div>
                 <Input
                   {...register("renderLayer")}
                   placeholder="e.g., masterLayer"
-                  
+                  disabled={!useRenderLayer}
+                  className={!useRenderLayer ? "opacity-40" : ""}
                 />
               </div>
               <div className="col-span-2 space-y-1">
-                <FieldLabel accent="warm">Camera</FieldLabel>
+                <div className="flex items-center gap-1.5">
+                  <Checkbox
+                    id="useCamera"
+                    checked={useCamera}
+                    onCheckedChange={(checked) => setValue("useCamera", !!checked)}
+                    className="border-neutral-300 dark:border-white/15 h-3.5 w-3.5 data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500"
+                  />
+                  <FieldLabel htmlFor="useCamera" accent="warm">Camera</FieldLabel>
+                </div>
                 <Input
                   {...register("camera")}
                   placeholder="e.g., shotCam"
-                  
+                  disabled={!useCamera}
+                  className={!useCamera ? "opacity-40" : ""}
                 />
               </div>
               <div className="col-span-2 space-y-1">
-                <FieldLabel required accent="warm">Format</FieldLabel>
-                <Select defaultValue="exr" onValueChange={(value) => setValue("imageFormat", value)}>
-                  <SelectTrigger>
+                <div className="flex items-center gap-1.5">
+                  <Checkbox
+                    id="useFormat"
+                    checked={useFormat}
+                    onCheckedChange={(checked) => setValue("useFormat", !!checked)}
+                    className="border-neutral-300 dark:border-white/15 h-3.5 w-3.5 data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500"
+                  />
+                  <FieldLabel htmlFor="useFormat" accent="warm">Format</FieldLabel>
+                </div>
+                <Select
+                  defaultValue="png"
+                  disabled={!useFormat}
+                  onValueChange={(value) => setValue("imageFormat", value)}
+                >
+                  <SelectTrigger className={!useFormat ? "opacity-40" : ""}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="png">PNG</SelectItem>
                     <SelectItem value="exr">EXR</SelectItem>
                     <SelectItem value="tiff">TIFF</SelectItem>
-                    <SelectItem value="png">PNG</SelectItem>
                     <SelectItem value="jpg">JPEG</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+            </div>
+
+            {/* Tags */}
+            <div className="grid grid-cols-6 gap-3">
+              <div className="col-span-3 space-y-1">
+                <FieldLabel accent="warm">Tags</FieldLabel>
+                <Input
+                  {...register("tags")}
+                  placeholder="e.g., maya | gpu"
+                  className="font-mono text-xs"
+                />
+              </div>
+            </div>
+
+            {/* Override Resolution */}
+            <div className="grid grid-cols-6 gap-3">
+              <div className="col-span-2 space-y-1">
+                <div className="flex items-center gap-1.5">
+                  <Checkbox
+                    id="useResolution"
+                    checked={useResolution}
+                    onCheckedChange={(checked) => setValue("useResolution", !!checked)}
+                    className="border-neutral-300 dark:border-white/15 h-3.5 w-3.5 data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500"
+                  />
+                  <FieldLabel htmlFor="useResolution" accent="warm">Override Resolution</FieldLabel>
+                </div>
+              </div>
+              <div className="col-span-2 space-y-1">
+                <FieldLabel accent="warm">Width</FieldLabel>
+                <Input
+                  type="number"
+                  {...register("resWidth", { valueAsNumber: true })}
+                  disabled={!useResolution}
+                  className={!useResolution ? "opacity-40" : ""}
+                />
+              </div>
+              <div className="col-span-2 space-y-1">
+                <FieldLabel accent="warm">Height</FieldLabel>
+                <Input
+                  type="number"
+                  {...register("resHeight", { valueAsNumber: true })}
+                  disabled={!useResolution}
+                  className={!useResolution ? "opacity-40" : ""}
+                />
               </div>
             </div>
 
@@ -869,37 +995,6 @@ export default function SubmitPage() {
               </div>
             </div>
 
-            {/* Options */}
-            <div className="pt-2 border-t border-border">
-              <div className="flex items-center gap-6">
-                <label className="flex items-center gap-2 cursor-pointer group">
-                  <Checkbox
-                    id="pauseOnStart"
-                    onCheckedChange={(checked) => setValue("pauseOnStart", !!checked)}
-                    className="h-3.5 w-3.5 data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500"
-                  />
-                  <span className="text-xs text-text-muted group-hover:text-text-primary transition-colors">Pause on start</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer group">
-                  <Checkbox
-                    id="skipExistingFrames"
-                    defaultChecked
-                    onCheckedChange={(checked) => setValue("skipExistingFrames", !!checked)}
-                    className="h-3.5 w-3.5 data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500"
-                  />
-                  <span className="text-xs text-text-muted group-hover:text-text-primary transition-colors">Skip existing frames</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer group">
-                  <Checkbox
-                    id="autoRetry"
-                    defaultChecked
-                    onCheckedChange={(checked) => setValue("autoRetry", !!checked)}
-                    className="h-3.5 w-3.5 data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500"
-                  />
-                  <span className="text-xs text-text-muted group-hover:text-text-primary transition-colors">Auto-retry failed frames</span>
-                </label>
-              </div>
-            </div>
           </div>
         </GroupedSection>
       </form>
