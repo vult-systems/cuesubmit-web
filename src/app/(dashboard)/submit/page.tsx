@@ -144,7 +144,7 @@ const defaultValues: FormData = {
   frameStart: 1,
   frameEnd: 100,
   frameStep: 1,
-  tags: "",
+  tags: "general",
   envVars: "",
   customArgs: "",
 };
@@ -276,6 +276,7 @@ export default function SubmitPage() {
   const [manualFrameName, setManualFrameName] = useState(false);
   const [sceneFileBrowserOpen, setSceneFileBrowserOpen] = useState(false);
   const [outputPathBrowserOpen, setOutputPathBrowserOpen] = useState(false);
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
 
   const {
     register,
@@ -306,6 +307,13 @@ export default function SubmitPage() {
         const sessionData = await sessionResponse.json();
         if (sessionResponse.ok && sessionData.isLoggedIn && sessionData.user?.username) {
           setValue("user", sessionData.user.username);
+        }
+
+        // Fetch available tags from hosts
+        const tagsResponse = await fetch("/api/tags");
+        const tagsData = await tagsResponse.json();
+        if (tagsResponse.ok && tagsData.tags) {
+          setAvailableTags(tagsData.tags);
         }
       } catch (error) {
         console.error("Failed to fetch data:", error);
@@ -582,7 +590,6 @@ export default function SubmitPage() {
                   <SelectContent>
                     <SelectItem value="asset">Asset</SelectItem>
                     <SelectItem value="shot">Shot</SelectItem>
-                    <SelectItem value="test">Test</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -618,11 +625,7 @@ export default function SubmitPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="still">Still</SelectItem>
-                    <SelectItem value="turnaround">Turnaround</SelectItem>
                     <SelectItem value="anim">Anim</SelectItem>
-                    <SelectItem value="preview">Preview</SelectItem>
-                    <SelectItem value="lookdev">Lookdev</SelectItem>
-                    <SelectItem value="playblast">Playblast</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -755,9 +758,6 @@ export default function SubmitPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="arnold">Arnold</SelectItem>
-                    <SelectItem value="renderman">RenderMan</SelectItem>
-                    <SelectItem value="vray">V-Ray</SelectItem>
-                    <SelectItem value="playblast">Playblast</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -915,11 +915,20 @@ export default function SubmitPage() {
             <div className="grid grid-cols-6 gap-3">
               <div className="col-span-3 space-y-1">
                 <FieldLabel accent="warm">Tags</FieldLabel>
-                <Input
-                  {...register("tags")}
-                  placeholder="e.g., maya | gpu"
-                  className="font-mono text-xs"
-                />
+                <Select defaultValue="general" onValueChange={(value) => setValue("tags", value)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableTags.length > 0 ? (
+                      availableTags.map((tag) => (
+                        <SelectItem key={tag} value={tag}>{tag}</SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="general">general</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
