@@ -10,21 +10,41 @@ import path from "path";
 const RENDER_REPO_PATH = process.env.RENDER_REPO_PATH || "\\\\REDACTED_IP\\RenderOutputRepo";
 
 /**
- * Convert the logDir from OpenCue (Linux path like /angd_server_pool/renderRepo/...)
- * to the local filesystem path based on the environment.
+ * Convert the logDir from OpenCue to the local filesystem path based on the environment.
+ * 
+ * OpenCue stores logDir in several possible formats:
+ *   - UNC with forward slashes: //REDACTED_IP/RenderOutputRepo/OpenCue/Logs/...
+ *   - UNC with backslashes:     \\REDACTED_IP\RenderOutputRepo\OpenCue\Logs\...
+ *   - Linux host path:          /angd_server_pool/renderRepo/OpenCue/Logs/...
+ *
+ * We need to map any of these to RENDER_REPO_PATH (e.g. /mnt/RenderOutputRepo in Docker,
+ * or \\REDACTED_IP\RenderOutputRepo on Windows dev).
  */
 function convertLogPath(logDir: string): string {
-  // Replace the Linux source path with whatever our mount/UNC path is
-  let converted = logDir.replace("/angd_server_pool/renderRepo", RENDER_REPO_PATH);
-  
-  // If we're on Linux (Docker), keep forward slashes
-  // If we're on Windows, convert to backslashes
+  // Normalize to forward slashes first for consistent matching
+  let normalized = logDir.replace(/\\/g, "/");
+
+  // All known source prefixes that map to the render repo root
+  const sourcePrefixes = [
+    "//REDACTED_IP/RenderOutputRepo",
+    "/angd_server_pool/renderRepo",
+  ];
+
+  let converted = normalized;
+  for (const prefix of sourcePrefixes) {
+    if (normalized.startsWith(prefix)) {
+      converted = RENDER_REPO_PATH + normalized.slice(prefix.length);
+      break;
+    }
+  }
+
+  // Platform-specific slash conversion
   if (process.platform === "win32") {
     converted = converted.replace(/\//g, "\\");
   } else {
     converted = converted.replace(/\\/g, "/");
   }
-  
+
   return converted;
 }
 
