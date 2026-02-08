@@ -273,8 +273,14 @@ export async function getFrames(
   });
 }
 
-export async function killJob(jobId: string): Promise<void> {
-  await gatewayCall('job.JobInterface', 'Kill', { job: { id: jobId } });
+export async function killJob(jobId: string, username: string = 'cuesubmit'): Promise<void> {
+  await gatewayCall('job.JobInterface', 'Kill', {
+    job: { id: jobId },
+    username,
+    pid: '0',
+    host_kill: 'cuesubmit-web',
+    reason: `Manual kill via CueSubmit Web by ${username}`,
+  });
 }
 
 export async function pauseJob(jobId: string): Promise<void> {

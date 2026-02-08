@@ -60,7 +60,7 @@ export async function POST(
     let result;
     switch (action) {
       case "kill":
-        result = await killJob(id);
+        result = await killJob(id, user.username);
         break;
       case "pause":
         result = await pauseJob(id);
