@@ -50,7 +50,7 @@ launcher/zig-out/
 launcher/logs/
 
 # Logs
-logs/
+/logs/
 launcher/.zig-cache/
 launcher/Queue.app/
 launcher/AppIcon.icns
