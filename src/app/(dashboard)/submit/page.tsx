@@ -20,16 +20,6 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { FileBrowserDialog } from "@/components/file-browser-dialog";
 
-// Render type (Output) display mappings
-const renderTypeLabels: Record<string, string> = {
-  still: "Still",
-  turnaround: "Turnaround",
-  anim: "Anim",
-  preview: "Preview",
-  lookdev: "Lookdev",
-  playblast: "Playblast",
-};
-
 // Maya format flag values for the -of CLI option
 const mayaFormatFlags: Record<string, string> = {
   png: "png",
@@ -49,8 +39,6 @@ const formSchema = z.object({
   // Core naming fields
   scope: z.string().min(1, "Scope is required"),
   department: z.string().min(1, "Department is required"),
-  subject: z.string().min(1, "Subject is required"),
-  renderType: z.string().min(1, "Output type is required"),
   // Rendered frame base name (validated conditionally below)
   renderedFrameName: z.string()
     .regex(/^\w*$/, "Only letters, numbers, and underscores allowed")
@@ -64,7 +52,6 @@ const formSchema = z.object({
   sequence: z.string().optional(),
   scene: z.string().optional(),
   shot: z.string().optional(),
-  description: z.string().optional(),
   // Software
   service: z.string().min(1),
   renderer: z.string().min(1),
@@ -114,8 +101,6 @@ const defaultValues: FormData = {
   projectCode: "",
   scope: "",
   department: "",
-  subject: "",
-  renderType: "",
   renderedFrameName: "",
   useAct: false,
   useSequence: false,
@@ -125,7 +110,6 @@ const defaultValues: FormData = {
   sequence: "",
   scene: "",
   shot: "",
-  description: "",
   service: "maya",
   renderer: "arnold",
   version: "2026",
@@ -166,39 +150,27 @@ function getShowShorthand(showName: string): string {
 }
 
 // Generate job name from form data
-// Format: ShowShort_Subject_Output (e.g., "4450_S26_hero_sword_Still")
+// Format: ShowShort_ProjectCode (e.g., "4450_S26_PROJ")
 function generateJobName(data: {
   show: string;
-  subject: string;
-  renderType: string;
+  projectCode: string;
 }): string {
-  if (!data.show || !data.subject || !data.renderType) {
+  if (!data.show || !data.projectCode) {
     return "";
   }
 
   const showShort = getShowShorthand(data.show);
-  // Sanitize subject: remove spaces, keep only alphanumeric and underscores
-  const sanitizedSubject = data.subject.replaceAll(/\W/g, "");
-  const output = renderTypeLabels[data.renderType] || data.renderType;
-
-  return `${showShort}_${sanitizedSubject}_${output}`;
+  return `${showShort}_${data.projectCode}`;
 }
 
 // Generate rendered frame base name
 function generateRenderedFrameName(data: {
   projectCode: string;
-  subject: string;
-  renderType: string;
 }): string {
-  if (!data.projectCode || !data.subject || !data.renderType) {
+  if (!data.projectCode) {
     return "";
   }
-
-  // Sanitize subject: remove spaces, keep only alphanumeric and underscores
-  const sanitizedSubject = data.subject.replaceAll(/\W/g, "");
-  const output = renderTypeLabels[data.renderType] || data.renderType;
-
-  return `${data.projectCode}_${sanitizedSubject}_${output}`;
+  return data.projectCode;
 }
 
 // Generate shot code from shot structure
@@ -276,7 +248,6 @@ export default function SubmitPage() {
   const [manualFrameName, setManualFrameName] = useState(false);
   const [sceneFileBrowserOpen, setSceneFileBrowserOpen] = useState(false);
   const [outputPathBrowserOpen, setOutputPathBrowserOpen] = useState(false);
-  const [availableTags, setAvailableTags] = useState<string[]>([]);
 
   const {
     register,
@@ -308,13 +279,6 @@ export default function SubmitPage() {
         if (sessionResponse.ok && sessionData.isLoggedIn && sessionData.user?.username) {
           setValue("user", sessionData.user.username);
         }
-
-        // Fetch available tags from hosts
-        const tagsResponse = await fetch("/api/tags");
-        const tagsData = await tagsResponse.json();
-        if (tagsResponse.ok && tagsData.tags) {
-          setAvailableTags(tagsData.tags);
-        }
       } catch (error) {
         console.error("Failed to fetch data:", error);
       }
@@ -328,8 +292,6 @@ export default function SubmitPage() {
   const show = watch("show");
   const projectCode = watch("projectCode");
   const scope = watch("scope");
-  const subject = watch("subject");
-  const renderType = watch("renderType");
   const renderedFrameName = watch("renderedFrameName");
   const useFormat = watch("useFormat");
   const imageFormat = watch("imageFormat") || "png";
@@ -349,10 +311,10 @@ export default function SubmitPage() {
   const chunkCount = frameCount; // 1 frame per task (no chunk)
 
   // Generate job name preview
-  const jobNamePreview = generateJobName({ show, subject, renderType });
+  const jobNamePreview = generateJobName({ show, projectCode });
 
   // Generate rendered frame name preview - always compute fresh
-  const autoRenderedFrameName = generateRenderedFrameName({ projectCode, subject, renderType });
+  const autoRenderedFrameName = generateRenderedFrameName({ projectCode });
   // Use the watched value if manually edited, otherwise use auto-generated
   const finalFrameName = manualFrameName ? renderedFrameName : autoRenderedFrameName;
   const frameOutputPreview = finalFrameName ? `${finalFrameName}._####.${imageFormat}` : "";
@@ -361,19 +323,17 @@ export default function SubmitPage() {
   useEffect(() => {
     if (scope === "shot") {
       const shotCode = generateShotCode({ useAct, useSequence, useScene, useShot, act, sequence, scene, shot });
-      if (shotCode) {
-        setValue("subject", shotCode);
-      }
+      // Shot code is stored in the shot field for metadata
     }
   }, [scope, useAct, useSequence, useScene, useShot, act, sequence, scene, shot, setValue]);
 
   // Auto-populate rendered frame name when inputs change
   useEffect(() => {
-    const autoName = generateRenderedFrameName({ projectCode, subject, renderType });
+    const autoName = generateRenderedFrameName({ projectCode });
     if (autoName && !manualFrameName) {
       setValue("renderedFrameName", autoName);
     }
-  }, [projectCode, subject, renderType, manualFrameName, setValue]);
+  }, [projectCode, manualFrameName, setValue]);
 
   const onSubmit = async (data: FormData) => {
     setIsSubmitting(true);
@@ -408,18 +368,15 @@ export default function SubmitPage() {
         command = `hython -c "hou.hipFile.load('${data.sceneFile}'); hou.node('/out/mantra1').render(frame_range=(#IFRAME#, #IFRAME#))"`;
       }
 
-      // Generate job name: Show_Subject_Output
+      // Generate job name
       const jobName = generateJobName({
         show: data.show,
-        subject: data.subject,
-        renderType: data.renderType,
+        projectCode: data.projectCode,
       });
 
       // Generate rendered frame name
       const frameBaseName = data.renderedFrameName || generateRenderedFrameName({
         projectCode: data.projectCode,
-        subject: data.subject,
-        renderType: data.renderType,
       });
 
       // Build frame range string with step (e.g., "1-100x2" for every 2nd frame)
@@ -445,8 +402,6 @@ export default function SubmitPage() {
             projectCode: data.projectCode,
             scope: data.scope,
             department: data.department,
-            subject: data.subject,
-            renderType: data.renderType,
             act: data.act,
             sequence: data.sequence,
             scene: data.scene,
@@ -478,16 +433,6 @@ export default function SubmitPage() {
       toast.error("Failed to connect to server");
     } finally {
       setIsSubmitting(false);
-    }
-  };
-
-  // Get subject placeholder based on scope
-  const getSubjectPlaceholder = () => {
-    switch (scope) {
-      case "asset": return "e.g., hero_sword";
-      case "shot": return "Auto-generated";
-      case "test": return "e.g., fire_sim_v02";
-      default: return "e.g., subject_name";
     }
   };
 
@@ -573,16 +518,12 @@ export default function SubmitPage() {
               </div>
             </div>
 
-            {/* Scope, Department, Subject, Output */}
+            {/* Scope, Department */}
             <div className="grid grid-cols-6 gap-3">
-              <div className="col-span-1 space-y-1">
+              <div className="col-span-3 space-y-1">
                 <FieldLabel required accent="cool">Scope</FieldLabel>
                 <Select onValueChange={(value) => {
                   setValue("scope", value);
-                  // Clear subject when scope changes
-                  if (value !== "shot") {
-                    setValue("subject", "");
-                  }
                 }}>
                   <SelectTrigger>
                     <SelectValue placeholder="Choose" />
@@ -593,7 +534,7 @@ export default function SubmitPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="col-span-1 space-y-1">
+              <div className="col-span-3 space-y-1">
                 <FieldLabel required accent="cool">Department</FieldLabel>
                 <Select onValueChange={(value) => setValue("department", value)}>
                   <SelectTrigger>
@@ -605,27 +546,6 @@ export default function SubmitPage() {
                     <SelectItem value="light">Light</SelectItem>
                     <SelectItem value="anim">Anim</SelectItem>
                     <SelectItem value="fx">FX</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="col-span-2 space-y-1">
-                <FieldLabel required accent="cool">Subject</FieldLabel>
-                <Input
-                  {...register("subject")}
-                  placeholder={getSubjectPlaceholder()}
-                  disabled={scope === "shot"}
-                  className={scope === "shot" ? "opacity-60" : ""}
-                />
-              </div>
-              <div className="col-span-2 space-y-1">
-                <FieldLabel required accent="cool">Output</FieldLabel>
-                <Select onValueChange={(value) => setValue("renderType", value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose output" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="still">Still</SelectItem>
-                    <SelectItem value="anim">Anim</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -721,15 +641,6 @@ export default function SubmitPage() {
               </div>
             )}
 
-            {/* Description */}
-            <div className="space-y-1">
-              <FieldLabel accent="cool">Description</FieldLabel>
-              <Input
-                {...register("description")}
-                placeholder="e.g., Final lighting pass for hero shot"
-                
-              />
-            </div>
           </div>
         </GroupedSection>
 
@@ -915,20 +826,11 @@ export default function SubmitPage() {
             <div className="grid grid-cols-6 gap-3">
               <div className="col-span-3 space-y-1">
                 <FieldLabel accent="warm">Tags</FieldLabel>
-                <Select defaultValue="general" onValueChange={(value) => setValue("tags", value)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableTags.length > 0 ? (
-                      availableTags.map((tag) => (
-                        <SelectItem key={tag} value={tag}>{tag}</SelectItem>
-                      ))
-                    ) : (
-                      <SelectItem value="general">general</SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
+                <Input
+                  {...register("tags")}
+                  placeholder="general"
+                  className="font-mono text-xs"
+                />
               </div>
             </div>
 
