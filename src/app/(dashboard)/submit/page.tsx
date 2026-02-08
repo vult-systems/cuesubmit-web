@@ -133,44 +133,45 @@ const defaultValues: FormData = {
   customArgs: "",
 };
 
-// Generate short show tag from full show name
-// e.g., "4450_SrThesisWorkshop_S26" -> "4450_S26"
-function getShowShorthand(showName: string): string {
-  if (!showName) return "";
-  
-  const parts = showName.split("_");
-  if (parts.length >= 2) {
-    // Get first part (course number) and last part (semester code)
-    const courseNum = parts[0];
-    const semester = parts.at(-1);
-    return `${courseNum}_${semester}`;
-  }
-  // Fallback to full name if format doesn't match
-  return showName;
+// Extract scene file base name (without extension) from a full path
+// e.g., "\\REDACTED_IP\RenderOutputRepo\project\heroSword_v02.ma" -> "heroSword_v02"
+function extractSceneName(sceneFilePath: string): string {
+  if (!sceneFilePath) return "";
+  // Get filename from path (handle both / and \)
+  const fileName = sceneFilePath.split(/[\\/]/).pop() || "";
+  // Remove extension
+  return fileName.replace(/\.[^.]+$/, "").replaceAll(/\W/g, "_");
 }
 
 // Generate job name from form data
-// Format: ShowShort_ProjectCode (e.g., "4450_S26_PROJ")
+// Format: ProjectCode_Dept_SceneName (e.g., "PROJ_light_heroSword_v02")
+// OpenCue prepends the show name, so we don't include it here
 function generateJobName(data: {
-  show: string;
   projectCode: string;
+  department: string;
+  sceneFile: string;
 }): string {
-  if (!data.show || !data.projectCode) {
-    return "";
-  }
-
-  const showShort = getShowShorthand(data.show);
-  return `${showShort}_${data.projectCode}`;
+  const parts: string[] = [];
+  if (data.projectCode) parts.push(data.projectCode);
+  if (data.department) parts.push(data.department);
+  const sceneName = extractSceneName(data.sceneFile);
+  if (sceneName) parts.push(sceneName);
+  return parts.join("_") || "job";
 }
 
 // Generate rendered frame base name
+// Format: ProjectCode_Dept_SceneName (same as job name for consistency)
 function generateRenderedFrameName(data: {
   projectCode: string;
+  department: string;
+  sceneFile: string;
 }): string {
-  if (!data.projectCode) {
-    return "";
-  }
-  return data.projectCode;
+  const parts: string[] = [];
+  if (data.projectCode) parts.push(data.projectCode);
+  if (data.department) parts.push(data.department);
+  const sceneName = extractSceneName(data.sceneFile);
+  if (sceneName) parts.push(sceneName);
+  return parts.join("_") || "";
 }
 
 // Generate shot code from shot structure
@@ -292,6 +293,8 @@ export default function SubmitPage() {
   const show = watch("show");
   const projectCode = watch("projectCode");
   const scope = watch("scope");
+  const department = watch("department");
+  const sceneFile = watch("sceneFile");
   const renderedFrameName = watch("renderedFrameName");
   const useFormat = watch("useFormat");
   const imageFormat = watch("imageFormat") || "png";
@@ -311,10 +314,10 @@ export default function SubmitPage() {
   const chunkCount = frameCount; // 1 frame per task (no chunk)
 
   // Generate job name preview
-  const jobNamePreview = generateJobName({ show, projectCode });
+  const jobNamePreview = generateJobName({ projectCode, department, sceneFile });
 
   // Generate rendered frame name preview - always compute fresh
-  const autoRenderedFrameName = generateRenderedFrameName({ projectCode });
+  const autoRenderedFrameName = generateRenderedFrameName({ projectCode, department, sceneFile });
   // Use the watched value if manually edited, otherwise use auto-generated
   const finalFrameName = manualFrameName ? renderedFrameName : autoRenderedFrameName;
   const frameOutputPreview = finalFrameName ? `${finalFrameName}._####.${imageFormat}` : "";
@@ -329,11 +332,11 @@ export default function SubmitPage() {
 
   // Auto-populate rendered frame name when inputs change
   useEffect(() => {
-    const autoName = generateRenderedFrameName({ projectCode });
+    const autoName = generateRenderedFrameName({ projectCode, department, sceneFile });
     if (autoName && !manualFrameName) {
       setValue("renderedFrameName", autoName);
     }
-  }, [projectCode, manualFrameName, setValue]);
+  }, [projectCode, department, sceneFile, manualFrameName, setValue]);
 
   const onSubmit = async (data: FormData) => {
     setIsSubmitting(true);
@@ -370,13 +373,16 @@ export default function SubmitPage() {
 
       // Generate job name
       const jobName = generateJobName({
-        show: data.show,
         projectCode: data.projectCode,
+        department: data.department,
+        sceneFile: data.sceneFile,
       });
 
       // Generate rendered frame name
       const frameBaseName = data.renderedFrameName || generateRenderedFrameName({
         projectCode: data.projectCode,
+        department: data.department,
+        sceneFile: data.sceneFile,
       });
 
       // Build frame range string with step (e.g., "1-100x2" for every 2nd frame)
