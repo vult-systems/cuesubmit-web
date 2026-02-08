@@ -204,3 +204,5 @@ node -e "const db=require('better-sqlite3')('./data/cuesubmit.db'); console.log(
 6. **Local dev points to production gateway** — `.env.local` uses `REDACTED_IP:8448`. You're hitting the real OpenCue. Be careful with destructive operations.
 
 7. **Docker volume is read-only** — The render repo mount is `:ro`. Logs can only be read, not written/deleted from the web container.
+
+8. **Cuebot kill requires a `reason` field** — `JobKillRequest` has `username`, `pid`, `host_kill`, and `reason` fields. If `reason` is empty, cuebot silently ignores the kill (logs "Invalid Job Kill Request" but returns 200). Always send a non-empty `reason`. Same applies to `KillFrames`. See `JobManagerSupport.shutdownJob()` in cuebot source.
