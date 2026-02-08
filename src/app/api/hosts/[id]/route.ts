@@ -10,6 +10,7 @@ import {
   removeHostTags,
   setHostAllocation,
   setHostHardwareState,
+  deleteHost,
 } from "@/lib/opencue/gateway-client";
 import { config } from "@/lib/config";
 
@@ -77,6 +78,9 @@ export async function POST(
           return NextResponse.json({ error: "State required" }, { status: 400 });
         }
         await setHostHardwareState(id, state);
+        break;
+      case "delete":
+        await deleteHost(id);
         break;
       default:
         return NextResponse.json({ error: "Unknown action" }, { status: 400 });

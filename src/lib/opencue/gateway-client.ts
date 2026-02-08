@@ -357,6 +357,10 @@ export async function removeHostTags(hostId: string, tags: string[]): Promise<vo
   await gatewayCall('host.HostInterface', 'RemoveTags', { host: { id: hostId }, tags });
 }
 
+export async function deleteHost(hostId: string): Promise<void> {
+  await gatewayCall('host.HostInterface', 'Delete', { host: { id: hostId } });
+}
+
 export async function setHostAllocation(hostId: string, allocationId: string): Promise<void> {
   await gatewayCall('host.HostInterface', 'SetAllocation', {
     host: { id: hostId },

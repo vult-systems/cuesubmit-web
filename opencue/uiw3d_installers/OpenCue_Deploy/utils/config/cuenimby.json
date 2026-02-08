@@ -1,6 +1,14 @@
 {
     "cuebot_host": "REDACTED_IP",
     "cuebot_port": 8443,
-    "idle_time": 120,
-    "check_interval": 30
+    "hostname": null,
+    "use_ip_as_hostname": true,
+    "poll_interval": 5,
+    "show_notifications": true,
+    "notification_duration": 5,
+    "activity_detection_enabled": true,
+    "idle_threshold": 120,
+    "activity_check_interval": 10,
+    "scheduler_enabled": false,
+    "schedule": {}
 }

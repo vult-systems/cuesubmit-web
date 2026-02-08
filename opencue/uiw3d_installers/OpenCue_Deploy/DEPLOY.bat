@@ -158,6 +158,8 @@ for %%w in ("%UTILS_DIR%wheels\*.whl") do (
     "%PYTHON_EXE%" -m pip install "%%w" -q
 )
 "%PYTHON_EXE%" -m pip install wmi pywin32 -q
+:: Install CueNIMBY dependencies for system tray, notifications, and activity detection
+"%PYTHON_EXE%" -m pip install pystray Pillow plyer pynput -q
 echo   OK
 
 :: ============================================================================
@@ -171,6 +173,22 @@ copy /y "%NSSM%" "C:\OpenCue\nssm.exe" >nul
 
 :: Replace __LAB_TAG__ placeholder in rqd.conf with actual lab tag
 powershell -Command "(Get-Content 'C:\OpenCue\config\rqd.conf') -replace '__LAB_TAG__', '%LAB_TAG%' | Set-Content 'C:\OpenCue\config\rqd.conf'"
+
+:: Setup pycue config file (opencue.yaml) for all users
+:: pycue looks for config in %USERPROFILE%\.config\opencue\opencue.yaml
+echo   Setting up pycue config...
+for /f "tokens=*" %%u in ('dir /b C:\Users ^| findstr /v /i "Public Default"') do (
+    mkdir "C:\Users\%%u\.config\opencue" >nul 2>&1
+    copy /y "%UTILS_DIR%config\opencue.yaml" "C:\Users\%%u\.config\opencue\" >nul 2>&1
+)
+:: Also set for Default profile (new users)
+mkdir "C:\Users\Default\.config\opencue" >nul 2>&1
+copy /y "%UTILS_DIR%config\opencue.yaml" "C:\Users\Default\.config\opencue\" >nul 2>&1
+
+:: Setup CueNIMBY for user-session NIMBY control
+echo   Setting up CueNIMBY auto-start...
+set "STARTUP_FOLDER=C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Startup"
+copy /y "%UTILS_DIR%config\StartCueNimby.vbs" "%STARTUP_FOLDER%\" >nul
 echo   OK
 
 :: ============================================================================

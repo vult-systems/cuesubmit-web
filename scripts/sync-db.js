@@ -8,9 +8,9 @@
  * and checkpoints the WAL to consolidate all data.
  */
 
-const { execSync } = require('child_process');
-const path = require('path');
-const fs = require('fs');
+const { execSync } = require('node:child_process');
+const path = require('node:path');
+const fs = require('node:fs');
 
 const PROD_HOST = 'REDACTED_USER@REDACTED_IP';
 const CONTAINER = 'cuesubmit-web';
@@ -48,14 +48,13 @@ try {
       console.log(`   ✅ ${file} (${data.length} bytes)`);
     } catch (err) {
       // WAL/SHM files might not exist if DB was just checkpointed
-      if (file !== 'cuesubmit.db') {
-        console.log(`   ⚠️  ${file} not found (this is okay)`);
-        // Remove local WAL/SHM if they don't exist on prod
-        if (fs.existsSync(localPath)) {
-          fs.unlinkSync(localPath);
-        }
-      } else {
+      if (file === 'cuesubmit.db') {
         throw err;
+      }
+      console.log(`   ⚠️  ${file} not found (this is okay)`);
+      // Remove local WAL/SHM if they don't exist on prod
+      if (fs.existsSync(localPath)) {
+        fs.unlinkSync(localPath);
       }
     }
   }

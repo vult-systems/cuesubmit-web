@@ -27,7 +27,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
-import { RefreshCw, Lock, Unlock, Search, Power, Settings, Tag, X, Plus } from "lucide-react";
+import { RefreshCw, Lock, Unlock, Search, Power, Settings, Tag, X, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { iconButton } from "@/lib/icon-button-styles";
@@ -173,6 +173,11 @@ export default function HostsPage() {
   const [editSystemName, setEditSystemName] = useState("");
   const [saving, setSaving] = useState(false);
 
+  // Host delete dialog state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [hostToDelete, setHostToDelete] = useState<Host | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
   const fetchHosts = useCallback(async () => {
     try {
       const response = await fetch("/api/hosts");
@@ -312,6 +317,35 @@ export default function HostsPage() {
       toast.error("Failed to save metadata");
     }
     setSaving(false);
+  };
+
+  const handleDeleteHost = async () => {
+    if (!hostToDelete) return;
+
+    setDeleting(true);
+    try {
+      const response = await fetch(`/api/hosts/${hostToDelete.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete" }),
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        toast.success(`Host ${hostToDelete.name} deleted`);
+        setDeleteDialogOpen(false);
+        setHostToDelete(null);
+        fetchHosts();
+      } else {
+        const errorMsg = data.error || "Failed to delete host";
+        const details = data.details ? ` — ${data.details}` : "";
+        toast.error(errorMsg + details);
+      }
+    } catch (error) {
+      console.error("Failed to delete host:", error);
+      toast.error("Failed to delete host");
+    }
+    setDeleting(false);
   };
 
   // Helper to extract group prefix from ID (e.g., "AD400" from "AD400-01")
@@ -643,6 +677,27 @@ export default function HostsPage() {
                                     Reboot (coming soon)
                                   </TooltipContent>
                                 </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className={cn(
+                                        iconButton.settings,
+                                        "text-red-400 hover:text-red-600 dark:text-red-400/60 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10"
+                                      )}
+                                      onClick={() => {
+                                        setHostToDelete(host);
+                                        setDeleteDialogOpen(true);
+                                      }}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top">
+                                    Delete Host
+                                  </TooltipContent>
+                                </Tooltip>
                               </div>
                           </ResizableTableCell>
                         </ResizableTableRow>
@@ -776,6 +831,64 @@ export default function HostsPage() {
                     {formatMemory(selectedHost.memory - selectedHost.idleMemory)}/{formatMemory(selectedHost.memory)} in use
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Host Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold text-red-600 dark:text-red-400">
+              Delete Host
+            </DialogTitle>
+            <DialogDescription className="text-text-muted text-sm">
+              This will permanently remove the host from OpenCue. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+
+          {hostToDelete && (
+            <div className="space-y-4 py-4">
+              <div className="rounded-lg border border-red-200 dark:border-red-500/20 bg-red-50 dark:bg-red-500/5 p-3 space-y-2">
+                <div className="grid grid-cols-2 gap-1 text-xs">
+                  <div className="text-text-muted">Host:</div>
+                  <div className="font-mono font-medium text-text-primary">{hostToDelete.name}</div>
+                  <div className="text-text-muted">State:</div>
+                  <div className="font-medium">{hostToDelete.state}</div>
+                  <div className="text-text-muted">Display ID:</div>
+                  <div className="font-medium">{hostMetadata[hostToDelete.id]?.display_id || "Unassigned"}</div>
+                  <div className="text-text-muted">Cores:</div>
+                  <div className="font-medium">{hostToDelete.cores}</div>
+                </div>
+              </div>
+
+              <p className="text-xs text-text-muted">
+                Only delete hosts that are deprecated and no longer part of the render farm. Active hosts will re-register automatically when RQD pings in.
+              </p>
+
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setDeleteDialogOpen(false);
+                    setHostToDelete(null);
+                  }}
+                  className="h-8 text-xs"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleDeleteHost}
+                  disabled={deleting}
+                  className="h-8 text-xs"
+                >
+                  {deleting ? "Deleting..." : "Delete Host"}
+                </Button>
               </div>
             </div>
           )}
