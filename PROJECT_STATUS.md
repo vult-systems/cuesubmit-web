@@ -1,19 +1,22 @@
 # CueSubmit Web - Project Status
 
-**Last Updated:** December 22, 2025
+**Last Updated:** February 8, 2026
 
 ## Current State: ✅ Production Ready
 
-The web-based job submission interface for OpenCue is fully functional. Jobs can be submitted from the production server at `http://REDACTED_IP:3000`.
+The web-based job submission and monitoring interface for OpenCue is fully functional at `http://REDACTED_IP:3000`.
 
-### Completed Features
+### Active Features
 
-- ✅ Job submission with DTD-compliant XML specs
-- ✅ Job monitoring with real-time updates
-- ✅ Host management with lab grouping
-- ✅ Resizable table columns with persistence
-- ✅ Graceful API fallbacks for unavailable endpoints
-- ✅ Code quality: 40+ linting issues resolved
+- ✅ **Job submission** — Arnold-only, DTD-compliant XML specs, optional layer/camera/output format, tags, override resolution, frame step
+- ✅ **Job monitoring** — Tabbed filtering (All/Running/Pending/Finished/Dead), pagination, row coloring by state, newest-first ordering
+- ✅ **Frame detail drawer** — Frame table, resizable log viewer with auto-scroll, frame preview panel
+- ✅ **Frame preview** — Right-side 480px panel showing rendered frame images (PNG/JPG/etc.), scans output dir + subdirectories
+- ✅ **Host management** — Lab grouping, display ID mapping, host deletion via UI
+- ✅ **User permissions** — Role-based (admin/instructor/student). Students: submit, kill, pause, retry, eat, view own jobs
+- ✅ **Render logs** — UNC-to-Linux path conversion, Docker + Windows dev support
+- ✅ **Scene/output file browsers** — Browse render source and output repos from submit form
+- ✅ **Resizable table columns** — Drag handles with localStorage persistence
 
 ### 🌐 Custom URL Ideas
 
@@ -71,13 +74,9 @@ ssh REDACTED_USER@REDACTED_IP "docker logs --tail 50 cuesubmit-web"
 
 ## Known Issues / TODO
 
-### 1. 🔴 Logs Not Working (Priority: High)
+### 1. � EXR Preview Not Supported (Priority: Low)
 
-Frame logs are not displaying correctly. Need to investigate:
-
-- Log path configuration in cuebot (`log.frame-log-root.Windows`)
-- API endpoint `/api/jobs/[id]/logs`
-- Windows UNC path handling
+Arnold default output is EXR, which browsers can't display. The frame preview detects EXR files and shows a message. Workaround: set output format to PNG or JPG in the submit form.
 
 ### 2. 🟡 Job Names Too Long (Priority: Low)
 
@@ -98,6 +97,60 @@ Consider:
 - `SESSION_SECRET not set in production` warnings during build (cosmetic only)
 
 ## Completed Items
+
+### ✅ Frame Preview Panel (Feb 8, 2026)
+
+- Added Layer API (`getLayers()` in gateway-client, `/api/jobs/[id]/layers` route)
+- Created `/api/files/frame-preview` — single endpoint that resolves paths (Docker Linux mounts / Windows UNC), scans for frame images with multiple padding formats, checks subdirectories
+- Created `/api/files/preview` — direct image serving route
+- Right-side 480px panel in job detail drawer showing rendered output per frame
+- Graceful state handling (running → "still rendering", dead → "no output", waiting → "hasn't started")
+- Blob URL memory leak prevention with cleanup ref
+
+### ✅ Submit Form Overhaul (Feb 2026)
+
+- Arnold-only renderer (removed multi-renderer complexity)
+- Optional render layer, camera, output format fields
+- Tags as free-text input
+- Override resolution (width × height)
+- Frame step support
+- Scene file name auto-populates job name
+- Two file browsers: render source repo + render output repo
+
+### ✅ Student Permissions (Feb 2026)
+
+- Students can kill, pause, retry, eat their own jobs
+- Permission set: `['submit', 'kill', 'pause', 'retry', 'eat', 'view_own']`
+
+### ✅ Jobs Page UX Overhaul (Feb 2026)
+
+- Tab filtering: All / Running / Pending / Finished / Dead
+- Pagination with page size selector
+- Row coloring by job state
+- Newest-first default ordering
+- Host ID lookup (maps OpenCue host IDs to display names)
+- Resizable log panel with auto-scroll toggle
+- Updated hint: "Click on a frame row to view its render preview and log"
+
+### ✅ Kill Button Fix (Feb 2026)
+
+- Cuebot requires non-empty `reason` field — was silently ignoring kills
+
+### ✅ Logs Route Fix (Jan 2026)
+
+- Fixed `.gitignore` accidentally excluding the logs API route
+- Fixed UNC-to-Linux path conversion for Docker environment
+
+### ✅ Host Deletion (Jan 2026)
+
+- Added trash icon to host table rows
+- Calls `host.HostInterface/Delete` on the gateway + removes from SQLite metadata
+
+### ✅ Mock Data Removal & DB Cleanup (Jan 2026)
+
+- Removed all hardcoded mock data
+- Cleaned NULL/orphaned host entries from SQLite
+- Room Allocations section removed from Shows page
 
 ### ✅ UI/UX Improvements (Dec 22, 2025)
 
@@ -166,9 +219,19 @@ Now falls back to mock data gracefully when gateway returns 501.
 
 ### Core Functionality
 
-- `src/lib/opencue/gateway-client.ts` - REST gateway API calls
+- `src/lib/opencue/gateway-client.ts` - REST gateway API calls (jobs, frames, layers, hosts, shows)
 - `src/lib/opencue/spec-builder.ts` - Job XML spec generation
+- `src/lib/auth/permissions.ts` - Role-based permission definitions
 - `src/app/api/submit/route.ts` - Job submission endpoint
+- `src/app/api/jobs/[id]/layers/route.ts` - Layer data for frame preview
+- `src/app/api/jobs/[id]/logs/route.ts` - Frame log retrieval with path conversion
+- `src/app/api/files/frame-preview/route.ts` - Frame image discovery and serving
+- `src/app/api/files/preview/route.ts` - Direct image serving by path
+
+### UI Components
+
+- `src/components/job-detail-drawer.tsx` - Job detail with frames, logs, and preview panel
+- `src/app/(dashboard)/submit/page.tsx` - Job submission form (Arnold)
 
 ### Configuration
 

@@ -18,7 +18,8 @@ Quick-reference for CueSubmit Web + OpenCue administration.
 | JWT secret | `REDACTED_SECRET` |
 | Session secret | `REDACTED_SECRET` |
 | Docker container | `cuesubmit-web`, network_mode: host |
-| Render logs volume | `/angd_server_pool/renderRepo` → `/mnt/RenderOutputRepo:ro` |
+| Render output volume | `/angd_server_pool/renderRepo` → `/mnt/RenderOutputRepo:ro` |
+| Render source volume | `/opt/perforce/deadlineRenderSource` → `/mnt/RenderSourceRepository:ro` |
 | Log path in OpenCue DB | `//REDACTED_IP/RenderOutputRepo/OpenCue/Logs/...` |
 | Windows UNC access | `\\REDACTED_IP\RenderOutputRepo\OpenCue\Logs\...` |
 
@@ -53,6 +54,7 @@ JWT_SECRET=REDACTED_SECRET
 SESSION_SECRET=REDACTED_SECRET
 DATABASE_PATH=/app/data/cuesubmit.db
 RENDER_REPO_PATH=/mnt/RenderOutputRepo
+RENDER_SOURCE_PATH=/mnt/RenderSourceRepository
 ADMIN_INITIAL_PASSWORD=REDACTED_PASSWORD
 ```
 
@@ -174,6 +176,41 @@ docker exec cuesubmit-web ls /mnt/RenderOutputRepo/OpenCue/Logs/
 
 ---
 
+## Frame Preview
+
+The job detail drawer includes a right-side preview panel (480px) that shows rendered frame images.
+
+### How It Works
+
+1. When a job is opened, `/api/jobs/[id]/layers` fetches the layer data
+2. The layer command is parsed for `-rd "outputDir"` to find the render output directory
+3. When a frame is selected, `/api/files/frame-preview?dir=<outputDir>&frame=<number>` is called
+4. The API resolves the path (Linux mount in Docker, UNC on Windows), scans for matching frame images
+5. Frame number matching: tries 3/4/5-digit padding (e.g., `001`, `0001`, `00001`) with `.N.` or `_N.` patterns
+6. Also scans immediate subdirectories (Arnold often outputs to an `images/` subfolder)
+7. Returns the image directly as a binary response (blob URL in the browser)
+
+### Supported Formats
+
+Browser-viewable: PNG, JPG, JPEG, GIF, WebP, BMP
+Detected but not viewable: EXR, TIFF, HDR, DPX (shows a message instead)
+
+### Troubleshooting
+
+```bash
+# Check if render output is accessible in Docker
+docker exec cuesubmit-web ls /mnt/RenderOutputRepo/
+
+# Check if render source is accessible
+docker exec cuesubmit-web ls /mnt/RenderSourceRepository/
+
+# Test frame preview API (get a JWT first, see Gateway API section)
+curl -s "http://127.0.0.1:3000/api/files/frame-preview?dir=//REDACTED_IP/RenderOutputRepo/path/to/output&frame=1" \
+  -H "Cookie: session=<session_cookie>"
+```
+
+---
+
 ## SQLite (Host Metadata / Users)
 
 Sync from production to local dev:
@@ -203,6 +240,10 @@ node -e "const db=require('better-sqlite3')('./data/cuesubmit.db'); console.log(
 
 6. **Local dev points to production gateway** — `.env.local` uses `REDACTED_IP:8448`. You're hitting the real OpenCue. Be careful with destructive operations.
 
-7. **Docker volume is read-only** — The render repo mount is `:ro`. Logs can only be read, not written/deleted from the web container.
+7. **Docker volumes are read-only** — Both render repo mounts are `:ro`. Logs and rendered images can only be read, not written/deleted from the web container.
 
 8. **Cuebot kill requires a `reason` field** — `JobKillRequest` has `username`, `pid`, `host_kill`, and `reason` fields. If `reason` is empty, cuebot silently ignores the kill (logs "Invalid Job Kill Request" but returns 200). Always send a non-empty `reason`. Same applies to `KillFrames`. See `JobManagerSupport.shutdownJob()` in cuebot source.
+
+9. **Frame preview requires `-rd` in render command** — The preview panel parses the layer command for `-rd "path"` to find the output directory. If a job was submitted without `-rd`, the preview will show "No output directory found in layer command." Standard Arnold submit always includes it.
+
+10. **EXR/TIFF renders won't preview** — The frame preview only supports browser-viewable formats (PNG, JPG, GIF, WebP, BMP). EXR/TIFF frames show a message instead. Arnold default output is EXR; set `-of png` or `-of jpg` in the submit form's Output Format field for browser-previewable output.
