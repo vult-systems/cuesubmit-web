@@ -12,7 +12,7 @@ const plusJakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Queue - UIW3D",
+  title: "Render Queue - UIW3D",
   description: "Submit and monitor render jobs on OpenCue",
 };
 

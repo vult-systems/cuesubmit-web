@@ -85,7 +85,7 @@ export function Header({ user, mode }: Readonly<HeaderProps>) {
                 className="relative hidden dark:block transition-transform duration-300 group-hover:scale-105"
               />
               <span className="relative text-base font-medium text-text-primary group-hover:text-text-primary transition-all duration-300">
-                Queue
+                Render Queue
               </span>
             </Link>
           </div>
