@@ -820,9 +820,9 @@ export default function SubmitPage() {
               </div>
             </div>
 
-            {/* Tags */}
+            {/* Tags & Override Resolution */}
             <div className="grid grid-cols-6 gap-3">
-              <div className="col-span-3 space-y-1">
+              <div className="col-span-2 space-y-1">
                 <FieldLabel accent="warm">Tags</FieldLabel>
                 <Input
                   {...register("tags")}
@@ -830,22 +830,18 @@ export default function SubmitPage() {
                   className="font-mono text-xs"
                 />
               </div>
-            </div>
-
-            {/* Override Resolution */}
-            <div className="grid grid-cols-6 gap-3">
-              <div className="col-span-2 space-y-1">
-                <div className="flex items-center gap-1.5">
+              <div className="col-span-1 space-y-1">
+                <div className="flex items-center gap-1.5 h-[16px]">
                   <Checkbox
                     id="useResolution"
                     checked={useResolution}
                     onCheckedChange={(checked) => setValue("useResolution", !!checked)}
                     className="border-neutral-300 dark:border-white/15 h-3.5 w-3.5 data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500"
                   />
-                  <FieldLabel htmlFor="useResolution" accent="warm">Override Resolution</FieldLabel>
+                  <FieldLabel htmlFor="useResolution" accent="warm">Resolution</FieldLabel>
                 </div>
               </div>
-              <div className="col-span-2 space-y-1">
+              <div className="col-span-1 space-y-1">
                 <FieldLabel accent="warm">Width</FieldLabel>
                 <Input
                   type="number"
@@ -854,7 +850,7 @@ export default function SubmitPage() {
                   className={!useResolution ? "opacity-40" : ""}
                 />
               </div>
-              <div className="col-span-2 space-y-1">
+              <div className="col-span-1 space-y-1">
                 <FieldLabel accent="warm">Height</FieldLabel>
                 <Input
                   type="number"
@@ -863,6 +859,7 @@ export default function SubmitPage() {
                   className={!useResolution ? "opacity-40" : ""}
                 />
               </div>
+              <div className="col-span-1" />
             </div>
 
             {/* Rendered Frame Name */}
