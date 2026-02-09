@@ -247,3 +247,231 @@ node -e "const db=require('better-sqlite3')('./data/cuesubmit.db'); console.log(
 9. **Frame preview requires `-rd` in render command** — The preview panel parses the layer command for `-rd "path"` to find the output directory. If a job was submitted without `-rd`, the preview will show "No output directory found in layer command." Standard Arnold submit always includes it.
 
 10. **EXR/TIFF renders won't preview** — The frame preview only supports browser-viewable formats (PNG, JPG, GIF, WebP, BMP). EXR/TIFF frames show a message instead. Arnold default output is EXR; set `-of png` or `-of jpg` in the submit form's Output Format field for browser-previewable output.
+
+11. **Shows MUST be created through the API, not SQL** — Cuebot caches shows in memory. Direct SQL `INSERT INTO show` creates a row the database can see but cuebot (and therefore the gateway, the web UI, and all gRPC clients) cannot. Even restarting cuebot won't reliably pick up a show that was inserted without the full gRPC initialization flow (default folder, default filters, etc.). Always use `show.ShowInterface/CreateShow` via the REST gateway (see below). DB-level settings (subscriptions, service overrides, folder priorities, semester metadata) are fine to apply via SQL *after* the show exists in cuebot.
+
+---
+
+## Create a New Show (End-to-End)
+
+Shows must be created through the REST gateway (which proxies to cuebot gRPC). Direct database inserts will not work — see Gotcha #11.
+
+### Step 1 — Generate a JWT
+
+```bash
+ssh REDACTED_USER@REDACTED_IP 'docker exec cuesubmit-web node -e "
+  const crypto=require(\"crypto\");
+  const h=Buffer.from(JSON.stringify({alg:\"HS256\",typ:\"JWT\"})).toString(\"base64url\");
+  const p=Buffer.from(JSON.stringify({sub:\"admin\",iat:Math.floor(Date.now()/1000),exp:Math.floor(Date.now()/1000)+3600})).toString(\"base64url\");
+  const sig=crypto.createHmac(\"sha256\",\"REDACTED_SECRET\").update(h+\".\"+p).digest(\"base64url\");
+  console.log(h+\".\"+p+\".\"+sig);
+"'
+```
+
+### Step 2 — Create the Show via API
+
+```bash
+ssh REDACTED_USER@REDACTED_IP "curl -s -X POST http://127.0.0.1:8448/show.ShowInterface/CreateShow \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer <JWT>' \
+  -d '{\"name\":\"<SHOW_NAME>\"}'"
+```
+
+The response includes the new show's UUID (`id` field). Save it — you'll need it for the SQL steps.
+
+### Step 3 — Verify cuebot sees it
+
+```bash
+ssh REDACTED_USER@REDACTED_IP "curl -s -X POST http://127.0.0.1:8448/show.ShowInterface/GetActiveShows \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer <JWT>' \
+  -d '{}' | python3 -c \"import sys,json; data=json.load(sys.stdin); [print(s['name']) for s in data['shows']['shows']]\""
+```
+
+### Step 4 — Apply DB-level settings
+
+After the show exists in cuebot, apply subscriptions, service overrides, folder priorities, and semester metadata via SQL. Example (adjust values as needed):
+
+```sql
+BEGIN;
+
+-- Set show-level core defaults
+UPDATE show SET int_default_min_cores = 800, int_default_max_cores = 200000
+WHERE str_name = '<SHOW_NAME>';
+
+-- Create a subscription (links show to an allocation with core limits)
+INSERT INTO subscription (pk_subscription, pk_show, pk_alloc, int_size, int_burst)
+SELECT gen_random_uuid(),
+       (SELECT pk_show FROM show WHERE str_name = '<SHOW_NAME>'),
+       pk_alloc, 200000, 200000
+FROM alloc WHERE str_name = '<ALLOC_NAME>';
+
+-- Show-level service override (optional — controls per-frame core/memory usage)
+INSERT INTO show_service (pk_show_service, pk_show, str_name,
+       b_threadable, int_cores_min, int_cores_max,
+       int_mem_min, int_gpu_min, int_gpu_mem_min, str_tags, int_timeout, int_timeout_llu)
+SELECT gen_random_uuid(),
+       (SELECT pk_show FROM show WHERE str_name = '<SHOW_NAME>'),
+       'maya', true, 800, 800, 8388608, 0, 0, '', 180, 0;
+
+-- Set folder priority (dispatch order)
+UPDATE folder SET int_priority = 10
+WHERE pk_show = (SELECT pk_show FROM show WHERE str_name = '<SHOW_NAME>')
+  AND str_name = '<SHOW_NAME>';
+
+-- Set semester metadata (so the web UI groups it properly)
+INSERT INTO show_metadata (pk_show, str_semester)
+VALUES ((SELECT pk_show FROM show WHERE str_name = '<SHOW_NAME>'), '<SEMESTER>');
+
+COMMIT;
+```
+
+---
+
+## Manage Allocations & Subscriptions
+
+### List allocations and host counts
+
+```sql
+SELECT a.str_name AS alloc, COUNT(h.pk_host) AS hosts,
+       SUM(h.int_cores) AS total_cores
+FROM alloc a
+LEFT JOIN host h ON h.pk_alloc = a.pk_alloc
+GROUP BY a.str_name ORDER BY a.str_name;
+```
+
+### Move hosts to a different allocation
+
+```sql
+UPDATE host SET pk_alloc = (SELECT pk_alloc FROM alloc WHERE str_name = '<TARGET_ALLOC>')
+WHERE str_name IN ('host1', 'host2', 'host3');
+```
+
+### Create an allocation
+
+```sql
+INSERT INTO alloc (pk_alloc, pk_facility, str_name, str_tag, b_billable, b_default)
+VALUES (gen_random_uuid(),
+        (SELECT pk_facility FROM facility WHERE str_name = 'local'),
+        '<NAME>', '<TAG>', false, false);
+```
+
+### Create a subscription (link a show to an allocation)
+
+```sql
+INSERT INTO subscription (pk_subscription, pk_show, pk_alloc, int_size, int_burst)
+VALUES (gen_random_uuid(),
+        (SELECT pk_show FROM show WHERE str_name = '<SHOW_NAME>'),
+        (SELECT pk_alloc FROM alloc WHERE str_name = '<ALLOC_NAME>'),
+        200000, 200000);
+```
+
+### View subscriptions
+
+```sql
+SELECT s.str_name AS show, a.str_name AS alloc,
+       sub.int_size, sub.int_burst, sub.int_cores AS running_cores
+FROM subscription sub
+JOIN show s ON s.pk_show = sub.pk_show
+JOIN alloc a ON a.pk_alloc = sub.pk_alloc
+ORDER BY s.str_name;
+```
+
+---
+
+## Service Configuration
+
+### View global services
+
+```sql
+SELECT str_name, b_threadable, int_cores_min, int_cores_max,
+       int_mem_min / 1024 AS mem_min_mb, int_timeout, str_tags
+FROM service ORDER BY str_name;
+```
+
+### Update a global service
+
+```sql
+UPDATE service SET int_cores_max = 2800, int_mem_min = 16777216, int_timeout = 180
+WHERE str_name = 'maya';
+```
+
+### View per-show service overrides
+
+```sql
+SELECT s.str_name AS show, ss.str_name AS service,
+       ss.int_cores_min, ss.int_cores_max,
+       ss.int_mem_min / 1024 AS mem_min_mb, ss.int_timeout
+FROM show_service ss
+JOIN show s ON s.pk_show = ss.pk_show
+ORDER BY s.str_name;
+```
+
+---
+
+## Show Dispatch Priorities
+
+Folder priority controls which show gets frames dispatched first. Higher = more priority.
+
+```sql
+-- View current priorities
+SELECT s.str_name AS show, f.str_name AS folder, f.int_priority
+FROM folder f JOIN show s ON s.pk_show = f.pk_show
+WHERE f.str_name = s.str_name
+ORDER BY f.int_priority DESC;
+
+-- Set priority
+UPDATE folder SET int_priority = 100
+WHERE pk_show = (SELECT pk_show FROM show WHERE str_name = '<SHOW_NAME>')
+  AND str_name = '<SHOW_NAME>';
+```
+
+---
+
+## Host Tag Cleanup
+
+Remove duplicate tags (e.g., lowercase variants that duplicate uppercase group tags):
+
+```sql
+-- Find duplicate-style tags
+SELECT DISTINCT unnest(string_to_array(str_tags, ' | ')) AS tag
+FROM host ORDER BY tag;
+
+-- Remove a tag from all hosts
+UPDATE host SET str_tags = trim(both ' | ' FROM
+  regexp_replace(str_tags, '(^| \| )badtag( \| |$)', '\1', 'g'))
+WHERE str_tags LIKE '%badtag%';
+```
+
+---
+
+## Restart Services
+
+### Cuebot (bare process, not Docker)
+
+```bash
+ssh REDACTED_USER@REDACTED_IP
+
+# Find PID
+ps aux | grep cuebot | grep -v grep
+
+# Restart (adjust jar path if version changes)
+kill <PID>
+nohup java -jar /opt/opencue/cuebot-1.13.8-all.jar \
+  --datasource.cue-data-source.jdbc-url=jdbc:postgresql://127.0.0.1:5432/cuebot_local \
+  --datasource.cue-data-source.username=cuebot \
+  --datasource.cue-data-source.password=REDACTED_PASSWORD \
+  > /opt/opencue/logs/cuebot.log 2>&1 &
+```
+
+### REST Gateway (Docker)
+
+```bash
+ssh REDACTED_USER@REDACTED_IP "docker restart opencue-rest-gateway"
+```
+
+### CueSubmit Web (Docker)
+
+```bash
+ssh REDACTED_USER@REDACTED_IP "docker restart cuesubmit-web"
+```
