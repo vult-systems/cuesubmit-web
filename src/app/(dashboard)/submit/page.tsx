@@ -144,23 +144,17 @@ function extractSceneName(sceneFilePath: string): string {
 }
 
 // Generate job name from form data
-// Format: ProjectCode_Dept_SceneName (e.g., "PROJ_light_heroSword_v02")
-// OpenCue prepends the show name, so we don't include it here
+// OpenCue displays as: show-shot-user_JOBNAME
+// So we only need the scene file name — show, user, and shot are added by cuebot
 function generateJobName(data: {
-  projectCode: string;
-  department: string;
   sceneFile: string;
 }): string {
-  const parts: string[] = [];
-  if (data.projectCode) parts.push(data.projectCode);
-  if (data.department) parts.push(data.department);
   const sceneName = extractSceneName(data.sceneFile);
-  if (sceneName) parts.push(sceneName);
-  return parts.join("_") || "job";
+  return sceneName || "job";
 }
 
 // Generate rendered frame base name
-// Format: ProjectCode_Dept_SceneName (same as job name for consistency)
+// Format: ProjectCode_Dept_SceneName (descriptive for output files)
 function generateRenderedFrameName(data: {
   projectCode: string;
   department: string;
@@ -314,7 +308,7 @@ export default function SubmitPage() {
   const chunkCount = frameCount; // 1 frame per task (no chunk)
 
   // Generate job name preview
-  const jobNamePreview = generateJobName({ projectCode, department, sceneFile });
+  const jobNamePreview = generateJobName({ sceneFile });
 
   // Generate rendered frame name preview - always compute fresh
   const autoRenderedFrameName = generateRenderedFrameName({ projectCode, department, sceneFile });
@@ -373,8 +367,6 @@ export default function SubmitPage() {
 
       // Generate job name
       const jobName = generateJobName({
-        projectCode: data.projectCode,
-        department: data.department,
         sceneFile: data.sceneFile,
       });
 
