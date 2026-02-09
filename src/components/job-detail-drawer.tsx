@@ -32,6 +32,7 @@ import {
   ArrowDown,
   ChevronDown,
   ChevronUp,
+  ImageIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -116,9 +117,23 @@ export function JobDetailDrawer({
   const logScrollRef = useRef<HTMLDivElement>(null);
   // Draggable log panel height (in pixels)
   const [logPanelHeight, setLogPanelHeight] = useState(400);
+  // Frame preview state
+  const [outputDir, setOutputDir] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const prevPreviewUrlRef = useRef<string | null>(null);
   const isDraggingRef = useRef(false);
   const dragStartYRef = useRef(0);
   const dragStartHeightRef = useRef(0);
+
+  // Clean up blob URLs to prevent memory leaks
+  useEffect(() => {
+    if (prevPreviewUrlRef.current && prevPreviewUrlRef.current !== previewUrl) {
+      URL.revokeObjectURL(prevPreviewUrlRef.current);
+    }
+    prevPreviewUrlRef.current = previewUrl;
+  }, [previewUrl]);
 
   // Drag handlers for resizable log panel
   const handleDragStart = useCallback((e: React.MouseEvent) => {
@@ -173,11 +188,32 @@ export function JobDetailDrawer({
       setSelectedFrames(new Set());
       setActiveFrame(null);
       setLogs("");
+      setPreviewUrl(null);
+      setPreviewError(null);
       // Fetch host lookup map
       fetch("/api/host-lookup")
         .then(r => r.json())
         .then(d => setHostLookup(d.lookup || {}))
         .catch(() => {});
+      // Fetch layers to get output directory from command
+      fetch(`/api/jobs/${job.id}/layers`)
+        .then(r => r.json())
+        .then(d => {
+          const layers = d.layers || [];
+          if (layers.length > 0) {
+            const cmd = layers[0].command || "";
+            // Extract output directory from -rd "path" in the Maya render command
+            const rdMatch = cmd.match(/-rd\s+"([^"]+)"/);
+            if (rdMatch) {
+              setOutputDir(rdMatch[1]);
+            } else {
+              setOutputDir(null);
+            }
+          } else {
+            setOutputDir(null);
+          }
+        })
+        .catch(() => setOutputDir(null));
     }
   }, [open, job, fetchFrames]);
 
@@ -204,12 +240,61 @@ export function JobDetailDrawer({
     }
   }, [activeFrame, job]);
 
+  // Fetch preview image when activeFrame changes
+  const fetchPreview = useCallback(async () => {
+    if (!activeFrame || !outputDir) {
+      setPreviewUrl(null);
+      setPreviewError(activeFrame && !outputDir ? "No output directory found in layer command" : null);
+      return;
+    }
+
+    // Only attempt preview for succeeded frames
+    if (activeFrame.state !== "SUCCEEDED") {
+      setPreviewUrl(null);
+      setPreviewError(
+        activeFrame.state === "RUNNING"
+          ? "Frame is still rendering…"
+          : activeFrame.state === "DEAD"
+            ? "Frame failed — no output available"
+            : activeFrame.state === "WAITING"
+              ? "Frame hasn't started yet"
+              : `Frame state: ${activeFrame.state}`
+      );
+      return;
+    }
+
+    setPreviewLoading(true);
+    setPreviewError(null);
+    setPreviewUrl(null);
+
+    try {
+      // Single API call that handles path resolution, directory scanning, and image serving
+      const url = `/api/files/frame-preview?dir=${encodeURIComponent(outputDir)}&frame=${activeFrame.number}`;
+      const res = await fetch(url);
+
+      if (res.ok) {
+        // Response is the image itself — create a blob URL
+        const blob = await res.blob();
+        setPreviewUrl(URL.createObjectURL(blob));
+      } else {
+        const data = await res.json();
+        setPreviewError(data.error || "No preview available");
+      }
+    } catch (error) {
+      console.error("Preview fetch error:", error);
+      setPreviewError("Failed to load preview");
+    } finally {
+      setPreviewLoading(false);
+    }
+  }, [activeFrame, outputDir]);
+
   useEffect(() => {
     if (activeFrame) {
+      fetchPreview();
       fetchLogs();
       setLogPanelCollapsed(false);
     }
-  }, [activeFrame, fetchLogs]);
+  }, [activeFrame, fetchPreview, fetchLogs]);
 
   useEffect(() => {
     if (autoScroll && logScrollRef.current) {
@@ -330,8 +415,10 @@ export function JobDetailDrawer({
           </div>
         </DialogHeader>
 
-        {/* Main content area - split between frames and logs */}
-        <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+        {/* Main content area - horizontal split: frames+logs | preview */}
+        <div className="flex-1 overflow-hidden flex flex-row min-h-0">
+          {/* Left column: frames table + log viewer */}
+          <div className="flex-1 overflow-hidden flex flex-col min-h-0">
           {/* Job Actions Bar */}
           <div className="px-5 py-2.5 flex items-center gap-2 flex-wrap shrink-0 border-b border-neutral-200/60 dark:border-white/5">
             <Button
@@ -671,11 +758,58 @@ export function JobDetailDrawer({
           {!activeFrame && frames.length > 0 && !loading && (
             <div className="border-t border-neutral-200 dark:border-white/8 px-5 py-3 text-center shrink-0 bg-neutral-50/50 dark:bg-white/2">
               <span className="text-xs text-text-muted">
-                Click on a frame row to view its render log
+                Click on a frame row to view its render preview and log
               </span>
             </div>
           )}
-        </div>
+          </div>{/* end left column */}
+
+          {/* Right column: Frame Preview Panel */}
+          {activeFrame && (
+            <div className="w-[480px] shrink-0 border-l border-neutral-200 dark:border-white/8 flex flex-col bg-neutral-50/30 dark:bg-white/2 overflow-hidden">
+              <div className="px-3 py-2.5 border-b border-neutral-200/60 dark:border-white/5 shrink-0">
+                <div className="flex items-center gap-2">
+                  <ImageIcon className="h-3.5 w-3.5 text-text-muted" />
+                  <span className="text-xs font-medium text-text-primary">
+                    Frame {activeFrame.number} Preview
+                  </span>
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "text-[10px] px-1.5 py-0 ml-auto",
+                      frameStateColors[activeFrame.state] || "bg-surface-muted text-text-muted"
+                    )}
+                  >
+                    {activeFrame.state}
+                  </Badge>
+                </div>
+              </div>
+              <div className="flex-1 flex items-center justify-center p-3 min-h-0">
+                {previewLoading ? (
+                  <div className="text-xs text-text-muted animate-pulse">
+                    Loading preview…
+                  </div>
+                ) : previewUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={previewUrl}
+                    alt={`Frame ${activeFrame.number} render output`}
+                    className="max-w-full max-h-full object-contain rounded"
+                    onError={() => {
+                      setPreviewUrl(null);
+                      setPreviewError("Failed to load image");
+                    }}
+                  />
+                ) : (
+                  <div className="text-xs text-text-muted text-center flex flex-col items-center gap-2 px-4">
+                    <ImageIcon className="h-8 w-8 opacity-20" />
+                    <span>{previewError || "No preview available"}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>{/* end horizontal split */}
       </DialogContent>
     </Dialog>
   );

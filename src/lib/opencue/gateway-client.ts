@@ -172,6 +172,21 @@ export interface Frame {
   stopTime: number;
 }
 
+export interface Layer {
+  id: string;
+  name: string;
+  range: string;
+  command: string;
+  type: string;
+  tags?: string[];
+  cores?: number;
+  memory?: number;
+  chunkSize?: number;
+  services?: string[];
+  limits?: string[];
+  outputs?: { path: string; filespec: string }[];
+}
+
 export interface Host {
   id: string;
   name: string;
@@ -280,6 +295,15 @@ export async function killJob(jobId: string, username: string = 'cuesubmit'): Pr
     pid: '0',
     host_kill: 'cuesubmit-web',
     reason: `Manual kill via CueSubmit Web by ${username}`,
+  });
+}
+
+// Layer API
+export async function getLayers(
+  jobId: string
+): Promise<{ layers: { layers: Layer[] } | Layer[] }> {
+  return gatewayCall('job.JobInterface', 'GetLayers', {
+    job: { id: jobId },
   });
 }
 
