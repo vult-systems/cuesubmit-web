@@ -24,6 +24,11 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+const ROOT_PATHS = [
+  { label: "RenderOutputRepo", path: String.raw`\\REDACTED_IP\RenderOutputRepo` },
+  { label: "RenderSourceRepository", path: String.raw`\\REDACTED_IP\RenderSourceRepository` },
+];
+
 interface FileItem {
   name: string;
   path: string;
@@ -40,6 +45,7 @@ interface FileBrowserDialogProps {
   onSelect: (path: string) => void;
   mode: "file" | "directory";
   title?: string;
+  initialPath?: string;
   fileExtensions?: string[]; // Filter by extensions, e.g., [".ma", ".mb", ".hip"]
 }
 
@@ -64,9 +70,11 @@ export function FileBrowserDialog({
   onSelect,
   mode,
   title,
+  initialPath,
   fileExtensions,
 }: Readonly<FileBrowserDialogProps>) {
-  const [currentPath, setCurrentPath] = useState(String.raw`\\REDACTED_IP\RenderOutputRepo`);
+  const defaultPath = initialPath || ROOT_PATHS[0].path;
+  const [currentPath, setCurrentPath] = useState(defaultPath);
   const [parentPath, setParentPath] = useState<string | null>(null);
   const [items, setItems] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -271,6 +279,29 @@ export function FileBrowserDialog({
         </DialogHeader>
 
         <div className="space-y-3">
+          {/* Root Path Switcher */}
+          <div className="flex items-center gap-1.5">
+            {ROOT_PATHS.map((root) => {
+              const isActive = currentPath.startsWith(root.path);
+              return (
+                <Button
+                  key={root.path}
+                  type="button"
+                  variant={isActive ? "default" : "outline"}
+                  size="sm"
+                  className="text-xs h-7 px-2.5"
+                  onClick={() => {
+                    setCurrentPath(root.path);
+                    fetchDirectory(root.path);
+                  }}
+                >
+                  <Folder className="h-3 w-3 mr-1" />
+                  {root.label}
+                </Button>
+              );
+            })}
+          </div>
+
           {/* Current Path */}
           <div className="flex items-center gap-2">
             <Button

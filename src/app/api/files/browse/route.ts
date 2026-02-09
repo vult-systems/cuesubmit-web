@@ -4,39 +4,68 @@ import fs from "fs/promises";
 import path from "path";
 
 // Path translation between UNC and Linux mount
-const LINUX_PATH = process.env.RENDER_REPO_PATH || "/mnt/RenderOutputRepo";
-// Hardcoded UNC path (avoiding YAML env var escaping issues)
-const UNC_PATH = String.raw`\\REDACTED_IP\RenderOutputRepo`;
+const RENDER_OUTPUT_LINUX = process.env.RENDER_REPO_PATH || "/mnt/RenderOutputRepo";
+const RENDER_SOURCE_LINUX = process.env.RENDER_SOURCE_PATH || "/mnt/RenderSourceRepository";
+
+const RENDER_OUTPUT_UNC = String.raw`\\REDACTED_IP\RenderOutputRepo`;
+const RENDER_SOURCE_UNC = String.raw`\\REDACTED_IP\RenderSourceRepository`;
+
+// All allowed path mappings
+const PATH_MAPPINGS = [
+  { unc: RENDER_OUTPUT_UNC, linux: RENDER_OUTPUT_LINUX },
+  { unc: RENDER_SOURCE_UNC, linux: RENDER_SOURCE_LINUX },
+];
 
 // Convert UNC path to Linux path for filesystem access
 function uncToLinux(uncPath: string): string {
-  // Decode URI components first
   const decoded = decodeURIComponent(uncPath);
-  
-  // Normalize backslashes and remove trailing slashes
   const normalized = decoded.replace(/\\/g, "/").replace(/\/+$/, "");
-  const uncNormalized = UNC_PATH.replace(/\\/g, "/");
-  
-  if (normalized.startsWith(uncNormalized)) {
-    return normalized.replace(uncNormalized, LINUX_PATH);
+
+  for (const mapping of PATH_MAPPINGS) {
+    const uncNorm = mapping.unc.replace(/\\/g, "/");
+    if (normalized.startsWith(uncNorm)) {
+      return normalized.replace(uncNorm, mapping.linux);
+    }
+    // Handle //ip/share format
+    const slashUncNorm = "//" + uncNorm.replace(/^\/+/, "");
+    if (normalized.startsWith(slashUncNorm)) {
+      return normalized.replace(slashUncNorm, mapping.linux);
+    }
   }
+
   // Already a Linux path
-  if (normalized.startsWith(LINUX_PATH)) {
-    return normalized;
-  }
-  // Handle case where path starts with just the share name without full UNC
-  if (normalized.startsWith("//REDACTED_IP/RenderOutputRepo")) {
-    return normalized.replace("//REDACTED_IP/RenderOutputRepo", LINUX_PATH);
+  for (const mapping of PATH_MAPPINGS) {
+    if (normalized.startsWith(mapping.linux)) {
+      return normalized;
+    }
   }
   return normalized;
 }
 
 // Convert Linux path back to UNC for display
 function linuxToUnc(linuxPath: string): string {
-  if (linuxPath.startsWith(LINUX_PATH)) {
-    return linuxPath.replace(LINUX_PATH, UNC_PATH).replace(/\//g, "\\");
+  for (const mapping of PATH_MAPPINGS) {
+    if (linuxPath.startsWith(mapping.linux)) {
+      return linuxPath.replace(mapping.linux, mapping.unc).replace(/\//g, "\\");
+    }
   }
   return linuxPath;
+}
+
+// Check if a linux path is within any allowed base path
+function isAllowedPath(linuxPath: string): boolean {
+  const normalized = linuxPath.replace(/\/+$/, "");
+  return PATH_MAPPINGS.some(m => normalized.startsWith(m.linux.replace(/\/+$/, "")));
+}
+
+// Get the base linux path for a given linux path
+function getBasePath(linuxPath: string): string {
+  for (const mapping of PATH_MAPPINGS) {
+    if (linuxPath.startsWith(mapping.linux)) {
+      return mapping.linux;
+    }
+  }
+  return RENDER_OUTPUT_LINUX;
 }
 
 export async function GET(request: Request) {
@@ -47,19 +76,18 @@ export async function GET(request: Request) {
     }
 
     const { searchParams } = new URL(request.url);
-    const requestedPath = searchParams.get("path") || UNC_PATH;
+    const requestedPath = searchParams.get("path") || RENDER_OUTPUT_UNC;
 
     // Convert to Linux path for filesystem access
     const linuxPath = uncToLinux(requestedPath);
 
-    // Security: Ensure path is within allowed base path
-    // Also normalize the base path comparison
-    const normalizedLinux = linuxPath.replace(/\/+$/, "");
-    const normalizedBase = LINUX_PATH.replace(/\/+$/, "");
-    if (!normalizedLinux.startsWith(normalizedBase)) {
+    // Security: Ensure path is within an allowed base path
+    if (!isAllowedPath(linuxPath)) {
       console.error("Access denied - path:", requestedPath, "-> linux:", linuxPath);
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
+
+    const basePath = getBasePath(linuxPath);
 
     const entries = await fs.readdir(linuxPath, { withFileTypes: true });
     
@@ -81,8 +109,8 @@ export async function GET(request: Request) {
         return a.name.localeCompare(b.name);
       });
 
-    // Calculate parent path
-    const parentLinuxPath = linuxPath !== LINUX_PATH ? path.posix.dirname(linuxPath) : null;
+    // Calculate parent path (don't go above the base path)
+    const parentLinuxPath = linuxPath !== basePath ? path.posix.dirname(linuxPath) : null;
     const parentUncPath = parentLinuxPath ? linuxToUnc(parentLinuxPath) : null;
 
     return NextResponse.json({

@@ -114,8 +114,8 @@ const defaultValues: FormData = {
   renderer: "arnold",
   version: "2026",
   projectPath: "",
-  sceneFile: "\\\\REDACTED_IP\\RenderOutputRepo\\",
-  outputPath: "\\\\REDACTED_IP\\RenderOutputRepo\\",
+  sceneFile: "",
+  outputPath: "",
   useRenderLayer: false,
   renderLayer: "",
   useCamera: false,
@@ -721,7 +721,7 @@ export default function SubmitPage() {
                 <div className="flex gap-1">
                   <Input
                     {...register("sceneFile")}
-                    placeholder="\\REDACTED_IP\RenderOutputRepo\project\scene.ma"
+                    placeholder="Browse or paste UNC path"
                     className="font-mono text-xs"
                   />
                   <Button
@@ -740,7 +740,7 @@ export default function SubmitPage() {
                 <div className="flex gap-1">
                   <Input
                     {...register("outputPath")}
-                    placeholder="\\REDACTED_IP\RenderOutputRepo\project\renders\\"
+                    placeholder="Browse or paste UNC path"
                     className="font-mono text-xs"
                   />
                   <Button
