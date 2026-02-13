@@ -320,8 +320,12 @@ export async function retryFrames(
   frameIds?: string[]
 ): Promise<void> {
   const request: Record<string, unknown> = { job: { id: jobId } };
-  if (frameIds) {
+  if (frameIds && frameIds.length > 0) {
+    // Retry specific frames by ID
     request.req = { ids: frameIds };
+  } else {
+    // Retry only DEAD frames (FrameState.DEAD = 5)
+    request.req = { states: { frame_states: [5] } };
   }
   await gatewayCall('job.JobInterface', 'RetryFrames', request);
 }
@@ -331,8 +335,12 @@ export async function eatFrames(
   frameIds?: string[]
 ): Promise<void> {
   const request: Record<string, unknown> = { job: { id: jobId } };
-  if (frameIds) {
+  if (frameIds && frameIds.length > 0) {
+    // Eat specific frames by ID
     request.req = { ids: frameIds };
+  } else {
+    // Eat only DEAD frames (FrameState.DEAD = 5)
+    request.req = { states: { frame_states: [5] } };
   }
   await gatewayCall('job.JobInterface', 'EatFrames', request);
 }
