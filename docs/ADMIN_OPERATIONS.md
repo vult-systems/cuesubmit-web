@@ -250,6 +250,14 @@ node -e "const db=require('better-sqlite3')('./data/cuesubmit.db'); console.log(
 
 11. **Shows MUST be created through the API, not SQL** — Cuebot caches shows in memory. Direct SQL `INSERT INTO show` creates a row the database can see but cuebot (and therefore the gateway, the web UI, and all gRPC clients) cannot. Even restarting cuebot won't reliably pick up a show that was inserted without the full gRPC initialization flow (default folder, default filters, etc.). Always use `show.ShowInterface/CreateShow` via the REST gateway (see below). DB-level settings (subscriptions, service overrides, folder priorities, semester metadata) are fine to apply via SQL *after* the show exists in cuebot.
 
+12. **"Job is already pending" on resubmit** — OpenCue rejects duplicate job names. If a user gets `Gateway error: 500` with message `Failed to add job to launch queue: The job <name> is already pending`, it means a job with the same name is still in the queue (running, waiting, or dead but not finished). The user must kill/eat the existing job first, or change parameters that affect the job name (scene file, shot code) to produce a unique name.
+
+13. **Scene file path must include extension** — The submit form allows manual entry of scene file paths. If the user omits the `.ma`/`.mb` extension, Maya will fail with `File not found` and RQD reports exit code **211** (Maya exit 209). The file browser dialog always includes extensions; this only happens with manual/pasted paths.
+
+14. **Arnold resolution override needs `-ard`** — When overriding resolution with `-x`/`-y`, Arnold uses the scene file's original device aspect ratio, causing skewed renders. The submit form now automatically appends `-ard <width/height>` when Arnold is the renderer and resolution override is enabled.
+
+15. **Exit code 211 / Signal 83** — This is RQD's wrapper exit code when Maya crashes or can't load. Check the `.rqlog` file for the actual Maya error. Common causes: missing scene file (no extension), missing textures, license server down. Logs are at `/angd_server_pool/renderRepo/OpenCue/Logs/<show>/<shot>/logs/<jobdir>/`.
+
 ---
 
 ## Create a New Show (End-to-End)
