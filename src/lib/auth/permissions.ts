@@ -11,12 +11,14 @@ export type Permission =
   | 'view_own'
   | 'lock_hosts'
   | 'manage_hosts'
-  | 'manage_shows';
+  | 'manage_shows'
+  | 'manage_productions'
+  | 'view_productions';
 
 export const permissions: Record<Role, Permission[]> = {
-  admin: ['submit', 'kill', 'pause', 'retry', 'eat', 'manage_users', 'view_all', 'lock_hosts', 'manage_hosts', 'manage_shows'],
-  manager: ['submit', 'kill', 'pause', 'retry', 'eat', 'view_all', 'lock_hosts', 'manage_hosts', 'manage_shows'],
-  student: ['submit', 'kill', 'pause', 'retry', 'eat', 'view_own'],
+  admin: ['submit', 'kill', 'pause', 'retry', 'eat', 'manage_users', 'view_all', 'lock_hosts', 'manage_hosts', 'manage_shows', 'manage_productions', 'view_productions'],
+  manager: ['submit', 'kill', 'pause', 'retry', 'eat', 'view_all', 'lock_hosts', 'manage_hosts', 'manage_shows', 'manage_productions', 'view_productions'],
+  student: ['submit', 'kill', 'pause', 'retry', 'eat', 'view_own', 'view_productions'],
 };
 
 export function hasPermission(role: Role, permission: Permission): boolean {

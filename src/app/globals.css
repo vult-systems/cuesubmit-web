@@ -370,6 +370,29 @@
     50% { background-position: 100% 50%; }
   }
 
+  @keyframes gauge-draw {
+    to { stroke-dashoffset: 0; }
+  }
+
+  @keyframes fade-in {
+    to { opacity: 1; }
+  }
+
+  @keyframes sankey-flow-in {
+    from { opacity: 0; transform: translateX(-8px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  @keyframes gauge-breathe {
+    0%, 100% { opacity: 0.08; }
+    50% { opacity: 0.2; }
+  }
+
+  @keyframes sankey-node-pulse {
+    0%, 100% { opacity: 0.9; }
+    50% { opacity: 1; }
+  }
+
   /* ========== ANIMATION CLASSES ========== */
   
   .animate-fade-up {

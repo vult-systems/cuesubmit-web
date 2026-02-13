@@ -32,6 +32,7 @@ const navItems = [
   { href: "/submit", label: "Submit" },
   { href: "/hosts", label: "Hosts" },
   { href: "/shows", label: "Shows" },
+  { href: "/production", label: "Production" },
 ];
 
 export function Header({ user, mode }: Readonly<HeaderProps>) {

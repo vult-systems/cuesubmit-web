@@ -5,12 +5,19 @@ import bcrypt from 'bcrypt';
 const DB_PATH = process.env.DATABASE_PATH || path.join(process.cwd(), 'data', 'cuesubmit.db');
 
 let db: Database.Database | null = null;
+let productionTablesInitialized = false;
 
 export function getDb(): Database.Database {
   if (!db) {
     db = new Database(DB_PATH);
     db.pragma('journal_mode = WAL');
     initializeDatabase(db);
+  }
+  // Lazy-initialize production tables on first access
+  if (!productionTablesInitialized) {
+    productionTablesInitialized = true;
+    // Dynamic import to avoid circular dependency
+    import('./production').then(m => m.initializeProductionTables());
   }
   return db;
 }
