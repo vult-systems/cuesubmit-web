@@ -31,6 +31,11 @@ Quick-reference for CueSubmit Web + OpenCue administration.
 ssh REDACTED_USER@REDACTED_IP "cd /home/perforce/cuesubmit-web && git pull && docker compose build --no-cache && docker compose up -d"
 ```
 
+After deploy, seed production tracking data if this is the first time (see [Production Tracking](#production-tracking) section below):
+```bash
+ssh REDACTED_USER@REDACTED_IP "docker exec cuesubmit-web node -e \"fetch('http://localhost:3000/api/production/acts').then(r=>r.json()).then(d=>console.log(d.acts?.length?'Production data exists':'Need to seed'))\""
+```
+
 Verify:
 ```bash
 ssh REDACTED_USER@REDACTED_IP "docker ps --filter name=cuesubmit-web --format '{{.Status}}'"
@@ -207,6 +212,116 @@ docker exec cuesubmit-web ls /mnt/RenderSourceRepository/
 # Test frame preview API (get a JWT first, see Gateway API section)
 curl -s "http://127.0.0.1:3000/api/files/frame-preview?dir=//REDACTED_IP/RenderOutputRepo/path/to/output&frame=1" \
   -H "Cookie: session=<session_cookie>"
+```
+
+---
+
+## Production Tracking (Nightlight Guardians)
+
+The `/production` page provides shot tracking with inline editing, pipeline status bars, and completion visualizations (gauge + Sankey chart).
+
+### Architecture
+
+- **SQLite tables** — `prod_acts`, `prod_shots`, `prod_shot_statuses`, `prod_status_log` — auto-created on first API access via `initializeProductionTables()` in `src/lib/db/production.ts`. No manual migration needed.
+- **Thumbnails** — stored at `data/thumbnails/{act_code}/{shot_code}.jpg` inside the `cuesubmit-data` Docker volume. Max 5MB, PNG/JPG only.
+- **Permissions** — Any authenticated user can change department statuses. Only `admin`/`manager` roles can edit shot metadata (code, frames) and upload thumbnails.
+
+### SQLite Tables
+
+| Table | Purpose |
+|-------|---------|
+| `prod_acts` | Acts (act01, act02, act03) with sort order |
+| `prod_shots` | Shots per act (code, frames, thumbnail, priority, notes) |
+| `prod_shot_statuses` | Per-department status for each shot (7 depts × N shots) |
+| `prod_status_log` | Audit trail of every status change (who, when, from/to) |
+
+### Seed Data (First Deploy Only)
+
+Tables auto-create empty. To populate with Nightlight Guardians test data (3 acts, 19 shots, 133 dept statuses):
+
+**Option A — Local (before Docker build):**
+```bash
+node scripts/migrate-production.js
+node scripts/seed-production.js
+```
+Then the data is in `data/cuesubmit.db` — copy it into the Docker volume.
+
+**Option B — Inside Docker (after deploy):**
+```bash
+# Copy scripts into running container
+ssh REDACTED_USER@REDACTED_IP "cd /home/perforce/cuesubmit-web && \
+  docker cp scripts/migrate-production.js cuesubmit-web:/app/ && \
+  docker cp scripts/seed-production.js cuesubmit-web:/app/ && \
+  docker exec cuesubmit-web node /app/migrate-production.js && \
+  docker exec cuesubmit-web node /app/seed-production.js"
+```
+
+The seed script is idempotent — it skips if acts already exist.
+
+### API Routes
+
+| Route | Method | Auth | Description |
+|-------|--------|------|-------------|
+| `/api/production/acts` | GET | any | List all acts |
+| `/api/production/acts` | POST | manage | Create act |
+| `/api/production/acts/[id]` | GET/PUT/DELETE | manage | Act CRUD |
+| `/api/production/shots` | GET | any | List shots (with dept statuses) |
+| `/api/production/shots` | POST | manage | Create shot |
+| `/api/production/shots/[id]` | GET/PUT/DELETE | manage | Shot CRUD |
+| `/api/production/shots/[id]/status` | PUT | any | Update dept status |
+| `/api/production/shots/[id]/thumbnail` | POST | manage | Upload thumbnail |
+| `/api/production/bulk-status` | PUT | any | Bulk status update |
+| `/api/production/thumbnails/[...path]` | GET | any | Serve thumbnail image |
+
+### Inline Editing (Production Page)
+
+- **Click thumbnail** → file picker → uploads to `data/thumbnails/{act}/{shot}.jpg`
+- **Click shot code** → inline text edit (prefix shows act code, only shot code is editable)
+- **Click frame numbers** → inline number edit
+- **Click pipeline segment** → dropdown to change department status
+- All edits are optimistic (UI updates immediately, rolls back on error)
+
+### Query Production Data
+
+```bash
+# Inside Docker
+docker exec cuesubmit-web node -e "
+  const db=require('better-sqlite3')('/app/data/cuesubmit.db');
+  const acts=db.prepare('SELECT * FROM prod_acts ORDER BY sort_order').all();
+  console.table(acts);
+  const shots=db.prepare('SELECT COUNT(*) as cnt FROM prod_shots').get();
+  console.log('Total shots:', shots.cnt);
+  const statuses=db.prepare('SELECT status, COUNT(*) as cnt FROM prod_shot_statuses GROUP BY status ORDER BY cnt DESC').all();
+  console.table(statuses);
+"
+
+# Locally
+node -e "const db=require('better-sqlite3')('./data/cuesubmit.db'); console.table(db.prepare('SELECT * FROM prod_acts ORDER BY sort_order').all());"
+```
+
+### Reset Production Data
+
+```bash
+# Inside Docker — wipe all production tracking data
+docker exec cuesubmit-web node -e "
+  const db=require('better-sqlite3')('/app/data/cuesubmit.db');
+  db.exec('DELETE FROM prod_status_log');
+  db.exec('DELETE FROM prod_shot_statuses');
+  db.exec('DELETE FROM prod_shots');
+  db.exec('DELETE FROM prod_acts');
+  console.log('Production data cleared');
+"
+# Then re-seed if needed
+```
+
+### Thumbnails
+
+```bash
+# Check thumbnails directory inside Docker
+docker exec cuesubmit-web ls -la /app/data/thumbnails/
+
+# Thumbnails persist in the cuesubmit-data Docker volume
+# They survive container rebuilds but NOT volume deletion
 ```
 
 ---
