@@ -1124,18 +1124,16 @@ export default function ProductionPage() {
                     {canManage && (
                       <div className="flex items-center gap-1">
                         <ActEditButton act={act} onSave={handleUpdateAct} />
-                        <Tooltip>
-                          <TooltipProvider delayDuration={200}>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-6 w-6 text-text-muted hover:text-red-500" onClick={(e) => { e.stopPropagation(); handleDeleteAct(act.id); }}>
-                                  <Trash2 className="h-3 w-3" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent side="top" className="text-xs">Delete Act</TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        </Tooltip>
+                        <TooltipProvider delayDuration={200}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-6 w-6 text-text-muted hover:text-red-500" onClick={(e) => { e.stopPropagation(); handleDeleteAct(act.id); }}>
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="text-xs">Delete Act</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       </div>
                     )}
                     <div className="w-24">
