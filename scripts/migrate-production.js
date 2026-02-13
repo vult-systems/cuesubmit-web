@@ -66,7 +66,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS prod_shot_statuses (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     shot_id INTEGER NOT NULL REFERENCES prod_shots(id) ON DELETE CASCADE,
-    department TEXT NOT NULL CHECK (department IN ('modeling', 'rigging', 'texturing', 'animation', 'lighting', 'rendering', 'comp')),
+    department TEXT NOT NULL CHECK (department IN ('lookdev', 'blocking', 'spline', 'polish', 'lighting', 'rendering', 'comp')),
     status TEXT NOT NULL DEFAULT 'not-started' CHECK (status IN ('not-started', 'in-progress', 'review', 'approved', 'omit')),
     assignee TEXT,
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),

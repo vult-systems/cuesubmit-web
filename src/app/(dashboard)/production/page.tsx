@@ -12,6 +12,11 @@ import {
   Image as ImageIcon,
   Upload,
   Loader2,
+  Plus,
+  Trash2,
+  Pencil,
+  Check,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -42,7 +47,7 @@ import { accentColors } from "@/lib/accent-colors";
 
 // ─── Types ─────────────────────────────────────────────
 
-type Department = "modeling" | "rigging" | "texturing" | "animation" | "lighting" | "rendering" | "comp";
+type Department = "lookdev" | "blocking" | "spline" | "polish" | "lighting" | "rendering" | "comp";
 type Status = "not-started" | "in-progress" | "review" | "approved" | "omit";
 type Priority = "low" | "medium" | "high" | "critical";
 
@@ -81,27 +86,27 @@ interface Act {
 
 // ─── Constants ─────────────────────────────────────────
 
-const DEPARTMENTS: Department[] = ["modeling", "rigging", "texturing", "animation", "lighting", "rendering", "comp"];
+const DEPARTMENTS: Department[] = ["lookdev", "blocking", "spline", "polish", "lighting", "rendering", "comp"];
 const STATUSES: Status[] = ["not-started", "in-progress", "review", "approved", "omit"];
 
 const DEPT_LABELS: Record<Department, string> = {
-  modeling: "Model",
-  rigging: "Rig",
-  texturing: "Tex",
-  animation: "Anim",
+  lookdev: "LkDv",
+  blocking: "Block",
+  spline: "Spln",
+  polish: "Pol",
   lighting: "Light",
-  rendering: "Render",
+  rendering: "Rndr",
   comp: "Comp",
 };
 
 const DEPT_FULL_LABELS: Record<Department, string> = {
-  modeling: "Modeling",
-  rigging: "Rigging",
-  texturing: "Texturing",
-  animation: "Animation",
+  lookdev: "Look Dev",
+  blocking: "Blocking",
+  spline: "Spline",
+  polish: "Polish",
   lighting: "Lighting",
   rendering: "Rendering",
-  comp: "Compositing",
+  comp: "Comp",
 };
 
 const STATUS_LABELS: Record<Status, string> = {
@@ -394,7 +399,7 @@ export default function ProductionPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [actFilter, setActFilter] = useState<string>("all");
   const [sortField, setSortField] = useState<SortField>("code");
-  const [sortDepartment, setSortDepartment] = useState<Department>("animation");
+  const [sortDepartment, setSortDepartment] = useState<Department>("blocking");
   const [viewMode, setViewMode] = useState<ViewMode>("table");
 
   // ─── Data Fetching ──────────────────────────────────
@@ -508,6 +513,106 @@ export default function ProductionPage() {
     toast.success("Thumbnail uploaded");
   }, []);
 
+  // ─── Act Management ─────────────────────────────────
+
+  const handleCreateAct = useCallback(async (code: string, name: string) => {
+    try {
+      const res = await fetch("/api/production/acts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, name }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to create act");
+      }
+      toast.success(`Created ${code}`);
+      fetchData();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to create act");
+    }
+  }, [fetchData]);
+
+  const handleUpdateAct = useCallback(async (actId: number, updates: { code?: string; name?: string }) => {
+    try {
+      const res = await fetch(`/api/production/acts/${actId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to update act");
+      }
+      setActs(prev => prev.map(a => a.id === actId ? { ...a, ...updates } : a));
+      if (updates.name || updates.code) {
+        setShots(prev => prev.map(s => {
+          if (s.act_id !== actId) return s;
+          const newCode = updates.code ?? s.act_code;
+          return { ...s, act_code: newCode, act_name: updates.name ?? s.act_name, combined_code: `${newCode}_${s.code}` };
+        }));
+      }
+      toast.success("Act updated");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update act");
+      fetchData();
+    }
+  }, [fetchData]);
+
+  const handleDeleteAct = useCallback(async (actId: number) => {
+    const act = acts.find(a => a.id === actId);
+    if (!act) return;
+    if (!confirm(`Delete ${act.code} — ${act.name}? This will also delete all its shots.`)) return;
+    try {
+      const res = await fetch(`/api/production/acts/${actId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to delete act");
+      }
+      toast.success(`Deleted ${act.code}`);
+      fetchData();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete act");
+    }
+  }, [acts, fetchData]);
+
+  // ─── Shot Management ────────────────────────────────
+
+  const handleCreateShot = useCallback(async (actId: number, code: string) => {
+    try {
+      const res = await fetch("/api/production/shots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ act_id: actId, code }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to create shot");
+      }
+      toast.success(`Created ${code}`);
+      fetchData();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to create shot");
+    }
+  }, [fetchData]);
+
+  const handleDeleteShot = useCallback(async (shotId: number) => {
+    const shot = shots.find(s => s.id === shotId);
+    if (!shot) return;
+    if (!confirm(`Delete ${shot.combined_code}?`)) return;
+    try {
+      const res = await fetch(`/api/production/shots/${shotId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to delete shot");
+      }
+      toast.success(`Deleted ${shot.combined_code}`);
+      fetchData();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete shot");
+    }
+  }, [shots, fetchData]);
+
   // ─── Filtering & Sorting ────────────────────────────
 
   const filteredShots = useMemo(() => {
@@ -591,11 +696,14 @@ export default function ProductionPage() {
         <Film className="h-16 w-16 text-text-muted mb-6" />
         <h2 className="text-xl font-medium text-text-primary mb-2">No Production Data</h2>
         <p className="text-sm text-text-muted mb-8 text-center max-w-md">
-          Run the seed script to populate Nightlight Guardians test data.
+          Add your first act to start tracking, or run the seed script.
         </p>
-        <code className="text-xs bg-surface-muted px-3 py-2 rounded-lg text-text-secondary font-mono">
-          node scripts/seed-production.js
-        </code>
+        <div className="flex gap-3 items-center">
+          {canManage && <AddActButton onCreate={handleCreateAct} acts={acts} />}
+          <code className="text-xs bg-surface-muted px-3 py-2 rounded-lg text-text-secondary font-mono">
+            node scripts/seed-production.js
+          </code>
+        </div>
       </div>
     );
   }
@@ -614,6 +722,7 @@ export default function ProductionPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {canManage && <AddActButton onCreate={handleCreateAct} acts={acts} />}
           <Button onClick={fetchData} variant="ghost" size="sm" className="h-8 text-xs gap-1.5 text-text-muted">
             <RefreshCw className="h-3 w-3" />
             Refresh
@@ -1000,8 +1109,7 @@ export default function ProductionPage() {
         /* Grouped by act */
         <div className="space-y-4">
           {acts.map((act, actIdx) => {
-            const actShots = shotsByAct.get(act.code);
-            if (!actShots || actShots.length === 0) return null;
+            const actShots = shotsByAct.get(act.code) || [];
             const pct = getActCompletion(actShots);
             return (
               <GroupedSection
@@ -1012,17 +1120,44 @@ export default function ProductionPage() {
                 accentColors={actAccents[actIdx % actAccents.length]}
                 defaultOpen={true}
                 rightContent={
-                  <div className="w-24">
-                    <Progress value={pct} className="h-1.5" />
+                  <div className="flex items-center gap-2">
+                    {canManage && (
+                      <div className="flex items-center gap-1">
+                        <ActEditButton act={act} onSave={handleUpdateAct} />
+                        <Tooltip>
+                          <TooltipProvider delayDuration={200}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-6 w-6 text-text-muted hover:text-red-500" onClick={(e) => { e.stopPropagation(); handleDeleteAct(act.id); }}>
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="text-xs">Delete Act</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </Tooltip>
+                      </div>
+                    )}
+                    <div className="w-24">
+                      <Progress value={pct} className="h-1.5" />
+                    </div>
                   </div>
                 }
               >
                 <div className="p-2">
-                  {viewMode === "table" ? (
-                    <ShotTableView shots={actShots} canEdit={canEdit} canManage={canManage} onStatusChange={handleStatusChange} onUpdateShot={handleUpdateShot} onThumbnailUpload={handleThumbnailUpload} />
+                  {actShots.length > 0 ? (
+                    viewMode === "table" ? (
+                      <ShotTableView shots={actShots} canEdit={canEdit} canManage={canManage} onStatusChange={handleStatusChange} onUpdateShot={handleUpdateShot} onThumbnailUpload={handleThumbnailUpload} onDeleteShot={handleDeleteShot} />
+                    ) : (
+                      <ShotGridView shots={actShots} canEdit={canEdit} canManage={canManage} onStatusChange={handleStatusChange} onUpdateShot={handleUpdateShot} onThumbnailUpload={handleThumbnailUpload} onDeleteShot={handleDeleteShot} />
+                    )
                   ) : (
-                    <ShotGridView shots={actShots} canEdit={canEdit} canManage={canManage} onStatusChange={handleStatusChange} onUpdateShot={handleUpdateShot} onThumbnailUpload={handleThumbnailUpload} />
+                    <div className="flex flex-col items-center py-8 text-text-muted">
+                      <Film className="h-8 w-8 opacity-30 mb-2" />
+                      <p className="text-xs">No shots in this act yet</p>
+                    </div>
                   )}
+                  {canManage && <AddShotButton actId={act.id} actCode={act.code} shots={actShots} onCreate={handleCreateShot} />}
                 </div>
               </GroupedSection>
             );
@@ -1031,9 +1166,9 @@ export default function ProductionPage() {
       ) : (
         /* Flat (filtered to one act) */
         viewMode === "table" ? (
-          <ShotTableView shots={filteredShots} canEdit={canEdit} canManage={canManage} onStatusChange={handleStatusChange} onUpdateShot={handleUpdateShot} onThumbnailUpload={handleThumbnailUpload} />
+          <ShotTableView shots={filteredShots} canEdit={canEdit} canManage={canManage} onStatusChange={handleStatusChange} onUpdateShot={handleUpdateShot} onThumbnailUpload={handleThumbnailUpload} onDeleteShot={handleDeleteShot} />
         ) : (
-          <ShotGridView shots={filteredShots} canEdit={canEdit} canManage={canManage} onStatusChange={handleStatusChange} onUpdateShot={handleUpdateShot} onThumbnailUpload={handleThumbnailUpload} />
+          <ShotGridView shots={filteredShots} canEdit={canEdit} canManage={canManage} onStatusChange={handleStatusChange} onUpdateShot={handleUpdateShot} onThumbnailUpload={handleThumbnailUpload} onDeleteShot={handleDeleteShot} />
         )
       )}
 
@@ -1047,13 +1182,14 @@ export default function ProductionPage() {
 
 // ─── Component: Shot Table View ───────────────────────
 
-function ShotTableView({ shots, canEdit, canManage, onStatusChange, onUpdateShot, onThumbnailUpload }: {
+function ShotTableView({ shots, canEdit, canManage, onStatusChange, onUpdateShot, onThumbnailUpload, onDeleteShot }: {
   shots: Shot[];
   canEdit: boolean;
   canManage: boolean;
   onStatusChange: (shotId: number, dept: Department, status: Status) => void;
   onUpdateShot: (shotId: number, updates: Record<string, string | number>) => void;
   onThumbnailUpload: (shotId: number, file: File) => Promise<void>;
+  onDeleteShot?: (shotId: number) => void;
 }) {
   return (
     <div className="rounded-xl border border-neutral-200/80 dark:border-white/6 bg-white/80 dark:bg-neutral-950/60 backdrop-blur-xl overflow-hidden">
@@ -1064,6 +1200,7 @@ function ShotTableView({ shots, canEdit, canManage, onStatusChange, onUpdateShot
           <col style={{ width: '80px' }} />
           <col />
           <col style={{ width: '144px' }} />
+          {canManage && <col style={{ width: '40px' }} />}
         </colgroup>
         <thead>
           <tr className="bg-neutral-50/50 dark:bg-white/2 border-b border-neutral-200/60 dark:border-white/5">
@@ -1072,6 +1209,7 @@ function ShotTableView({ shots, canEdit, canManage, onStatusChange, onUpdateShot
             <th className="text-left py-2.5 px-3 font-medium text-text-muted">Frames</th>
             <th className="text-left py-2.5 px-3 font-medium text-text-muted">Pipeline</th>
             <th className="text-right py-2.5 px-3 font-medium text-text-muted">Done</th>
+            {canManage && <th />}
           </tr>
         </thead>
         <tbody>
@@ -1142,6 +1280,13 @@ function ShotTableView({ shots, canEdit, canManage, onStatusChange, onUpdateShot
                     <span className="text-[11px] font-medium text-text-muted w-8 text-right">{completion}%</span>
                   </div>
                 </td>
+                {canManage && onDeleteShot && (
+                  <td className="py-2 px-1 align-middle text-center">
+                    <Button variant="ghost" size="icon" className="h-6 w-6 text-text-muted hover:text-red-500" onClick={() => onDeleteShot(shot.id)}>
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </td>
+                )}
               </tr>
             );
           })}
@@ -1153,13 +1298,14 @@ function ShotTableView({ shots, canEdit, canManage, onStatusChange, onUpdateShot
 
 // ─── Component: Shot Grid View ────────────────────────
 
-function ShotGridView({ shots, canEdit, canManage, onStatusChange, onUpdateShot, onThumbnailUpload }: {
+function ShotGridView({ shots, canEdit, canManage, onStatusChange, onUpdateShot, onThumbnailUpload, onDeleteShot }: {
   shots: Shot[];
   canEdit: boolean;
   canManage: boolean;
   onStatusChange: (shotId: number, dept: Department, status: Status) => void;
   onUpdateShot: (shotId: number, updates: Record<string, string | number>) => void;
   onThumbnailUpload: (shotId: number, file: File) => Promise<void>;
+  onDeleteShot?: (shotId: number) => void;
 }) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
@@ -1168,8 +1314,16 @@ function ShotGridView({ shots, canEdit, canManage, onStatusChange, onUpdateShot,
         return (
           <div
             key={shot.id}
-            className="rounded-xl border border-neutral-200/80 dark:border-white/6 bg-white/80 dark:bg-neutral-950/60 backdrop-blur-xl overflow-hidden transition-all hover:border-neutral-300 dark:hover:border-white/10"
+            className="rounded-xl border border-neutral-200/80 dark:border-white/6 bg-white/80 dark:bg-neutral-950/60 backdrop-blur-xl overflow-hidden transition-all hover:border-neutral-300 dark:hover:border-white/10 group/card relative"
           >
+            {canManage && onDeleteShot && (
+              <Button variant="ghost" size="icon"
+                className="absolute top-1 right-1 z-10 h-5 w-5 bg-black/40 hover:bg-red-500/80 text-white opacity-0 group-hover/card:opacity-100 transition-opacity rounded-full"
+                onClick={() => onDeleteShot(shot.id)}
+              >
+                <Trash2 className="h-2.5 w-2.5" />
+              </Button>
+            )}
             {/* Thumbnail */}
             <ShotThumbnail shot={shot} canManage={canManage} onUpload={onThumbnailUpload} />
 
@@ -1208,5 +1362,146 @@ function ShotGridView({ shots, canEdit, canManage, onStatusChange, onUpdateShot,
         );
       })}
     </div>
+  );
+}
+
+// ─── Component: Add Act Button ────────────────────────
+
+function AddActButton({ onCreate, acts }: {
+  onCreate: (code: string, name: string) => void;
+  acts: Act[];
+}) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const nameRef = useRef<HTMLInputElement>(null);
+
+  const nextCode = useMemo(() => {
+    const nums = acts.map(a => parseInt(a.code.replace("act", ""), 10)).filter(n => !isNaN(n));
+    const next = nums.length > 0 ? Math.max(...nums) + 1 : 1;
+    return `act${next.toString().padStart(2, "0")}`;
+  }, [acts]);
+
+  useEffect(() => {
+    if (open) setTimeout(() => nameRef.current?.focus(), 50);
+  }, [open]);
+
+  const submit = () => {
+    if (!name.trim()) return;
+    onCreate(nextCode, name.trim());
+    setName("");
+    setOpen(false);
+  };
+
+  if (!open) {
+    return (
+      <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => setOpen(true)}>
+        <Plus className="h-3 w-3" /> Add Act
+      </Button>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="text-xs font-mono text-text-muted">{nextCode}</span>
+      <Input
+        ref={nameRef}
+        value={name}
+        onChange={e => setName(e.target.value)}
+        onKeyDown={e => { if (e.key === "Enter") submit(); if (e.key === "Escape") { setOpen(false); setName(""); } }}
+        placeholder="Act name..."
+        className="h-7 w-40 text-xs"
+      />
+      <Button variant="ghost" size="icon" className="h-6 w-6 text-emerald-500" onClick={submit} disabled={!name.trim()}>
+        <Check className="h-3 w-3" />
+      </Button>
+      <Button variant="ghost" size="icon" className="h-6 w-6 text-text-muted" onClick={() => { setOpen(false); setName(""); }}>
+        <X className="h-3 w-3" />
+      </Button>
+    </div>
+  );
+}
+
+// ─── Component: Add Shot Button ───────────────────────
+
+function AddShotButton({ actId, actCode, shots, onCreate }: {
+  actId: number;
+  actCode: string;
+  shots: Shot[];
+  onCreate: (actId: number, code: string) => void;
+}) {
+  const nextCode = useMemo(() => {
+    const nums = shots
+      .filter(s => s.act_id === actId)
+      .map(s => parseInt(s.code.replace("shot", ""), 10))
+      .filter(n => !isNaN(n));
+    const next = nums.length > 0 ? Math.max(...nums) + 1 : 1;
+    return `shot${next.toString().padStart(2, "0")}`;
+  }, [shots, actId]);
+
+  return (
+    <div className="flex justify-center pt-2 pb-1">
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 text-xs gap-1.5 text-text-muted hover:text-text-primary"
+        onClick={() => onCreate(actId, nextCode)}
+      >
+        <Plus className="h-3 w-3" /> Add Shot ({actCode}_{nextCode})
+      </Button>
+    </div>
+  );
+}
+
+// ─── Component: Act Edit Button ───────────────────────
+
+function ActEditButton({ act, onSave }: {
+  act: Act;
+  onSave: (actId: number, updates: { code?: string; name?: string }) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(act.name);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) {
+      setName(act.name);
+      setTimeout(() => { inputRef.current?.focus(); inputRef.current?.select(); }, 50);
+    }
+  }, [editing, act.name]);
+
+  const save = () => {
+    const trimmed = name.trim();
+    if (trimmed && trimmed !== act.name) {
+      onSave(act.id, { name: trimmed });
+    }
+    setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+        <Input
+          ref={inputRef}
+          value={name}
+          onChange={e => setName(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter") save(); if (e.key === "Escape") setEditing(false); }}
+          onBlur={save}
+          className="h-6 w-36 text-xs"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button variant="ghost" size="icon" className="h-6 w-6 text-text-muted hover:text-text-primary" onClick={(e) => { e.stopPropagation(); setEditing(true); }}>
+            <Pencil className="h-3 w-3" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="text-xs">Edit Name</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }

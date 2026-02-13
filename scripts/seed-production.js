@@ -27,7 +27,7 @@ if (existing.cnt > 0) {
   process.exit(0);
 }
 
-const DEPARTMENTS = ['modeling', 'rigging', 'texturing', 'animation', 'lighting', 'rendering', 'comp'];
+const DEPARTMENTS = ['lookdev', 'blocking', 'spline', 'polish', 'lighting', 'rendering', 'comp'];
 
 const ACTS = [
   { code: 'act01', name: 'The Awakening', sort_order: 1 },
@@ -134,9 +134,7 @@ const seedAll = db.transaction(() => {
       const shotId = shotResult.lastInsertRowid;
 
       for (let di = 0; di < DEPARTMENTS.length; di++) {
-        const status = pickStatus(ai, di);
-        const assignee = status !== 'not-started' ? pickArtist() : null;
-        insertStatus.run(shotId, DEPARTMENTS[di], status, assignee);
+        insertStatus.run(shotId, DEPARTMENTS[di], 'not-started', null);
       }
     }
   }

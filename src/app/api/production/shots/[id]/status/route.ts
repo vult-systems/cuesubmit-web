@@ -26,7 +26,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       return NextResponse.json({ error: "department and status are required" }, { status: 400 });
     }
     if (!isValidDepartment(department)) {
-      return NextResponse.json({ error: `Invalid department. Must be one of: modeling, rigging, texturing, animation, lighting, rendering, comp` }, { status: 400 });
+      return NextResponse.json({ error: `Invalid department. Must be one of: lookdev, blocking, spline, polish, lighting, rendering, comp` }, { status: 400 });
     }
     if (!isValidStatus(status)) {
       return NextResponse.json({ error: `Invalid status. Must be one of: not-started, in-progress, review, revision, approved, final, omit` }, { status: 400 });
