@@ -272,7 +272,7 @@ export default function SubmitPage() {
         const sessionResponse = await fetch("/api/auth/session");
         const sessionData = await sessionResponse.json();
         if (sessionResponse.ok && sessionData.isLoggedIn && sessionData.user?.username) {
-          setValue("user", sessionData.user.username);
+          setValue("user", sessionData.user.username, { shouldValidate: true });
         }
       } catch (error) {
         console.error("Failed to fetch data:", error);
@@ -328,7 +328,7 @@ export default function SubmitPage() {
   useEffect(() => {
     const autoName = generateRenderedFrameName({ projectCode, department, sceneFile });
     if (autoName && !manualFrameName) {
-      setValue("renderedFrameName", autoName);
+      setValue("renderedFrameName", autoName, { shouldValidate: true });
     }
   }, [projectCode, department, sceneFile, manualFrameName, setValue]);
 
@@ -436,7 +436,7 @@ export default function SubmitPage() {
 
   return (
     <div className="pb-24">
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      <form id="submit-form" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -489,7 +489,7 @@ export default function SubmitPage() {
               </div>
               <div className="col-span-2 space-y-1">
                 <FieldLabel required accent="cool">Show</FieldLabel>
-                <Select onValueChange={(value) => setValue("show", value)}>
+                <Select onValueChange={(value) => setValue("show", value, { shouldValidate: true })}>
                   <SelectTrigger>
                     <SelectValue placeholder="Choose show" />
                   </SelectTrigger>
@@ -510,7 +510,7 @@ export default function SubmitPage() {
                   onChange={(e) => {
                     // Force uppercase
                     const value = e.target.value.toUpperCase().replaceAll(/[^A-Z]/g, "");
-                    setValue("projectCode", value);
+                    setValue("projectCode", value, { shouldValidate: true });
                   }}
                 />
               </div>
@@ -521,7 +521,7 @@ export default function SubmitPage() {
               <div className="col-span-3 space-y-1">
                 <FieldLabel required accent="cool">Scope</FieldLabel>
                 <Select onValueChange={(value) => {
-                  setValue("scope", value);
+                  setValue("scope", value, { shouldValidate: true });
                 }}>
                   <SelectTrigger>
                     <SelectValue placeholder="Choose" />
@@ -534,7 +534,7 @@ export default function SubmitPage() {
               </div>
               <div className="col-span-3 space-y-1">
                 <FieldLabel required accent="cool">Department</FieldLabel>
-                <Select onValueChange={(value) => setValue("department", value)}>
+                <Select onValueChange={(value) => setValue("department", value, { shouldValidate: true })}>
                   <SelectTrigger>
                     <SelectValue placeholder="Choose" />
                   </SelectTrigger>
@@ -557,12 +557,12 @@ export default function SubmitPage() {
                     <Checkbox
                       id="useAct"
                       checked={useAct}
-                      onCheckedChange={(checked) => setValue("useAct", !!checked)}
+                      onCheckedChange={(checked) => setValue("useAct", !!checked, { shouldValidate: true })}
                       className="border-neutral-300 dark:border-white/15 h-3.5 w-3.5 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
                     />
                     <FieldLabel htmlFor="useAct">Act</FieldLabel>
                   </div>
-                  <Select disabled={!useAct} onValueChange={(value) => setValue("act", value)}>
+                  <Select disabled={!useAct} onValueChange={(value) => setValue("act", value, { shouldValidate: true })}>
                     <SelectTrigger className="disabled:opacity-40">
                       <SelectValue placeholder="—" />
                     </SelectTrigger>
@@ -578,12 +578,12 @@ export default function SubmitPage() {
                     <Checkbox
                       id="useSequence"
                       checked={useSequence}
-                      onCheckedChange={(checked) => setValue("useSequence", !!checked)}
+                      onCheckedChange={(checked) => setValue("useSequence", !!checked, { shouldValidate: true })}
                       className="border-neutral-300 dark:border-white/15 h-3.5 w-3.5 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
                     />
                     <FieldLabel htmlFor="useSequence">Sequence</FieldLabel>
                   </div>
-                  <Select disabled={!useSequence} onValueChange={(value) => setValue("sequence", value)}>
+                  <Select disabled={!useSequence} onValueChange={(value) => setValue("sequence", value, { shouldValidate: true })}>
                     <SelectTrigger className="disabled:opacity-40">
                       <SelectValue placeholder="—" />
                     </SelectTrigger>
@@ -599,12 +599,12 @@ export default function SubmitPage() {
                     <Checkbox
                       id="useScene"
                       checked={useScene}
-                      onCheckedChange={(checked) => setValue("useScene", !!checked)}
+                      onCheckedChange={(checked) => setValue("useScene", !!checked, { shouldValidate: true })}
                       className="border-neutral-300 dark:border-white/15 h-3.5 w-3.5 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
                     />
                     <FieldLabel htmlFor="useScene">Scene</FieldLabel>
                   </div>
-                  <Select disabled={!useScene} onValueChange={(value) => setValue("scene", value)}>
+                  <Select disabled={!useScene} onValueChange={(value) => setValue("scene", value, { shouldValidate: true })}>
                     <SelectTrigger className="disabled:opacity-40">
                       <SelectValue placeholder="—" />
                     </SelectTrigger>
@@ -620,12 +620,12 @@ export default function SubmitPage() {
                     <Checkbox
                       id="useShot"
                       checked={useShot}
-                      onCheckedChange={(checked) => setValue("useShot", !!checked)}
+                      onCheckedChange={(checked) => setValue("useShot", !!checked, { shouldValidate: true })}
                       className="border-neutral-300 dark:border-white/15 h-3.5 w-3.5 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
                     />
                     <FieldLabel htmlFor="useShot">Shot</FieldLabel>
                   </div>
-                  <Select disabled={!useShot} onValueChange={(value) => setValue("shot", value)}>
+                  <Select disabled={!useShot} onValueChange={(value) => setValue("shot", value, { shouldValidate: true })}>
                     <SelectTrigger className="disabled:opacity-40">
                       <SelectValue placeholder="—" />
                     </SelectTrigger>
@@ -649,7 +649,7 @@ export default function SubmitPage() {
             <div className="grid grid-cols-6 gap-3">
               <div className="col-span-2 space-y-1">
                 <FieldLabel required accent="warm">Software</FieldLabel>
-                <Select defaultValue="maya" onValueChange={(value) => setValue("service", value)}>
+                <Select defaultValue="maya" onValueChange={(value) => setValue("service", value, { shouldValidate: true })}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -661,7 +661,7 @@ export default function SubmitPage() {
               </div>
               <div className="col-span-2 space-y-1">
                 <FieldLabel required accent="warm">Renderer</FieldLabel>
-                <Select defaultValue="arnold" onValueChange={(value) => setValue("renderer", value)}>
+                <Select defaultValue="arnold" onValueChange={(value) => setValue("renderer", value, { shouldValidate: true })}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -672,7 +672,7 @@ export default function SubmitPage() {
               </div>
               <div className="col-span-2 space-y-1">
                 <FieldLabel required accent="warm">Version</FieldLabel>
-                <Select defaultValue="2026" onValueChange={(value) => setValue("version", value)}>
+                <Select defaultValue="2026" onValueChange={(value) => setValue("version", value, { shouldValidate: true })}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -763,7 +763,7 @@ export default function SubmitPage() {
                   <Checkbox
                     id="useRenderLayer"
                     checked={useRenderLayer}
-                    onCheckedChange={(checked) => setValue("useRenderLayer", !!checked)}
+                    onCheckedChange={(checked) => setValue("useRenderLayer", !!checked, { shouldValidate: true })}
                     className="border-neutral-300 dark:border-white/15 h-3.5 w-3.5 data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500"
                   />
                   <FieldLabel htmlFor="useRenderLayer" accent="warm">Render Layer</FieldLabel>
@@ -780,7 +780,7 @@ export default function SubmitPage() {
                   <Checkbox
                     id="useCamera"
                     checked={useCamera}
-                    onCheckedChange={(checked) => setValue("useCamera", !!checked)}
+                    onCheckedChange={(checked) => setValue("useCamera", !!checked, { shouldValidate: true })}
                     className="border-neutral-300 dark:border-white/15 h-3.5 w-3.5 data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500"
                   />
                   <FieldLabel htmlFor="useCamera" accent="warm">Camera</FieldLabel>
@@ -797,7 +797,7 @@ export default function SubmitPage() {
                   <Checkbox
                     id="useFormat"
                     checked={useFormat}
-                    onCheckedChange={(checked) => setValue("useFormat", !!checked)}
+                    onCheckedChange={(checked) => setValue("useFormat", !!checked, { shouldValidate: true })}
                     className="border-neutral-300 dark:border-white/15 h-3.5 w-3.5 data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500"
                   />
                   <FieldLabel htmlFor="useFormat" accent="warm">Format</FieldLabel>
@@ -805,7 +805,7 @@ export default function SubmitPage() {
                 <Select
                   defaultValue="png"
                   disabled={!useFormat}
-                  onValueChange={(value) => setValue("imageFormat", value)}
+                  onValueChange={(value) => setValue("imageFormat", value, { shouldValidate: true })}
                 >
                   <SelectTrigger className={!useFormat ? "opacity-40" : ""}>
                     <SelectValue />
@@ -835,7 +835,7 @@ export default function SubmitPage() {
                   <Checkbox
                     id="useResolution"
                     checked={useResolution}
-                    onCheckedChange={(checked) => setValue("useResolution", !!checked)}
+                    onCheckedChange={(checked) => setValue("useResolution", !!checked, { shouldValidate: true })}
                     className="border-neutral-300 dark:border-white/15 h-3.5 w-3.5 data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500"
                   />
                   <FieldLabel htmlFor="useResolution" accent="warm">Resolution</FieldLabel>
@@ -875,14 +875,14 @@ export default function SubmitPage() {
                   onChange={(e) => {
                     // Only allow letters, numbers, underscores
                     const value = e.target.value.replaceAll(/\W/g, "");
-                    setValue("renderedFrameName", value);
+                    setValue("renderedFrameName", value, { shouldValidate: true });
                     // Mark as manually edited once user starts typing
                     setManualFrameName(true);
                   }}
                   onFocus={() => {
                     // When user focuses, copy auto value to form if not manually edited
                     if (!manualFrameName && autoRenderedFrameName) {
-                      setValue("renderedFrameName", autoRenderedFrameName);
+                      setValue("renderedFrameName", autoRenderedFrameName, { shouldValidate: true });
                     }
                   }}
                 />
@@ -950,7 +950,7 @@ export default function SubmitPage() {
       <FileBrowserDialog
         open={sceneFileBrowserOpen}
         onOpenChange={setSceneFileBrowserOpen}
-        onSelect={(path) => setValue("sceneFile", path)}
+        onSelect={(path) => setValue("sceneFile", path, { shouldValidate: true })}
         mode="file"
         title="Select Scene File"
         fileExtensions={[".ma", ".mb", ".hip", ".hipnc", ".hiplc"]}
@@ -958,7 +958,7 @@ export default function SubmitPage() {
       <FileBrowserDialog
         open={outputPathBrowserOpen}
         onOpenChange={setOutputPathBrowserOpen}
-        onSelect={(path) => setValue("outputPath", path)}
+        onSelect={(path) => setValue("outputPath", path, { shouldValidate: true })}
         mode="directory"
         title="Select Output Directory"
       />
