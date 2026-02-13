@@ -171,9 +171,9 @@ function generateRenderedFrameName(data: {
 // Generate shot code from shot structure
 function generateShotCode(data: {
   useAct?: boolean;
-  useScene?: boolean;
+  useShot?: boolean;
   act?: string;
-  scene?: string;
+  shot?: string;
 }): string {
   const parts: string[] = [];
 
@@ -181,9 +181,9 @@ function generateShotCode(data: {
     // Convert "act01" to "A01"
     parts.push(data.act.replace("act", "A"));
   }
-  if (data.useScene && data.scene) {
-    // Convert "sc01" to "SC01"
-    parts.push(data.scene.replace("sc", "SC"));
+  if (data.useShot && data.shot) {
+    // Convert "sh01" to "SH01"
+    parts.push(data.shot.replace("sh", "SH"));
   }
 
   return parts.join("_");
@@ -281,9 +281,9 @@ export default function SubmitPage() {
   const useFormat = watch("useFormat");
   const imageFormat = watch("imageFormat") || "png";
   const useAct = watch("useAct");
-  const useScene = watch("useScene");
+  const useShot = watch("useShot");
   const act = watch("act");
-  const scene = watch("scene");
+  const shot = watch("shot");
   const useRenderLayer = watch("useRenderLayer");
   const useCamera = watch("useCamera");
   const useResolution = watch("useResolution");
@@ -303,10 +303,10 @@ export default function SubmitPage() {
   // Auto-generate shot code when shot structure changes
   useEffect(() => {
     if (scope === "shot") {
-      const shotCode = generateShotCode({ useAct, useScene, act, scene });
+      const shotCode = generateShotCode({ useAct, useShot, act, shot });
       // Shot code is stored in the shot field for metadata
     }
-  }, [scope, useAct, useScene, act, scene, setValue]);
+  }, [scope, useAct, useShot, act, shot, setValue]);
 
   // Auto-populate rendered frame name when inputs change
   useEffect(() => {
@@ -565,19 +565,19 @@ export default function SubmitPage() {
                 <div className="space-y-1">
                   <div className="flex items-center gap-1.5">
                     <Checkbox
-                      id="useScene"
-                      checked={useScene}
-                      onCheckedChange={(checked) => setValue("useScene", !!checked, { shouldValidate: true })}
+                      id="useShot"
+                      checked={useShot}
+                      onCheckedChange={(checked) => setValue("useShot", !!checked, { shouldValidate: true })}
                       className="border-neutral-300 dark:border-white/15 h-3.5 w-3.5 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
                     />
-                    <FieldLabel htmlFor="useScene">Scene</FieldLabel>
+                    <FieldLabel htmlFor="useShot">Shot</FieldLabel>
                   </div>
-                  <Select disabled={!useScene} onValueChange={(value) => setValue("scene", value, { shouldValidate: true })}>
+                  <Select disabled={!useShot} onValueChange={(value) => setValue("shot", value, { shouldValidate: true })}>
                     <SelectTrigger className="disabled:opacity-40">
                       <SelectValue placeholder="—" />
                     </SelectTrigger>
                     <SelectContent className="max-h-48">
-                      {Array.from({ length: 50 }, (_, i) => `sc${String(i + 1).padStart(2, '0')}`).map(v => (
+                      {Array.from({ length: 50 }, (_, i) => `sh${String(i + 1).padStart(2, '0')}`).map(v => (
                         <SelectItem key={v} value={v}>{v}</SelectItem>
                       ))}
                     </SelectContent>
