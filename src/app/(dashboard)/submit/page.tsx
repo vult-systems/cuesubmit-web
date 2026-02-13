@@ -171,13 +171,9 @@ function generateRenderedFrameName(data: {
 // Generate shot code from shot structure
 function generateShotCode(data: {
   useAct?: boolean;
-  useSequence?: boolean;
   useScene?: boolean;
-  useShot?: boolean;
   act?: string;
-  sequence?: string;
   scene?: string;
-  shot?: string;
 }): string {
   const parts: string[] = [];
 
@@ -185,17 +181,9 @@ function generateShotCode(data: {
     // Convert "act01" to "A01"
     parts.push(data.act.replace("act", "A"));
   }
-  if (data.useSequence && data.sequence) {
-    // Convert "seq01" to "S01"
-    parts.push(data.sequence.replace("seq", "S"));
-  }
   if (data.useScene && data.scene) {
     // Convert "sc01" to "SC01"
     parts.push(data.scene.replace("sc", "SC"));
-  }
-  if (data.useShot && data.shot) {
-    // Convert "sh01" to "SH01"
-    parts.push(data.shot.replace("sh", "SH"));
   }
 
   return parts.join("_");
@@ -293,13 +281,9 @@ export default function SubmitPage() {
   const useFormat = watch("useFormat");
   const imageFormat = watch("imageFormat") || "png";
   const useAct = watch("useAct");
-  const useSequence = watch("useSequence");
   const useScene = watch("useScene");
-  const useShot = watch("useShot");
   const act = watch("act");
-  const sequence = watch("sequence");
   const scene = watch("scene");
-  const shot = watch("shot");
   const useRenderLayer = watch("useRenderLayer");
   const useCamera = watch("useCamera");
   const useResolution = watch("useResolution");
@@ -319,10 +303,10 @@ export default function SubmitPage() {
   // Auto-generate shot code when shot structure changes
   useEffect(() => {
     if (scope === "shot") {
-      const shotCode = generateShotCode({ useAct, useSequence, useScene, useShot, act, sequence, scene, shot });
+      const shotCode = generateShotCode({ useAct, useScene, act, scene });
       // Shot code is stored in the shot field for metadata
     }
-  }, [scope, useAct, useSequence, useScene, useShot, act, sequence, scene, shot, setValue]);
+  }, [scope, useAct, useScene, act, scene, setValue]);
 
   // Auto-populate rendered frame name when inputs change
   useEffect(() => {
@@ -343,6 +327,11 @@ export default function SubmitPage() {
         // Resolution override
         if (data.useResolution && data.resWidth && data.resHeight) {
           command += ` -x ${data.resWidth} -y ${data.resHeight}`;
+          // Arnold needs explicit device aspect ratio to avoid skewing
+          if (data.renderer === "arnold") {
+            const aspectRatio = (data.resWidth / data.resHeight).toFixed(6);
+            command += ` -ard ${aspectRatio}`;
+          }
         }
         // Image format override
         if (data.useFormat && data.imageFormat) {
@@ -551,7 +540,7 @@ export default function SubmitPage() {
 
             {/* Shot Structure (only visible when scope is "shot") */}
             {scope === "shot" && (
-              <div className="grid grid-cols-4 gap-3 pt-2 border-t border-neutral-200 dark:border-white/6">
+              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-neutral-200 dark:border-white/6">
                 <div className="space-y-1">
                   <div className="flex items-center gap-1.5">
                     <Checkbox
@@ -576,27 +565,6 @@ export default function SubmitPage() {
                 <div className="space-y-1">
                   <div className="flex items-center gap-1.5">
                     <Checkbox
-                      id="useSequence"
-                      checked={useSequence}
-                      onCheckedChange={(checked) => setValue("useSequence", !!checked, { shouldValidate: true })}
-                      className="border-neutral-300 dark:border-white/15 h-3.5 w-3.5 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
-                    />
-                    <FieldLabel htmlFor="useSequence">Sequence</FieldLabel>
-                  </div>
-                  <Select disabled={!useSequence} onValueChange={(value) => setValue("sequence", value, { shouldValidate: true })}>
-                    <SelectTrigger className="disabled:opacity-40">
-                      <SelectValue placeholder="—" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-48">
-                      {Array.from({ length: 50 }, (_, i) => `seq${String(i + 1).padStart(2, '0')}`).map(v => (
-                        <SelectItem key={v} value={v}>{v}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1.5">
-                    <Checkbox
                       id="useScene"
                       checked={useScene}
                       onCheckedChange={(checked) => setValue("useScene", !!checked, { shouldValidate: true })}
@@ -610,27 +578,6 @@ export default function SubmitPage() {
                     </SelectTrigger>
                     <SelectContent className="max-h-48">
                       {Array.from({ length: 50 }, (_, i) => `sc${String(i + 1).padStart(2, '0')}`).map(v => (
-                        <SelectItem key={v} value={v}>{v}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1.5">
-                    <Checkbox
-                      id="useShot"
-                      checked={useShot}
-                      onCheckedChange={(checked) => setValue("useShot", !!checked, { shouldValidate: true })}
-                      className="border-neutral-300 dark:border-white/15 h-3.5 w-3.5 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
-                    />
-                    <FieldLabel htmlFor="useShot">Shot</FieldLabel>
-                  </div>
-                  <Select disabled={!useShot} onValueChange={(value) => setValue("shot", value, { shouldValidate: true })}>
-                    <SelectTrigger className="disabled:opacity-40">
-                      <SelectValue placeholder="—" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-48">
-                      {Array.from({ length: 50 }, (_, i) => `sh${String(i + 1).padStart(2, '0')}`).map(v => (
                         <SelectItem key={v} value={v}>{v}</SelectItem>
                       ))}
                     </SelectContent>
