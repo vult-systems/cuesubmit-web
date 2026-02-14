@@ -47,17 +47,14 @@ const fileIcons: Record<string, typeof File> = {
 };
 
 // ─── Project Folder Picker ──────────────────────────────────────────
-// Shows project folders from specific configured paths, grouped by source
+// Shows the configured paths themselves as clickable buttons.
+// Their contents (subfolders like MagnumOpus, Cut, etc.) appear in the inline file tree.
 
-// Paths to scan for project folders
 const PROJECT_SOURCES = [
   { label: "NLG Source", path: `\\\\${FILE_SERVER}\\RenderSourceRepository\\25_26\\NLG` },
   { label: "Projects", path: `\\\\${FILE_SERVER}\\RenderOutputRepo\\Projects` },
   { label: "Thesis NLG", path: `\\\\${FILE_SERVER}\\RenderOutputRepo\\Thesis_25-26\\NLG` },
 ];
-
-// Folders to hide from project picker
-const HIDDEN_FOLDERS = new Set(["Utility"]);
 
 interface ProjectFolderPickerProps {
   value: string;
@@ -65,74 +62,28 @@ interface ProjectFolderPickerProps {
 }
 
 export function ProjectFolderPicker({ value, onSelect }: Readonly<ProjectFolderPickerProps>) {
-  const [groups, setGroups] = useState<{ label: string; folders: FileItem[] }[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function fetchAll() {
-      try {
-        const results = await Promise.all(
-          PROJECT_SOURCES.map(async (source) => {
-            try {
-              const res = await fetch(`/api/files/browse?path=${encodeURIComponent(source.path)}`);
-              const data = await res.json();
-              if (res.ok) {
-                const folders = (data.items || [])
-                  .filter((f: FileItem) => f.isDirectory && !HIDDEN_FOLDERS.has(f.name));
-                return { label: source.label, folders };
-              }
-            } catch { /* skip unavailable paths */ }
-            return { label: source.label, folders: [] };
-          })
-        );
-        setGroups(results.filter((g) => g.folders.length > 0));
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchAll();
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="flex items-center gap-2 text-text-muted text-xs py-1">
-        <Loader2 className="h-3 w-3 animate-spin" />
-        Loading projects…
-      </div>
-    );
-  }
-
-  if (groups.length === 0) return null;
-
   return (
-    <div className="space-y-2">
-      {groups.map((group) => (
-        <div key={group.label} className="space-y-1">
-          <span className="text-[9px] font-medium uppercase tracking-wider text-text-muted">{group.label}</span>
-          <div className="flex flex-wrap gap-1.5">
-            {group.folders.map((folder) => {
-              const isActive = value === folder.path;
-              return (
-                <Button
-                  key={folder.path}
-                  type="button"
-                  variant={isActive ? "default" : "outline"}
-                  size="sm"
-                  className={cn(
-                    "text-xs h-7 px-2.5 gap-1.5",
-                    isActive && "bg-amber-500 hover:bg-amber-600 border-amber-500 text-white"
-                  )}
-                  onClick={() => onSelect(isActive ? "" : folder.path)}
-                >
-                  <Folder className="h-3 w-3" />
-                  {folder.name}
-                  {isActive && <Check className="h-3 w-3" />}
-                </Button>
-              );
-            })}
-          </div>
-        </div>
-      ))}
+    <div className="flex flex-wrap gap-1.5">
+      {PROJECT_SOURCES.map((source) => {
+        const isActive = value === source.path;
+        return (
+          <Button
+            key={source.path}
+            type="button"
+            variant={isActive ? "default" : "outline"}
+            size="sm"
+            className={cn(
+              "text-xs h-7 px-2.5 gap-1.5",
+              isActive && "bg-amber-500 hover:bg-amber-600 border-amber-500 text-white"
+            )}
+            onClick={() => onSelect(isActive ? "" : source.path)}
+          >
+            <Folder className="h-3 w-3" />
+            {source.label}
+            {isActive && <Check className="h-3 w-3" />}
+          </Button>
+        );
+      })}
     </div>
   );
 }
