@@ -17,6 +17,7 @@ import {
   Pencil,
   Check,
   X,
+  FolderSync,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -513,6 +514,29 @@ export default function ProductionPage() {
     toast.success("Thumbnail uploaded");
   }, []);
 
+  // ─── Sync from Thumbnail Folder ─────────────────────
+
+  const [syncing, setSyncing] = useState(false);
+
+  const handleSyncThumbnails = useCallback(async () => {
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/production/sync-thumbnails", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Sync failed");
+      const parts: string[] = [];
+      if (data.created.acts > 0) parts.push(`${data.created.acts} act(s)`);
+      if (data.created.shots > 0) parts.push(`${data.created.shots} shot(s)`);
+      if (data.updated.thumbnails > 0) parts.push(`${data.updated.thumbnails} thumbnail(s)`);
+      toast.success(parts.length > 0 ? `Synced: ${parts.join(", ")}` : "Already up to date");
+      fetchData();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Sync failed");
+    } finally {
+      setSyncing(false);
+    }
+  }, [fetchData]);
+
   // ─── Act Management ─────────────────────────────────
 
   const handleCreateAct = useCallback(async (code: string, name: string) => {
@@ -699,10 +723,13 @@ export default function ProductionPage() {
           Add your first act to start tracking, or run the seed script.
         </p>
         <div className="flex gap-3 items-center">
+          {canManage && (
+            <Button onClick={handleSyncThumbnails} disabled={syncing} variant="outline" size="sm" className="h-8 text-xs gap-1.5">
+              {syncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <FolderSync className="h-3 w-3" />}
+              Sync from Thumbnails
+            </Button>
+          )}
           {canManage && <AddActButton onCreate={handleCreateAct} acts={acts} />}
-          <code className="text-xs bg-surface-muted px-3 py-2 rounded-lg text-text-secondary font-mono">
-            node scripts/seed-production.js
-          </code>
         </div>
       </div>
     );
@@ -722,6 +749,12 @@ export default function ProductionPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {canManage && (
+            <Button onClick={handleSyncThumbnails} disabled={syncing} variant="outline" size="sm" className="h-8 text-xs gap-1.5">
+              {syncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <FolderSync className="h-3 w-3" />}
+              Sync Thumbnails
+            </Button>
+          )}
           {canManage && <AddActButton onCreate={handleCreateAct} acts={acts} />}
           <Button onClick={fetchData} variant="ghost" size="sm" className="h-8 text-xs gap-1.5 text-text-muted">
             <RefreshCw className="h-3 w-3" />
