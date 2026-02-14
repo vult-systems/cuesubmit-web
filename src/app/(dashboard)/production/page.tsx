@@ -4,10 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   Search,
   AlertCircle,
-  ChevronDown,
   Film,
-  LayoutGrid,
-  LayoutList,
   RefreshCw,
   Image as ImageIcon,
   Upload,
@@ -22,13 +19,6 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -138,8 +128,7 @@ const statusDotColors: Record<Status, string> = {
 
 const actAccents = [accentColors.blue, accentColors.amber, accentColors.emerald];
 
-type ViewMode = "table" | "grid";
-type SortField = "code" | "department";
+type ViewMode = "table" | "grid" | "colorscript";
 
 // ─── Helper ────────────────────────────────────────────
 
@@ -397,9 +386,7 @@ export default function ProductionPage() {
 
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
-  const [actFilter, setActFilter] = useState<string>("all");
-  const [sortField, setSortField] = useState<SortField>("code");
-  const [sortDepartment, setSortDepartment] = useState<Department>("blocking");
+
   const [viewMode, setViewMode] = useState<ViewMode>("table");
 
   // ─── Data Fetching ──────────────────────────────────
@@ -623,29 +610,11 @@ export default function ProductionPage() {
       result = result.filter(s => s.combined_code.toLowerCase().includes(q));
     }
 
-    // Act filter
-    if (actFilter !== "all") {
-      result = result.filter(s => s.act_code === actFilter);
-    }
-
-    // Sort
-    result.sort((a, b) => {
-      switch (sortField) {
-        case "code":
-          return a.combined_code.localeCompare(b.combined_code);
-        case "department": {
-          const aStatus = a.departments.find(d => d.department === sortDepartment)?.status ?? "not-started";
-          const bStatus = b.departments.find(d => d.department === sortDepartment)?.status ?? "not-started";
-          const si = STATUSES.indexOf(aStatus) - STATUSES.indexOf(bStatus);
-          return si !== 0 ? si : a.combined_code.localeCompare(b.combined_code);
-        }
-        default:
-          return 0;
-      }
-    });
+    // Sort by code
+    result.sort((a, b) => a.combined_code.localeCompare(b.combined_code));
 
     return result;
-  }, [shots, searchQuery, actFilter, sortField, sortDepartment]);
+  }, [shots, searchQuery]);
 
   // Group shots by act
   const shotsByAct = useMemo(() => {
@@ -659,7 +628,7 @@ export default function ProductionPage() {
     return map;
   }, [filteredShots]);
 
-  const activeFilterCount = [actFilter].filter(f => f !== "all").length;
+
 
   // ─── Loading State ──────────────────────────────────
 
@@ -1026,76 +995,24 @@ export default function ProductionPage() {
           />
         </div>
 
-        {/* Act filter */}
-        <Select value={actFilter} onValueChange={setActFilter}>
-          <SelectTrigger className="w-28 h-8 text-xs">
-            <SelectValue placeholder="Act" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all" className="text-xs">All Acts</SelectItem>
-            {acts.map(a => (
-              <SelectItem key={a.id} value={a.code} className="text-xs">{a.code} — {a.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {activeFilterCount > 0 && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => { setActFilter("all"); setSearchQuery(""); }}
-            className="h-8 text-xs text-text-muted hover:text-text-primary"
-          >
-            Clear ({activeFilterCount})
-          </Button>
-        )}
-
         <div className="flex-1" />
 
-        {/* Sort */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
-              <ChevronDown className="h-3 w-3" />
-              Sort
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => setSortField("code")} className={cn("text-xs", sortField === "code" && "font-semibold")}>
-              Shot Code
-            </DropdownMenuItem>
-            {DEPARTMENTS.map(d => (
-              <DropdownMenuItem
-                key={d}
-                onClick={() => { setSortField("department"); setSortDepartment(d); }}
-                className={cn("text-xs", sortField === "department" && sortDepartment === d && "font-semibold")}
-              >
-                By {DEPT_FULL_LABELS[d]}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        {/* View toggle */}
-        <div className="flex border border-border rounded-lg overflow-hidden">
-          <button
-            onClick={() => setViewMode("table")}
-            className={cn(
-              "p-1.5 transition-colors",
-              viewMode === "table" ? "bg-neutral-200 dark:bg-white/15 text-text-primary" : "text-text-muted hover:text-text-primary hover:bg-surface-muted"
-            )}
-          >
-            <LayoutList className="h-3.5 w-3.5" />
-          </button>
-          <button
-            onClick={() => setViewMode("grid")}
-            className={cn(
-              "p-1.5 transition-colors",
-              viewMode === "grid" ? "bg-neutral-200 dark:bg-white/15 text-text-primary" : "text-text-muted hover:text-text-primary hover:bg-surface-muted"
-            )}
-          >
-            <LayoutGrid className="h-3.5 w-3.5" />
-          </button>
+        {/* View tabs */}
+        <div className="flex border border-border rounded-lg overflow-hidden text-xs">
+          {(["table", "grid", "colorscript"] as ViewMode[]).map((mode) => (
+            <button
+              key={mode}
+              onClick={() => setViewMode(mode)}
+              className={cn(
+                "px-3 py-1.5 transition-colors capitalize",
+                viewMode === mode
+                  ? "bg-neutral-200 dark:bg-white/15 text-text-primary font-medium"
+                  : "text-text-muted hover:text-text-primary hover:bg-surface-muted"
+              )}
+            >
+              {mode === "colorscript" ? "Color Script" : mode.charAt(0).toUpperCase() + mode.slice(1)}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -1108,13 +1025,46 @@ export default function ProductionPage() {
             variant="ghost"
             size="sm"
             className="mt-2 text-xs"
-            onClick={() => { setActFilter("all"); setSearchQuery(""); }}
+            onClick={() => setSearchQuery("")}
           >
-            Clear Filters
+            Clear Search
           </Button>
         </div>
-      ) : actFilter === "all" ? (
-        /* Grouped by act */
+      ) : viewMode === "colorscript" ? (
+        /* Color Script – thumbnails only */
+        <div className="space-y-4">
+          {acts.map((act, actIdx) => {
+            const actShots = shotsByAct.get(act.code) || [];
+            if (actShots.length === 0) return null;
+            return (
+              <div key={act.id}>
+                <h3 className="text-xs font-medium text-text-muted mb-2 uppercase tracking-wider">{act.code}</h3>
+                <div className="grid gap-1" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))' }}>
+                  {actShots.map(shot => (
+                    <div key={shot.id} className="relative aspect-video rounded-lg overflow-hidden bg-neutral-100 dark:bg-white/5 group">
+                      {shot.thumbnail ? (
+                        <img
+                          src={`/api/production/thumbnails/${shot.thumbnail}`}
+                          alt={shot.combined_code}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <ImageIcon className="h-6 w-6 text-text-muted opacity-30" />
+                        </div>
+                      )}
+                      <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1">
+                        <span className="text-[10px] font-medium text-white">{shot.combined_code}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        /* Table / Grid – grouped by act */
         <div className="space-y-4">
           {acts.map((act, actIdx) => {
             const actShots = shotsByAct.get(act.code) || [];
@@ -1168,13 +1118,6 @@ export default function ProductionPage() {
             );
           })}
         </div>
-      ) : (
-        /* Flat (filtered to one act) */
-        viewMode === "table" ? (
-          <ShotTableView shots={filteredShots} canEdit={canEdit} canManage={canManage} onStatusChange={handleStatusChange} onUpdateShot={handleUpdateShot} onThumbnailUpload={handleThumbnailUpload} onDeleteShot={handleDeleteShot} />
-        ) : (
-          <ShotGridView shots={filteredShots} canEdit={canEdit} canManage={canManage} onStatusChange={handleStatusChange} onUpdateShot={handleUpdateShot} onThumbnailUpload={handleThumbnailUpload} onDeleteShot={handleDeleteShot} />
-        )
       )}
 
       {/* Results count */}
