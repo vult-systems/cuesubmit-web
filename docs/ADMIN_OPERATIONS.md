@@ -218,13 +218,56 @@ curl -s "http://127.0.0.1:3000/api/files/frame-preview?dir=//REDACTED_IP/RenderO
 
 ## Production Tracking (Nightlight Guardians)
 
-The `/production` page provides shot tracking with inline editing, pipeline status bars, and completion visualizations (gauge + Sankey chart).
+The `/production` page provides shot tracking with inline editing, pipeline status bars, completion visualizations (gauge + Sankey chart), and a Color Script view.
 
 ### Architecture
 
 - **SQLite tables** — `prod_acts`, `prod_shots`, `prod_shot_statuses`, `prod_status_log` — auto-created on first API access via `initializeProductionTables()` in `src/lib/db/production.ts`. No manual migration needed.
-- **Thumbnails** — stored at `data/thumbnails/{act_code}/{shot_code}.jpg` inside the `cuesubmit-data` Docker volume. Max 5MB, PNG/JPG only.
-- **Permissions** — Any authenticated user can change department statuses. Only `admin`/`manager` roles can edit shot metadata (code, frames) and upload thumbnails.
+- **Pipeline departments** — lookdev → blocking → spline → polish → lighting → rendering → comp (7 stages).
+- **Thumbnails** — auto-synced from the render repo folder at `\\REDACTED_IP\RenderOutputRepo\Thesis_25-26\NLG\Editorial\Thumbnail`. Thumbnail files follow the naming pattern `act<N>_shot<N>.png/jpg`. Thumbnails are served via `repo:` prefix paths that resolve to `/mnt/RenderOutputRepo/Thesis_25-26/NLG/Editorial/Thumbnail/` inside Docker.
+- **Permissions** — Any authenticated user (admin, manager, student) can change department statuses and manage acts/shots. The `manage_productions` permission is granted to all roles.
+
+### View Modes
+
+The production page has three view tabs:
+
+| Tab | Description |
+|-----|-------------|
+| **Table** | Traditional table layout with thumbnail preview, shot code, frames, pipeline bar, and completion percentage |
+| **Grid** | Card grid with thumbnails, pipeline bars, and inline editing |
+| **Color Script** | Compact thumbnail-only view — acts displayed as columns, shots arranged in a configurable grid (user-controlled column count via +/− buttons). Designed for editorial review. |
+
+### Lightbox
+
+Clicking any thumbnail (in any view mode) opens a full-screen lightbox with:
+- **Keyboard navigation** — Left/Right arrows to move between shots, Escape to close
+- **Scroll to zoom** — mouse wheel zooms up to 8×, percentage shown in top-left
+- **Drag to pan** — click and drag when zoomed in
+- **Prev/Next buttons** — on-screen chevron buttons for mouse navigation
+
+### Thumbnail Sync from Render Repo
+
+Thumbnails are automatically created from files in the render repo. No manual upload is needed.
+
+**Sync button** — appears in the production page header (and in the empty state). Calls `POST /api/production/sync-thumbnails`.
+
+**What sync does:**
+1. Scans `/mnt/RenderOutputRepo/Thesis_25-26/NLG/Editorial/Thumbnail` for image files
+2. Parses filenames using regex: `act<N>[_]shot[_]?<N>.png/jpg` (handles inconsistent naming like `Act1`, `shot_21`, etc.)
+3. Creates acts and shots that don't yet exist (normalizes to `act01`, `shot01` format)
+4. Links thumbnails using `repo:` prefix paths
+5. **Deletes** acts and shots that no longer have matching thumbnail files (cleanup)
+
+```bash
+# Trigger sync from CLI (inside Docker)
+docker exec cuesubmit-web node -e "
+  fetch('http://localhost:3000/api/production/sync-thumbnails', { method: 'POST' })
+    .then(r => r.json()).then(d => console.log(JSON.stringify(d, null, 2)));
+"
+
+# Check what's in the thumbnail source folder
+docker exec cuesubmit-web ls /mnt/RenderOutputRepo/Thesis_25-26/NLG/Editorial/Thumbnail/
+```
 
 ### SQLite Tables
 
@@ -237,7 +280,9 @@ The `/production` page provides shot tracking with inline editing, pipeline stat
 
 ### Seed Data (First Deploy Only)
 
-Tables auto-create empty. To populate with Nightlight Guardians test data (3 acts, 19 shots, 133 dept statuses):
+Tables auto-create empty. With thumbnail sync, acts and shots are auto-created from the thumbnail folder — no manual seeding is typically needed. Just click "Sync Thumbnails" in the UI.
+
+To populate with test data manually (3 acts, 19 shots, 133 dept statuses):
 
 **Option A — Local (before Docker build):**
 ```bash
@@ -248,7 +293,6 @@ Then the data is in `data/cuesubmit.db` — copy it into the Docker volume.
 
 **Option B — Inside Docker (after deploy):**
 ```bash
-# Copy scripts into running container
 ssh REDACTED_USER@REDACTED_IP "cd /home/perforce/cuesubmit-web && \
   docker cp scripts/migrate-production.js cuesubmit-web:/app/ && \
   docker cp scripts/seed-production.js cuesubmit-web:/app/ && \
@@ -269,17 +313,23 @@ The seed script is idempotent — it skips if acts already exist.
 | `/api/production/shots` | POST | manage | Create shot |
 | `/api/production/shots/[id]` | GET/PUT/DELETE | manage | Shot CRUD |
 | `/api/production/shots/[id]/status` | PUT | any | Update dept status |
-| `/api/production/shots/[id]/thumbnail` | POST | manage | Upload thumbnail |
 | `/api/production/bulk-status` | PUT | any | Bulk status update |
-| `/api/production/thumbnails/[...path]` | GET | any | Serve thumbnail image |
+| `/api/production/sync-thumbnails` | POST | manage | Sync acts/shots/thumbnails from render repo folder |
+| `/api/production/thumbnails/[...path]` | GET | any | Serve thumbnail image (supports `repo:` prefix for render repo paths) |
 
 ### Inline Editing (Production Page)
 
-- **Click thumbnail** → file picker → uploads to `data/thumbnails/{act}/{shot}.jpg`
 - **Click shot code** → inline text edit (prefix shows act code, only shot code is editable)
 - **Click frame numbers** → inline number edit
 - **Click pipeline segment** → dropdown to change department status
 - All edits are optimistic (UI updates immediately, rolls back on error)
+
+### Act/Shot Management
+
+- **Add Act** — one-click button in the header creates the next sequential act (e.g., act04)
+- **Delete Act** — trash icon on act header (confirms with shot count)
+- **Add Shot** — button at the bottom of each act creates the next sequential shot
+- **Delete Shot** — trash icon on each shot row/card
 
 ### Query Production Data
 
@@ -316,12 +366,17 @@ docker exec cuesubmit-web node -e "
 
 ### Thumbnails
 
-```bash
-# Check thumbnails directory inside Docker
-docker exec cuesubmit-web ls -la /app/data/thumbnails/
+Thumbnails are auto-synced from the render repo, not manually uploaded. They are served via the `repo:` prefix path system.
 
-# Thumbnails persist in the cuesubmit-data Docker volume
-# They survive container rebuilds but NOT volume deletion
+```bash
+# Check thumbnail source folder (render repo mount)
+docker exec cuesubmit-web ls /mnt/RenderOutputRepo/Thesis_25-26/NLG/Editorial/Thumbnail/
+
+# Check legacy thumbnails directory (from before auto-sync)
+docker exec cuesubmit-web ls -la /app/data/thumbnails/ 2>/dev/null || echo "No legacy thumbnails"
+
+# Thumbnails from the render repo are served read-only via the Docker volume mount
+# They persist as long as the source files exist on the render repo share
 ```
 
 ---
