@@ -495,9 +495,15 @@ export default function SubmitPage() {
                 value={projectFolder}
                 onSelect={(path) => {
                   setProjectFolder(path);
-                  // Close any open browsers so they re-open at the new project path
-                  setSceneFileBrowserOpen(false);
-                  setOutputPathBrowserOpen(false);
+                  if (path) {
+                    // Auto-open scene file browser at the selected project folder
+                    setSceneFileBrowserOpen(true);
+                    setOutputPathBrowserOpen(false);
+                  } else {
+                    // Deselected — close browsers
+                    setSceneFileBrowserOpen(false);
+                    setOutputPathBrowserOpen(false);
+                  }
                 }}
               />
             </div>
