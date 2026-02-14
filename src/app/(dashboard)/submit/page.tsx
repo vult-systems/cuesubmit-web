@@ -19,7 +19,7 @@ import { RotateCcw, Loader2, Send, FolderOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { InlineFileBrowser, ProjectFolderPicker, ROOT_PATHS } from "@/components/inline-file-browser";
+import { InlineFileBrowser, PathShortcuts, SCENE_SHORTCUTS, OUTPUT_SHORTCUTS, ROOT_PATHS } from "@/components/inline-file-browser";
 
 const STORAGE_KEY = "cuesubmit-form-state";
 
@@ -169,7 +169,8 @@ export default function SubmitPage() {
   const [shows, setShows] = useState<Show[]>([]);
   const [sceneFileBrowserOpen, setSceneFileBrowserOpen] = useState(false);
   const [outputPathBrowserOpen, setOutputPathBrowserOpen] = useState(false);
-  const [projectFolder, setProjectFolder] = useState("");
+  const [sceneStartPath, setSceneStartPath] = useState("");
+  const [outputStartPath, setOutputStartPath] = useState("");
 
   // Load saved form state from sessionStorage
   const getSavedValues = useCallback((): FormData => {
@@ -487,31 +488,20 @@ export default function SubmitPage() {
               </div>
             </div>
 
-            {/* Project Folder */}
-            <div className="space-y-1.5">
-              <FieldLabel accent="warm">Project Folder</FieldLabel>
-              <p className="text-[10px] text-text-muted -mt-0.5">Select a project to start browsing from that folder</p>
-              <ProjectFolderPicker
-                value={projectFolder}
-                onSelect={(path) => {
-                  setProjectFolder(path);
-                  if (path) {
-                    // Auto-open scene file browser at the selected project folder
-                    setSceneFileBrowserOpen(true);
-                    setOutputPathBrowserOpen(false);
-                  } else {
-                    // Deselected — close browsers
-                    setSceneFileBrowserOpen(false);
-                    setOutputPathBrowserOpen(false);
-                  }
-                }}
-              />
-            </div>
-
             {/* Paths */}
-            <div className="grid grid-cols-6 gap-3">
-              <div className="col-span-3 space-y-1">
-                <FieldLabel required accent="warm">Scene File</FieldLabel>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <FieldLabel required accent="warm">Scene File</FieldLabel>
+                  <PathShortcuts
+                    shortcuts={SCENE_SHORTCUTS}
+                    value={sceneStartPath}
+                    onSelect={(path) => {
+                      setSceneStartPath(path);
+                      if (path) { setSceneFileBrowserOpen(true); setOutputPathBrowserOpen(false); }
+                    }}
+                  />
+                </div>
                 <div className="flex gap-1">
                   <Input
                     {...register("sceneFile")}
@@ -538,13 +528,23 @@ export default function SubmitPage() {
                   onSelect={(path) => { setValue("sceneFile", path, { shouldValidate: true }); setSceneFileBrowserOpen(false); }}
                   mode="file"
                   rootPath={ROOT_PATHS[1].path}
-                  projectFolder={projectFolder}
+                  projectFolder={sceneStartPath}
                   fileExtensions={[".ma", ".mb", ".hip", ".hipnc", ".hiplc"]}
                   currentValue={sceneFile}
                 />
               </div>
-              <div className="col-span-3 space-y-1">
-                <FieldLabel required accent="warm">Output Directory</FieldLabel>
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <FieldLabel required accent="warm">Output Directory</FieldLabel>
+                  <PathShortcuts
+                    shortcuts={OUTPUT_SHORTCUTS}
+                    value={outputStartPath}
+                    onSelect={(path) => {
+                      setOutputStartPath(path);
+                      if (path) { setOutputPathBrowserOpen(true); setSceneFileBrowserOpen(false); }
+                    }}
+                  />
+                </div>
                 <div className="flex gap-1">
                   <Input
                     {...register("outputPath")}
@@ -571,7 +571,7 @@ export default function SubmitPage() {
                   onSelect={(path) => { setValue("outputPath", path, { shouldValidate: true }); setOutputPathBrowserOpen(false); }}
                   mode="directory"
                   rootPath={ROOT_PATHS[0].path}
-                  projectFolder={projectFolder}
+                  projectFolder={outputStartPath}
                   currentValue={watch("outputPath")}
                 />
               </div>

@@ -46,40 +46,50 @@ const fileIcons: Record<string, typeof File> = {
   ".mp4": FileVideo,
 };
 
-// ─── Project Folder Picker ──────────────────────────────────────────
-// Shows the configured paths themselves as clickable buttons.
-// Their contents (subfolders like MagnumOpus, Cut, etc.) appear in the inline file tree.
+// ─── Path Shortcuts ──────────────────────────────────────────────
+// Clickable shortcut buttons that set the starting path for an inline file browser
 
-const PROJECT_SOURCES = [
-  { label: "NLG Source", path: `\\\\${FILE_SERVER}\\RenderSourceRepository\\25_26\\NLG` },
+export interface PathShortcut {
+  label: string;
+  path: string;
+}
+
+// Pre-configured shortcuts for scene files and output directories
+export const SCENE_SHORTCUTS: PathShortcut[] = [
+  { label: "NLG", path: `\\\\${FILE_SERVER}\\RenderSourceRepository\\25_26\\NLG` },
   { label: "Projects", path: `\\\\${FILE_SERVER}\\RenderOutputRepo\\Projects` },
-  { label: "Thesis NLG", path: `\\\\${FILE_SERVER}\\RenderOutputRepo\\Thesis_25-26\\NLG` },
 ];
 
-interface ProjectFolderPickerProps {
+export const OUTPUT_SHORTCUTS: PathShortcut[] = [
+  { label: "NLG", path: `\\\\${FILE_SERVER}\\RenderOutputRepo\\Thesis_25-26\\NLG` },
+  { label: "Projects", path: `\\\\${FILE_SERVER}\\RenderOutputRepo\\Projects` },
+];
+
+interface PathShortcutsProps {
+  shortcuts: PathShortcut[];
   value: string;
   onSelect: (path: string) => void;
 }
 
-export function ProjectFolderPicker({ value, onSelect }: Readonly<ProjectFolderPickerProps>) {
+export function PathShortcuts({ shortcuts, value, onSelect }: Readonly<PathShortcutsProps>) {
   return (
     <div className="flex flex-wrap gap-1.5">
-      {PROJECT_SOURCES.map((source) => {
-        const isActive = value === source.path;
+      {shortcuts.map((shortcut) => {
+        const isActive = value === shortcut.path;
         return (
           <Button
-            key={source.path}
+            key={shortcut.path}
             type="button"
             variant={isActive ? "default" : "outline"}
             size="sm"
             className={cn(
-              "text-xs h-7 px-2.5 gap-1.5",
+              "text-xs h-6 px-2 gap-1",
               isActive && "bg-amber-500 hover:bg-amber-600 border-amber-500 text-white"
             )}
-            onClick={() => onSelect(isActive ? "" : source.path)}
+            onClick={() => onSelect(isActive ? "" : shortcut.path)}
           >
             <Folder className="h-3 w-3" />
-            {source.label}
+            {shortcut.label}
             {isActive && <Check className="h-3 w-3" />}
           </Button>
         );
@@ -285,7 +295,7 @@ export function InlineFileBrowser({
       </div>
 
       {/* Tree content */}
-      <ScrollArea className="h-48">
+      <ScrollArea className="h-72">
         {loading && (
           <div className="flex items-center justify-center h-full py-8">
             <Loader2 className="h-4 w-4 animate-spin text-text-muted" />
