@@ -1,15 +1,13 @@
 {
   "sonarlint.pathToCompileCommands": "",
   "sonarlint.analyzerProperties": {
-    "sonar.exclusions": "opencue/**,launcher/**,scripts/**,.next/**,out/**,build/**,node_modules/**"
+    "sonar.exclusions": "opencue/**,scripts/**,.next/**,out/**,build/**,node_modules/**"
   },
   "files.exclude": {
-    "opencue/**": false,
-    "launcher/**": false
+    "opencue/**": false
   },
   "search.exclude": {
     "opencue/**": true,
-    "launcher/**": true,
     ".next/**": true,
     "node_modules/**": true
   },

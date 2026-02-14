@@ -12,7 +12,7 @@ const { execSync } = require('node:child_process');
 const path = require('node:path');
 const fs = require('node:fs');
 
-const PROD_HOST = 'REDACTED_USER@REDACTED_IP';
+const PROD_HOST = process.env.PROD_SSH_HOST || 'user@localhost';
 const CONTAINER = 'cuesubmit-web';
 const REMOTE_PATH = '/app/data';
 const LOCAL_DATA_DIR = path.join(__dirname, '..', 'data');

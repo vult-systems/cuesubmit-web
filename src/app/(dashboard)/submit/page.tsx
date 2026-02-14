@@ -134,7 +134,7 @@ const defaultValues: FormData = {
 };
 
 // Extract scene file base name (without extension) from a full path
-// e.g., "\\REDACTED_IP\RenderOutputRepo\project\heroSword_v02.ma" -> "heroSword_v02"
+// e.g., "\\<server>\RenderOutputRepo\project\heroSword_v02.ma" -> "heroSword_v02"
 function extractSceneName(sceneFilePath: string): string {
   if (!sceneFilePath) return "";
   // Get filename from path (handle both / and \)

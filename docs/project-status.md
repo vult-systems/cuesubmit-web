@@ -4,7 +4,7 @@
 
 ## Current State: ✅ Production Ready
 
-The web-based job submission and monitoring interface for OpenCue is fully functional at `http://REDACTED_IP:3000`.
+The web-based job submission and monitoring interface for OpenCue is fully functional at `http://YOUR_SERVER_IP:3000`.
 
 ### Active Features
 
@@ -28,31 +28,31 @@ Consider setting up a friendly URL/subdomain:
 - `submit.uiw3d.com`
 - `cue.uiw3d.com`
 
-This would require DNS configuration pointing to `REDACTED_IP` and optionally nginx/reverse proxy for SSL.
+This would require DNS configuration pointing to `YOUR_SERVER_IP` and optionally nginx/reverse proxy for SSL.
 
 ## Infrastructure
 
-### Server (REDACTED_IP)
+### Server (YOUR_SERVER_IP)
 
-- **Cuebot**: Running on port 8443 (PostgreSQL database: `cuebot_local`, password: `uiw3d`)
+- **Cuebot**: Running on port 8443 (PostgreSQL database: `cuebot_local`, password: `YOUR_DB_PASSWORD`)
 - **REST Gateway**: Docker container `opencue-rest-gateway` on port 8448
 - **CueSubmit Web**: Docker container `cuesubmit-web` on port 3000
-- **SSH Access**: `REDACTED_USER@REDACTED_IP`
+- **SSH Access**: `YOUR_SSH_USER@YOUR_SERVER_IP`
 
 ### Deployment Commands
 
 ```bash
 # Deploy changes to production
-ssh REDACTED_USER@REDACTED_IP "cd /home/perforce/cuesubmit-web && git pull && docker compose build --no-cache && docker compose up -d"
+ssh YOUR_SSH_USER@YOUR_SERVER_IP "cd /home/perforce/cuesubmit-web && git pull && docker compose build --no-cache && docker compose up -d"
 
 # Check logs
-ssh REDACTED_USER@REDACTED_IP "docker logs --tail 50 cuesubmit-web"
+ssh YOUR_SSH_USER@YOUR_SERVER_IP "docker logs --tail 50 cuesubmit-web"
 ```
 
 ### Environment Configuration
 
-- **Gateway URL**: `http://REDACTED_IP:8448`
-- **JWT Secret**: `REDACTED_SECRET` (matches gateway config)
+- **Gateway URL**: `http://YOUR_SERVER_IP:8448`
+- **JWT Secret**: ``${JWT_SECRET}` (matches gateway config)
 - Local dev uses `.env.local`, production uses Docker environment
 
 ## Render Farm Status
@@ -66,9 +66,9 @@ ssh REDACTED_USER@REDACTED_IP "docker logs --tail 50 cuesubmit-web"
 
 | Host     | Old IP       | New IP       | System Name |
 | -------- | ------------ | ------------ | ----------- |
-| AD400-08 | REDACTED_IP | REDACTED_IP | REDACTED_TAG     |
-| AD404-02 | REDACTED_IP  | REDACTED_IP | REDACTED_TAG     |
-| AD404-05 | REDACTED_IP  | REDACTED_IP | REDACTED_TAG     |
+| AD400-08 | YOUR_SERVER_IP | YOUR_SERVER_IP | REDACTED     |
+| AD404-02 | YOUR_SERVER_IP  | YOUR_SERVER_IP | REDACTED     |
+| AD404-05 | YOUR_SERVER_IP  | YOUR_SERVER_IP | REDACTED     |
 
 **Root Cause**: DHCP changed IPs but RQD registered with old addresses. Solution: Delete stale entries from PostgreSQL, update SQLite metadata.
 
@@ -172,7 +172,6 @@ Now falls back to mock data gracefully when gateway returns 501.
 ## Recent Fixes (Dec 22, 2025)
 
 1. **SonarLint Code Quality Fixes** - Additional cleanup
-   - `frame-log-dialog.tsx`: Reduced cognitive complexity from 17→15, extracted helper functions
    - `file-browser-dialog.tsx`: Fixed accessibility (button element), `String.raw` for paths
    - `header.tsx`: Added `Readonly<>` props wrapper, canonical Tailwind classes
    - All components: Proper `Readonly<>` wrappers on props
@@ -200,7 +199,7 @@ Now falls back to mock data gracefully when gateway returns 501.
    - Added `sonar-project.properties` for SonarLint exclusions
    - Added `.vscode/settings.json` for workspace settings
    - Updated `eslint.config.mjs` to exclude `scripts/`
-   - Added [CODING_STANDARDS.md](CODING_STANDARDS.md) with lint rules
+   - Added [coding standards](context.md#coding-standards) with lint rules
 
 ## Recent Fixes (Dec 19, 2025)
 
@@ -215,51 +214,7 @@ Now falls back to mock data gracefully when gateway returns 501.
    - Updated README with proper documentation
    - Added `opencue/` reference folder to repo
 
-## Key Files
 
-### Core Functionality
 
-- `src/lib/opencue/gateway-client.ts` - REST gateway API calls (jobs, frames, layers, hosts, shows)
-- `src/lib/opencue/spec-builder.ts` - Job XML spec generation
-- `src/lib/auth/permissions.ts` - Role-based permission definitions
-- `src/app/api/submit/route.ts` - Job submission endpoint
-- `src/app/api/jobs/[id]/layers/route.ts` - Layer data for frame preview
-- `src/app/api/jobs/[id]/logs/route.ts` - Frame log retrieval with path conversion
-- `src/app/api/files/frame-preview/route.ts` - Frame image discovery and serving
-- `src/app/api/files/preview/route.ts` - Direct image serving by path
-
-### UI Components
-
-- `src/components/job-detail-drawer.tsx` - Job detail with frames, logs, and preview panel
-- `src/app/(dashboard)/submit/page.tsx` - Job submission form (Arnold)
-
-### Configuration
-
-- `.env.local` - Local development environment
-- `docker-compose.yml` - Production Docker setup
-- `Dockerfile` - Container build
-
-### Database
-
-- `./data/cuesubmit.db` - SQLite for host metadata (display IDs, system names)
-- PostgreSQL on server - OpenCue job/host data
-
-## Development Workflow
-
-```bash
-# Local development
-npm run dev
-
-# Build
-npm run build
-
-# Deploy to production
-git add -A && git commit -m "message" && git push
-# Then SSH and rebuild Docker (see deployment commands above)
-```
-
-## Contact / Notes
-
-- This is for UIW3D (University of the Incarnate Word 3D Animation program)
-- Primary render software: Maya with Arnold
-- Students submit via web interface, jobs render on lab machines overnight
+> For key files, architecture, coding standards, and dev workflow, see [context.md](context.md).
+> For deployment, DB queries, and service management, see [admin-operations.md](admin-operations.md).

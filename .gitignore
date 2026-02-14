@@ -43,15 +43,13 @@ data/
 
 # Local config files
 config.json
-launcher/config.json
-launcher/app/node_modules/
-launcher/app/.next/
-launcher/zig-out/
-launcher/logs/
+
+# AI assistant settings
+.claude/
+
+# Local OpenCue artifacts
+opencue/uiw3d_installers/Logs/
+opencue/uiw3d_installers/OpenCue_Deploy/utils/config/cue.yaml
 
 # Logs
 /logs/
-launcher/.zig-cache/
-launcher/Queue.app/
-launcher/AppIcon.icns
-launcher/Info.plist

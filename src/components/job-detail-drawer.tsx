@@ -363,7 +363,7 @@ export function JobDetailDrawer({
     return new Date(timestamp * 1000).toLocaleTimeString();
   };
 
-  // Resolve lastResource (e.g. "REDACTED_IP/1.0/3300") to display ID (e.g. "AD405-01")
+  // Resolve lastResource (e.g. "<host_ip>/1.0/3300") to display ID (e.g. "AD405-01")
   const resolveHost = (lastResource: string | undefined) => {
     if (!lastResource) return "-";
     const hostPart = lastResource.split("/")[0];

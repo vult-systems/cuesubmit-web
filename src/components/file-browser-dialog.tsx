@@ -24,9 +24,11 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+const FILE_SERVER = process.env.NEXT_PUBLIC_FILE_SERVER_IP || 'localhost';
+
 const ROOT_PATHS = [
-  { label: "RenderOutputRepo", path: String.raw`\\REDACTED_IP\RenderOutputRepo` },
-  { label: "RenderSourceRepository", path: String.raw`\\REDACTED_IP\RenderSourceRepository` },
+  { label: "RenderOutputRepo", path: `\\\\${FILE_SERVER}\\RenderOutputRepo` },
+  { label: "RenderSourceRepository", path: `\\\\${FILE_SERVER}\\RenderSourceRepository` },
 ];
 
 interface FileItem {

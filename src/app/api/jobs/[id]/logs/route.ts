@@ -6,19 +6,20 @@ import path from "path";
 
 // Docker volume mount path (Linux container) or Windows UNC path
 // In Docker: /angd_server_pool/renderRepo is mounted at /mnt/RenderOutputRepo
-// On Windows dev: use UNC path \\REDACTED_IP\RenderOutputRepo
-const RENDER_REPO_PATH = process.env.RENDER_REPO_PATH || "\\\\REDACTED_IP\\RenderOutputRepo";
+// On Windows dev: use UNC path \\<FILE_SERVER_IP>\RenderOutputRepo
+const FILE_SERVER = process.env.FILE_SERVER_IP || 'localhost';
+const RENDER_REPO_PATH = process.env.RENDER_REPO_PATH || `\\\\${FILE_SERVER}\\RenderOutputRepo`;
 
 /**
  * Convert the logDir from OpenCue to the local filesystem path based on the environment.
  * 
  * OpenCue stores logDir in several possible formats:
- *   - UNC with forward slashes: //REDACTED_IP/RenderOutputRepo/OpenCue/Logs/...
- *   - UNC with backslashes:     \\REDACTED_IP\RenderOutputRepo\OpenCue\Logs\...
+ *   - UNC with forward slashes: //<FILE_SERVER_IP>/RenderOutputRepo/OpenCue/Logs/...
+ *   - UNC with backslashes:     \\<FILE_SERVER_IP>\RenderOutputRepo\OpenCue\Logs\...
  *   - Linux host path:          /angd_server_pool/renderRepo/OpenCue/Logs/...
  *
  * We need to map any of these to RENDER_REPO_PATH (e.g. /mnt/RenderOutputRepo in Docker,
- * or \\REDACTED_IP\RenderOutputRepo on Windows dev).
+ * or \\<FILE_SERVER_IP>\RenderOutputRepo on Windows dev).
  */
 function convertLogPath(logDir: string): string {
   // Normalize to forward slashes first for consistent matching
@@ -26,7 +27,7 @@ function convertLogPath(logDir: string): string {
 
   // All known source prefixes that map to the render repo root
   const sourcePrefixes = [
-    "//REDACTED_IP/RenderOutputRepo",
+    `//${FILE_SERVER}/RenderOutputRepo`,
     "/angd_server_pool/renderRepo",
   ];
 

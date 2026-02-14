@@ -8,42 +8,42 @@ Quick-reference for CueSubmit Web + OpenCue administration.
 
 | What | Value |
 |------|-------|
-| Production server | `REDACTED_IP` |
-| SSH | `ssh REDACTED_USER@REDACTED_IP` |
-| CueSubmit Web | `http://REDACTED_IP:3000` |
-| REST Gateway | `http://REDACTED_IP:8448` (JWT auth) |
-| Cuebot gRPC | `REDACTED_IP:8443` |
-| PostgreSQL | `127.0.0.1:5432` — user: `cuebot`, pass: `REDACTED_PASSWORD`, db: `cuebot_local` |
+| Production server | `YOUR_SERVER_IP` |
+| SSH | `ssh YOUR_SSH_USER@YOUR_SERVER_IP` |
+| CueSubmit Web | `http://YOUR_SERVER_IP:3000` |
+| REST Gateway | `http://YOUR_SERVER_IP:8448` (JWT auth) |
+| Cuebot gRPC | `YOUR_SERVER_IP:8443` |
+| PostgreSQL | `127.0.0.1:5432` — user: `cuebot`, pass: `YOUR_DB_PASSWORD`, db: `cuebot_local` |
 | SQLite (users/hosts) | `/app/data/cuesubmit.db` (Docker), `data/cuesubmit.db` (local) |
-| JWT secret | `REDACTED_SECRET` |
-| Session secret | `REDACTED_SECRET` |
+| JWT secret | `${JWT_SECRET}` |
+| Session secret | `${SESSION_SECRET}` |
 | Docker container | `cuesubmit-web`, network_mode: host |
 | Render output volume | `/angd_server_pool/renderRepo` → `/mnt/RenderOutputRepo:ro` |
 | Render source volume | `/opt/perforce/deadlineRenderSource` → `/mnt/RenderSourceRepository:ro` |
-| Log path in OpenCue DB | `//REDACTED_IP/RenderOutputRepo/OpenCue/Logs/...` |
-| Windows UNC access | `\\REDACTED_IP\RenderOutputRepo\OpenCue\Logs\...` |
+| Log path in OpenCue DB | `//YOUR_SERVER_IP/RenderOutputRepo/OpenCue/Logs/...` |
+| Windows UNC access | `\\YOUR_SERVER_IP\RenderOutputRepo\OpenCue\Logs\...` |
 
 ---
 
 ## Deploy
 
 ```bash
-ssh REDACTED_USER@REDACTED_IP "cd /home/perforce/cuesubmit-web && git pull && docker compose build --no-cache && docker compose up -d"
+ssh YOUR_SSH_USER@YOUR_SERVER_IP "cd /home/perforce/cuesubmit-web && git pull && docker compose build --no-cache && docker compose up -d"
 ```
 
 After deploy, seed production tracking data if this is the first time (see [Production Tracking](#production-tracking) section below):
 ```bash
-ssh REDACTED_USER@REDACTED_IP "docker exec cuesubmit-web node -e \"fetch('http://localhost:3000/api/production/acts').then(r=>r.json()).then(d=>console.log(d.acts?.length?'Production data exists':'Need to seed'))\""
+ssh YOUR_SSH_USER@YOUR_SERVER_IP "docker exec cuesubmit-web node -e \"fetch('http://localhost:3000/api/production/acts').then(r=>r.json()).then(d=>console.log(d.acts?.length?'Production data exists':'Need to seed'))\""
 ```
 
 Verify:
 ```bash
-ssh REDACTED_USER@REDACTED_IP "docker ps --filter name=cuesubmit-web --format '{{.Status}}'"
+ssh YOUR_SSH_USER@YOUR_SERVER_IP "docker ps --filter name=cuesubmit-web --format '{{.Status}}'"
 ```
 
 View logs:
 ```bash
-ssh REDACTED_USER@REDACTED_IP "docker logs cuesubmit-web --tail 30"
+ssh YOUR_SSH_USER@YOUR_SERVER_IP "docker logs cuesubmit-web --tail 30"
 ```
 
 ---
@@ -55,25 +55,25 @@ ssh REDACTED_USER@REDACTED_IP "docker logs cuesubmit-web --tail 30"
 CUEWEB_MODE=online
 CUEWEB_API_BASE=http://127.0.0.1:8448
 REST_GATEWAY_URL=http://127.0.0.1:8448
-JWT_SECRET=REDACTED_SECRET
-SESSION_SECRET=REDACTED_SECRET
+JWT_SECRET=${JWT_SECRET}
+SESSION_SECRET=${SESSION_SECRET}
 DATABASE_PATH=/app/data/cuesubmit.db
 RENDER_REPO_PATH=/mnt/RenderOutputRepo
 RENDER_SOURCE_PATH=/mnt/RenderSourceRepository
-ADMIN_INITIAL_PASSWORD=REDACTED_PASSWORD
+ADMIN_INITIAL_PASSWORD=${ADMIN_INITIAL_PASSWORD}
 ```
 
 ### Local Dev (.env.local — gitignored)
 ```
 CUEWEB_MODE=online
-CUEWEB_API_BASE=http://REDACTED_IP:8448
-REST_GATEWAY_URL=http://REDACTED_IP:8448
-JWT_SECRET=REDACTED_SECRET
-SESSION_SECRET=REDACTED_SECRET
-ADMIN_INITIAL_PASSWORD=REDACTED_PASSWORD
+CUEWEB_API_BASE=http://YOUR_SERVER_IP:8448
+REST_GATEWAY_URL=http://YOUR_SERVER_IP:8448
+JWT_SECRET=${JWT_SECRET}
+SESSION_SECRET=${SESSION_SECRET}
+ADMIN_INITIAL_PASSWORD=${ADMIN_INITIAL_PASSWORD}
 ```
 
-Local dev doesn't set `RENDER_REPO_PATH` — defaults to `\\REDACTED_IP\RenderOutputRepo` (Windows UNC).
+Local dev doesn't set `RENDER_REPO_PATH` — defaults to `\\YOUR_SERVER_IP\RenderOutputRepo` (Windows UNC).
 
 ---
 
@@ -81,8 +81,8 @@ Local dev doesn't set `RENDER_REPO_PATH` — defaults to `\\REDACTED_IP\RenderOu
 
 Connect:
 ```bash
-ssh REDACTED_USER@REDACTED_IP
-PGPASSWORD=REDACTED_PASSWORD psql -U cuebot -h 127.0.0.1 -d cuebot_local
+ssh YOUR_SSH_USER@YOUR_SERVER_IP
+PGPASSWORD=$OPENCUE_DB_PASSWORD psql -U cuebot -h 127.0.0.1 -d cuebot_local
 ```
 
 ### Key Tables
@@ -134,7 +134,7 @@ docker exec cuesubmit-web node -e "
   const crypto=require('crypto');
   const h=Buffer.from(JSON.stringify({alg:'HS256',typ:'JWT'})).toString('base64url');
   const p=Buffer.from(JSON.stringify({sub:'admin',iat:Math.floor(Date.now()/1000),exp:Math.floor(Date.now()/1000)+3600})).toString('base64url');
-  const sig=crypto.createHmac('sha256','REDACTED_SECRET').update(h+'.'+p).digest('base64url');
+  const sig=crypto.createHmac('sha256','${JWT_SECRET}').update(h+'.'+p).digest('base64url');
   console.log(h+'.'+p+'.'+sig);
 "
 ```
@@ -162,15 +162,15 @@ curl -s -X POST http://127.0.0.1:8448/host.HostInterface/Delete \
 
 ## Log Path Conversion
 
-OpenCue stores log paths as `//REDACTED_IP/RenderOutputRepo/OpenCue/Logs/...`
+OpenCue stores log paths as `//YOUR_SERVER_IP/RenderOutputRepo/OpenCue/Logs/...`
 
 The logs API route (`src/app/api/jobs/[id]/logs/route.ts`) converts them:
 
 | Environment | Source prefix | Replaced with |
 |-------------|--------------|---------------|
-| Docker | `//REDACTED_IP/RenderOutputRepo` | `/mnt/RenderOutputRepo` |
+| Docker | `//YOUR_SERVER_IP/RenderOutputRepo` | `/mnt/RenderOutputRepo` |
 | Docker | `/angd_server_pool/renderRepo` | `/mnt/RenderOutputRepo` |
-| Windows dev | `//REDACTED_IP/RenderOutputRepo` | `\\REDACTED_IP\RenderOutputRepo` |
+| Windows dev | `//YOUR_SERVER_IP/RenderOutputRepo` | `\\YOUR_SERVER_IP\RenderOutputRepo` |
 
 Log files are named: `<jobname>.<NNNN>-<layername>.rqlog` (e.g. `jobname.0030-arnold.rqlog`)
 
@@ -210,7 +210,7 @@ docker exec cuesubmit-web ls /mnt/RenderOutputRepo/
 docker exec cuesubmit-web ls /mnt/RenderSourceRepository/
 
 # Test frame preview API (get a JWT first, see Gateway API section)
-curl -s "http://127.0.0.1:3000/api/files/frame-preview?dir=//REDACTED_IP/RenderOutputRepo/path/to/output&frame=1" \
+curl -s "http://127.0.0.1:3000/api/files/frame-preview?dir=//YOUR_SERVER_IP/RenderOutputRepo/path/to/output&frame=1" \
   -H "Cookie: session=<session_cookie>"
 ```
 
@@ -224,7 +224,7 @@ The `/production` page provides shot tracking with inline editing, pipeline stat
 
 - **SQLite tables** — `prod_acts`, `prod_shots`, `prod_shot_statuses`, `prod_status_log` — auto-created on first API access via `initializeProductionTables()` in `src/lib/db/production.ts`. No manual migration needed.
 - **Pipeline departments** — lookdev → blocking → spline → polish → lighting → rendering → comp (7 stages).
-- **Thumbnails** — auto-synced from the render repo folder at `\\REDACTED_IP\RenderOutputRepo\Thesis_25-26\NLG\Editorial\Thumbnail`. Thumbnail files follow the naming pattern `act<N>_shot<N>.png/jpg`. Thumbnails are served via `repo:` prefix paths that resolve to `/mnt/RenderOutputRepo/Thesis_25-26/NLG/Editorial/Thumbnail/` inside Docker.
+- **Thumbnails** — auto-synced from the render repo folder at `\\YOUR_SERVER_IP\RenderOutputRepo\Thesis_25-26\NLG\Editorial\Thumbnail`. Thumbnail files follow the naming pattern `act<N>_shot<N>.png/jpg`. Thumbnails are served via `repo:` prefix paths that resolve to `/mnt/RenderOutputRepo/Thesis_25-26/NLG/Editorial/Thumbnail/` inside Docker.
 - **Permissions** — Any authenticated user (admin, manager, student) can change department statuses and manage acts/shots. The `manage_productions` permission is granted to all roles.
 
 ### View Modes
@@ -293,7 +293,7 @@ Then the data is in `data/cuesubmit.db` — copy it into the Docker volume.
 
 **Option B — Inside Docker (after deploy):**
 ```bash
-ssh REDACTED_USER@REDACTED_IP "cd /home/perforce/cuesubmit-web && \
+ssh YOUR_SSH_USER@YOUR_SERVER_IP "cd /home/perforce/cuesubmit-web && \
   docker cp scripts/migrate-production.js cuesubmit-web:/app/ && \
   docker cp scripts/seed-production.js cuesubmit-web:/app/ && \
   docker exec cuesubmit-web node /app/migrate-production.js && \
@@ -408,7 +408,7 @@ node -e "const db=require('better-sqlite3')('./data/cuesubmit.db'); console.log(
 
 5. **FK constraint errors on show delete** — Must delete in order: frames → layers → job_history → jobs → subscriptions → folders → show. See the SQL above.
 
-6. **Local dev points to production gateway** — `.env.local` uses `REDACTED_IP:8448`. You're hitting the real OpenCue. Be careful with destructive operations.
+6. **Local dev points to production gateway** — `.env.local` uses `YOUR_SERVER_IP:8448`. You're hitting the real OpenCue. Be careful with destructive operations.
 
 7. **Docker volumes are read-only** — Both render repo mounts are `:ro`. Logs and rendered images can only be read, not written/deleted from the web container.
 
@@ -437,11 +437,11 @@ Shows must be created through the REST gateway (which proxies to cuebot gRPC). D
 ### Step 1 — Generate a JWT
 
 ```bash
-ssh REDACTED_USER@REDACTED_IP 'docker exec cuesubmit-web node -e "
+ssh YOUR_SSH_USER@YOUR_SERVER_IP 'docker exec cuesubmit-web node -e "
   const crypto=require(\"crypto\");
   const h=Buffer.from(JSON.stringify({alg:\"HS256\",typ:\"JWT\"})).toString(\"base64url\");
   const p=Buffer.from(JSON.stringify({sub:\"admin\",iat:Math.floor(Date.now()/1000),exp:Math.floor(Date.now()/1000)+3600})).toString(\"base64url\");
-  const sig=crypto.createHmac(\"sha256\",\"REDACTED_SECRET\").update(h+\".\"+p).digest(\"base64url\");
+  const sig=crypto.createHmac(\"sha256\",\"${JWT_SECRET}\").update(h+\".\"+p).digest(\"base64url\");
   console.log(h+\".\"+p+\".\"+sig);
 "'
 ```
@@ -449,7 +449,7 @@ ssh REDACTED_USER@REDACTED_IP 'docker exec cuesubmit-web node -e "
 ### Step 2 — Create the Show via API
 
 ```bash
-ssh REDACTED_USER@REDACTED_IP "curl -s -X POST http://127.0.0.1:8448/show.ShowInterface/CreateShow \
+ssh YOUR_SSH_USER@YOUR_SERVER_IP "curl -s -X POST http://127.0.0.1:8448/show.ShowInterface/CreateShow \
   -H 'Content-Type: application/json' \
   -H 'Authorization: Bearer <JWT>' \
   -d '{\"name\":\"<SHOW_NAME>\"}'"
@@ -460,7 +460,7 @@ The response includes the new show's UUID (`id` field). Save it — you'll need 
 ### Step 3 — Verify cuebot sees it
 
 ```bash
-ssh REDACTED_USER@REDACTED_IP "curl -s -X POST http://127.0.0.1:8448/show.ShowInterface/GetActiveShows \
+ssh YOUR_SSH_USER@YOUR_SERVER_IP "curl -s -X POST http://127.0.0.1:8448/show.ShowInterface/GetActiveShows \
   -H 'Content-Type: application/json' \
   -H 'Authorization: Bearer <JWT>' \
   -d '{}' | python3 -c \"import sys,json; data=json.load(sys.stdin); [print(s['name']) for s in data['shows']['shows']]\""
@@ -628,7 +628,7 @@ WHERE str_tags LIKE '%badtag%';
 ### Cuebot (bare process, not Docker)
 
 ```bash
-ssh REDACTED_USER@REDACTED_IP
+ssh YOUR_SSH_USER@YOUR_SERVER_IP
 
 # Find PID
 ps aux | grep cuebot | grep -v grep
@@ -638,18 +638,18 @@ kill <PID>
 nohup java -jar /opt/opencue/cuebot-1.13.8-all.jar \
   --datasource.cue-data-source.jdbc-url=jdbc:postgresql://127.0.0.1:5432/cuebot_local \
   --datasource.cue-data-source.username=cuebot \
-  --datasource.cue-data-source.password=REDACTED_PASSWORD \
+  --datasource.cue-data-source.password=$OPENCUE_DB_PASSWORD \
   > /opt/opencue/logs/cuebot.log 2>&1 &
 ```
 
 ### REST Gateway (Docker)
 
 ```bash
-ssh REDACTED_USER@REDACTED_IP "docker restart opencue-rest-gateway"
+ssh YOUR_SSH_USER@YOUR_SERVER_IP "docker restart opencue-rest-gateway"
 ```
 
 ### CueSubmit Web (Docker)
 
 ```bash
-ssh REDACTED_USER@REDACTED_IP "docker restart cuesubmit-web"
+ssh YOUR_SSH_USER@YOUR_SERVER_IP "docker restart cuesubmit-web"
 ```

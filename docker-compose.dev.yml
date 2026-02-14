@@ -9,10 +9,10 @@ services:
       - CUEWEB_MODE=online
       - CUEWEB_API_BASE=http://127.0.0.1:8448
       - REST_GATEWAY_URL=http://127.0.0.1:8448
-      - JWT_SECRET=REDACTED_SECRET
-      - SESSION_SECRET=REDACTED_SECRET
+      - JWT_SECRET=${JWT_SECRET:-dev-jwt-secret-change-in-production}
+      - SESSION_SECRET=${SESSION_SECRET:-dev-session-secret-change-in-production}
       - DATABASE_PATH=/app/data/cuesubmit.db
-      - ADMIN_INITIAL_PASSWORD=${ADMIN_INITIAL_PASSWORD:-REDACTED_PASSWORD}
+      - ADMIN_INITIAL_PASSWORD=${ADMIN_INITIAL_PASSWORD:-changeme}
       - WATCHPACK_POLLING=true
     volumes:
       - .:/app

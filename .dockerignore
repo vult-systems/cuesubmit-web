@@ -4,7 +4,6 @@ node_modules
 .gitignore
 *.md
 .env*
-launcher
 opencue
 data
 .DS_Store

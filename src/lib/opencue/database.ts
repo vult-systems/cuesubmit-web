@@ -7,7 +7,7 @@ const pool = new Pool({
   port: parseInt(process.env.OPENCUE_DB_PORT || '5432'),
   database: process.env.OPENCUE_DB_NAME || 'cuebot_local',
   user: process.env.OPENCUE_DB_USER || 'cuebot',
-  password: process.env.OPENCUE_DB_PASSWORD || 'uiw3d',
+  password: process.env.OPENCUE_DB_PASSWORD || '',
   max: 5,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,

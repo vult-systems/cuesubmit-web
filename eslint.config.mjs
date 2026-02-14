@@ -14,7 +14,6 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Reference content (not live code):
     "opencue/**",
-    "launcher/**",
     // Scripts (Node.js, not browser/Next.js):
     "scripts/**",
   ]),

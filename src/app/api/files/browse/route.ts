@@ -7,8 +7,9 @@ import path from "path";
 const RENDER_OUTPUT_LINUX = process.env.RENDER_REPO_PATH || "/mnt/RenderOutputRepo";
 const RENDER_SOURCE_LINUX = process.env.RENDER_SOURCE_PATH || "/mnt/RenderSourceRepository";
 
-const RENDER_OUTPUT_UNC = String.raw`\\REDACTED_IP\RenderOutputRepo`;
-const RENDER_SOURCE_UNC = String.raw`\\REDACTED_IP\RenderSourceRepository`;
+const FILE_SERVER = process.env.FILE_SERVER_IP || 'localhost';
+const RENDER_OUTPUT_UNC = `\\\\${FILE_SERVER}\\RenderOutputRepo`;
+const RENDER_SOURCE_UNC = `\\\\${FILE_SERVER}\\RenderSourceRepository`;
 
 // All allowed path mappings
 const PATH_MAPPINGS = [
