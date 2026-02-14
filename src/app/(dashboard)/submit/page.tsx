@@ -22,6 +22,7 @@ import { useRouter } from "next/navigation";
 import { InlineFileBrowser, PathShortcuts, SCENE_SHORTCUTS, OUTPUT_SHORTCUTS, ROOT_PATHS } from "@/components/inline-file-browser";
 
 const STORAGE_KEY = "cuesubmit-form-state";
+const UI_STATE_KEY = "cuesubmit-ui-state";
 
 // Maya format flag values for the -of CLI option
 const mayaFormatFlags: Record<string, string> = {
@@ -167,10 +168,17 @@ export default function SubmitPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [shows, setShows] = useState<Show[]>([]);
-  const [sceneFileBrowserOpen, setSceneFileBrowserOpen] = useState(true);
-  const [outputPathBrowserOpen, setOutputPathBrowserOpen] = useState(true);
-  const [sceneStartPath, setSceneStartPath] = useState("");
-  const [outputStartPath, setOutputStartPath] = useState("");
+
+  // Load persisted UI state (browser open/closed, start paths)
+  const savedUi = typeof window !== "undefined" ? (() => {
+    try { return JSON.parse(sessionStorage.getItem(UI_STATE_KEY) || "{}"); }
+    catch { return {}; }
+  })() : {};
+
+  const [sceneFileBrowserOpen, setSceneFileBrowserOpen] = useState<boolean>(savedUi.sceneOpen ?? false);
+  const [outputPathBrowserOpen, setOutputPathBrowserOpen] = useState<boolean>(savedUi.outputOpen ?? false);
+  const [sceneStartPath, setSceneStartPath] = useState<string>(savedUi.sceneStartPath ?? "");
+  const [outputStartPath, setOutputStartPath] = useState<string>(savedUi.outputStartPath ?? "");
 
   // Load saved form state from sessionStorage
   const getSavedValues = useCallback((): FormData => {
@@ -207,6 +215,18 @@ export default function SubmitPage() {
     });
     return () => subscription.unsubscribe();
   }, [watch]);
+
+  // Persist browser UI state whenever it changes
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(UI_STATE_KEY, JSON.stringify({
+        sceneOpen: sceneFileBrowserOpen,
+        outputOpen: outputPathBrowserOpen,
+        sceneStartPath,
+        outputStartPath,
+      }));
+    } catch { /* ignore */ }
+  }, [sceneFileBrowserOpen, outputPathBrowserOpen, sceneStartPath, outputStartPath]);
 
   // Fetch shows and user session on mount
   useEffect(() => {
@@ -340,6 +360,7 @@ export default function SubmitPage() {
       const result = await response.json();
       if (response.ok) {
         sessionStorage.removeItem(STORAGE_KEY);
+        sessionStorage.removeItem(UI_STATE_KEY);
         toast.success(result.message || "Job submitted successfully!");
         router.push("/jobs");
       } else {
@@ -370,7 +391,12 @@ export default function SubmitPage() {
             size="icon"
             onClick={() => {
               sessionStorage.removeItem(STORAGE_KEY);
+              sessionStorage.removeItem(UI_STATE_KEY);
               reset(defaultValues);
+              setSceneFileBrowserOpen(false);
+              setOutputPathBrowserOpen(false);
+              setSceneStartPath("");
+              setOutputStartPath("");
             }}
             className="h-8 w-8 rounded-lg border border-neutral-200 dark:border-white/8 hover:bg-neutral-100 dark:hover:bg-white/5 hover:border-neutral-300 dark:hover:border-white/12 transition-all duration-300"
           >
