@@ -1031,34 +1031,32 @@ export default function ProductionPage() {
           </Button>
         </div>
       ) : viewMode === "colorscript" ? (
-        /* Color Script – thumbnails only */
-        <div className="space-y-4">
-          {acts.map((act, actIdx) => {
+        /* Color Script – thumbnails only, acts as columns */
+        <div className="flex gap-3 overflow-x-auto pb-2">
+          {acts.map((act) => {
             const actShots = shotsByAct.get(act.code) || [];
             if (actShots.length === 0) return null;
             return (
-              <div key={act.id}>
-                <h3 className="text-xs font-medium text-text-muted mb-2 uppercase tracking-wider">{act.code}</h3>
-                <div className="grid gap-1" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))' }}>
-                  {actShots.map(shot => (
-                    <div key={shot.id} className="relative aspect-video rounded-lg overflow-hidden bg-neutral-100 dark:bg-white/5 group">
-                      {shot.thumbnail ? (
-                        <img
-                          src={`/api/production/thumbnails/${shot.thumbnail}`}
-                          alt={shot.combined_code}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <ImageIcon className="h-6 w-6 text-text-muted opacity-30" />
-                        </div>
-                      )}
-                      <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1">
-                        <span className="text-[10px] font-medium text-white">{shot.combined_code}</span>
+              <div key={act.id} className="flex flex-col gap-1 min-w-[140px]">
+                <h3 className="text-[10px] font-medium text-text-muted uppercase tracking-wider text-center">{act.code}</h3>
+                {actShots.map(shot => (
+                  <div key={shot.id} className="relative aspect-video rounded-sm overflow-hidden bg-neutral-100 dark:bg-white/5">
+                    {shot.thumbnail ? (
+                      <img
+                        src={`/api/production/thumbnails/${shot.thumbnail}`}
+                        alt={shot.combined_code}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <ImageIcon className="h-4 w-4 text-text-muted opacity-30" />
                       </div>
+                    )}
+                    <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/50 to-transparent px-1 py-0.5">
+                      <span className="text-[7px] font-medium text-white/90">{shot.combined_code}</span>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
               </div>
             );
           })}
@@ -1172,7 +1170,7 @@ function ShotTableView({ shots, canEdit, canManage, onStatusChange, onUpdateShot
                 )}
               >
                 <td className="py-2 px-3 align-middle">
-                  <ShotThumbnail shot={shot} canManage={canManage} onUpload={onThumbnailUpload} className="w-80 shrink-0 rounded-md border border-border-muted" />
+                  <ShotThumbnail shot={shot} canManage={canManage} onUpload={onThumbnailUpload} className="w-80 shrink-0 rounded-sm border border-border-muted" />
                 </td>
                 <td className="py-2 px-3 align-middle">
                   {canManage ? (
