@@ -7,7 +7,6 @@ import {
   Film,
   RefreshCw,
   Image as ImageIcon,
-  Upload,
   Loader2,
   Plus,
   Trash2,
@@ -150,39 +149,16 @@ function getActCompletion(shots: Shot[]): number {
 
 // ─── Component: Shot Thumbnail ────────────────────────
 
-function ShotThumbnail({ shot, canManage, onUpload, className }: {
+function ShotThumbnail({ shot, className }: {
   shot: Shot;
-  canManage?: boolean;
-  onUpload?: (shotId: number, file: File) => Promise<void>;
   className?: string;
 }) {
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
-
-  const handleClick = () => {
-    if (canManage && fileRef.current) fileRef.current.click();
-  };
-
-  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !onUpload) return;
-    setUploading(true);
-    try {
-      await onUpload(shot.id, file);
-    } finally {
-      setUploading(false);
-      if (fileRef.current) fileRef.current.value = "";
-    }
-  };
-
   return (
     <div
       className={cn(
-        "aspect-video bg-surface-muted flex items-center justify-center overflow-hidden relative group",
-        canManage && "cursor-pointer",
+        "aspect-video bg-surface-muted flex items-center justify-center overflow-hidden",
         className
       )}
-      onClick={handleClick}
     >
       {shot.thumbnail ? (
         /* eslint-disable-next-line @next/next/no-img-element */
@@ -198,18 +174,6 @@ function ShotThumbnail({ shot, canManage, onUpload, className }: {
           <ImageIcon className="h-6 w-6 opacity-30" />
           <span className="text-[10px] font-mono mt-1">{shot.combined_code}</span>
         </div>
-      )}
-      {canManage && (
-        <>
-          <input ref={fileRef} type="file" accept="image/png,image/jpeg" className="hidden" onChange={handleFile} />
-          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center">
-            {uploading ? (
-              <Loader2 className="h-5 w-5 text-white animate-spin opacity-0 group-hover:opacity-100 transition-opacity" />
-            ) : (
-              <Upload className="h-5 w-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-            )}
-          </div>
-        </>
       )}
     </div>
   );
@@ -484,22 +448,6 @@ export default function ProductionPage() {
       fetchData();
     }
   }, [fetchData]);
-
-  const handleThumbnailUpload = useCallback(async (shotId: number, file: File) => {
-    const formData = new FormData();
-    formData.append("thumbnail", file);
-    const res = await fetch(`/api/production/shots/${shotId}/thumbnail`, {
-      method: "POST",
-      body: formData,
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || "Failed to upload");
-    }
-    const data = await res.json();
-    setShots(prev => prev.map(s => s.id === shotId ? { ...s, thumbnail: data.thumbnail } : s));
-    toast.success("Thumbnail uploaded");
-  }, []);
 
   // ─── Sync from Thumbnail Folder ─────────────────────
 
@@ -1112,9 +1060,9 @@ export default function ProductionPage() {
                 <div className="p-2">
                   {actShots.length > 0 ? (
                     viewMode === "table" ? (
-                      <ShotTableView shots={actShots} canEdit={canEdit} canManage={canManage} onStatusChange={handleStatusChange} onUpdateShot={handleUpdateShot} onThumbnailUpload={handleThumbnailUpload} onDeleteShot={handleDeleteShot} />
+                      <ShotTableView shots={actShots} canEdit={canEdit} canManage={canManage} onStatusChange={handleStatusChange} onUpdateShot={handleUpdateShot} onDeleteShot={handleDeleteShot} />
                     ) : (
-                      <ShotGridView shots={actShots} canEdit={canEdit} canManage={canManage} onStatusChange={handleStatusChange} onUpdateShot={handleUpdateShot} onThumbnailUpload={handleThumbnailUpload} onDeleteShot={handleDeleteShot} />
+                      <ShotGridView shots={actShots} canEdit={canEdit} canManage={canManage} onStatusChange={handleStatusChange} onUpdateShot={handleUpdateShot} onDeleteShot={handleDeleteShot} />
                     )
                   ) : (
                     <div className="flex flex-col items-center py-8 text-text-muted">
@@ -1140,13 +1088,12 @@ export default function ProductionPage() {
 
 // ─── Component: Shot Table View ───────────────────────
 
-function ShotTableView({ shots, canEdit, canManage, onStatusChange, onUpdateShot, onThumbnailUpload, onDeleteShot }: {
+function ShotTableView({ shots, canEdit, canManage, onStatusChange, onUpdateShot, onDeleteShot }: {
   shots: Shot[];
   canEdit: boolean;
   canManage: boolean;
   onStatusChange: (shotId: number, dept: Department, status: Status) => void;
   onUpdateShot: (shotId: number, updates: Record<string, string | number>) => void;
-  onThumbnailUpload: (shotId: number, file: File) => Promise<void>;
   onDeleteShot?: (shotId: number) => void;
 }) {
   return (
@@ -1182,7 +1129,7 @@ function ShotTableView({ shots, canEdit, canManage, onStatusChange, onUpdateShot
                 )}
               >
                 <td className="py-2 px-3 align-middle">
-                  <ShotThumbnail shot={shot} canManage={canManage} onUpload={onThumbnailUpload} className="w-80 shrink-0 rounded-sm border border-border-muted" />
+                  <ShotThumbnail shot={shot} className="w-80 shrink-0 rounded-sm border border-border-muted" />
                 </td>
                 <td className="py-2 px-3 align-middle">
                   {canManage ? (
@@ -1254,13 +1201,12 @@ function ShotTableView({ shots, canEdit, canManage, onStatusChange, onUpdateShot
 
 // ─── Component: Shot Grid View ────────────────────────
 
-function ShotGridView({ shots, canEdit, canManage, onStatusChange, onUpdateShot, onThumbnailUpload, onDeleteShot }: {
+function ShotGridView({ shots, canEdit, canManage, onStatusChange, onUpdateShot, onDeleteShot }: {
   shots: Shot[];
   canEdit: boolean;
   canManage: boolean;
   onStatusChange: (shotId: number, dept: Department, status: Status) => void;
   onUpdateShot: (shotId: number, updates: Record<string, string | number>) => void;
-  onThumbnailUpload: (shotId: number, file: File) => Promise<void>;
   onDeleteShot?: (shotId: number) => void;
 }) {
   return (
@@ -1281,7 +1227,7 @@ function ShotGridView({ shots, canEdit, canManage, onStatusChange, onUpdateShot,
               </Button>
             )}
             {/* Thumbnail */}
-            <ShotThumbnail shot={shot} canManage={canManage} onUpload={onThumbnailUpload} />
+            <ShotThumbnail shot={shot} />
 
             {/* Info */}
             <div className="p-2 space-y-1.5">
