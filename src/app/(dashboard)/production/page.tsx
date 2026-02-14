@@ -363,10 +363,16 @@ export default function ProductionPage() {
   const [lightboxPan, setLightboxPan] = useState({ x: 0, y: 0 });
   const lightboxDrag = useRef<{ dragging: boolean; startX: number; startY: number; startPanX: number; startPanY: number }>({ dragging: false, startX: 0, startY: 0, startPanX: 0, startPanY: 0 });
 
-  // Reset zoom/pan when shot changes
+  // Reset zoom/pan and lock body scroll when lightbox is open
   useEffect(() => {
     setLightboxZoom(1);
     setLightboxPan({ x: 0, y: 0 });
+    if (lightboxShot) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => { document.body.style.overflow = ""; };
   }, [lightboxShot]);
 
   // ─── Data Fetching ──────────────────────────────────
