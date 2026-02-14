@@ -16,9 +16,10 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RotateCcw, Loader2, Send, FolderOpen } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { FileBrowserDialog } from "@/components/file-browser-dialog";
+import { InlineFileBrowser, ProjectFolderPicker, ROOT_PATHS } from "@/components/inline-file-browser";
 
 const STORAGE_KEY = "cuesubmit-form-state";
 
@@ -168,6 +169,7 @@ export default function SubmitPage() {
   const [shows, setShows] = useState<Show[]>([]);
   const [sceneFileBrowserOpen, setSceneFileBrowserOpen] = useState(false);
   const [outputPathBrowserOpen, setOutputPathBrowserOpen] = useState(false);
+  const [projectFolder, setProjectFolder] = useState("");
 
   // Load saved form state from sessionStorage
   const getSavedValues = useCallback((): FormData => {
@@ -485,6 +487,21 @@ export default function SubmitPage() {
               </div>
             </div>
 
+            {/* Project Folder */}
+            <div className="space-y-1.5">
+              <FieldLabel accent="warm">Project Folder</FieldLabel>
+              <p className="text-[10px] text-text-muted -mt-0.5">Select a project to start browsing from that folder</p>
+              <ProjectFolderPicker
+                value={projectFolder}
+                onSelect={(path) => {
+                  setProjectFolder(path);
+                  // Close any open browsers so they re-open at the new project path
+                  setSceneFileBrowserOpen(false);
+                  setOutputPathBrowserOpen(false);
+                }}
+              />
+            </div>
+
             {/* Paths */}
             <div className="grid grid-cols-6 gap-3">
               <div className="col-span-3 space-y-1">
@@ -497,14 +514,28 @@ export default function SubmitPage() {
                   />
                   <Button
                     type="button"
-                    variant="ghost"
+                    variant={sceneFileBrowserOpen ? "default" : "ghost"}
                     size="icon"
-                    onClick={() => setSceneFileBrowserOpen(true)}
-                    className="h-9 w-9 shrink-0 border border-neutral-200 dark:border-white/8 hover:bg-neutral-100 dark:hover:bg-white/5"
+                    onClick={() => { setSceneFileBrowserOpen(!sceneFileBrowserOpen); setOutputPathBrowserOpen(false); }}
+                    className={cn(
+                      "h-9 w-9 shrink-0 border transition-all",
+                      sceneFileBrowserOpen
+                        ? "bg-amber-500 hover:bg-amber-600 border-amber-500 text-white"
+                        : "border-neutral-200 dark:border-white/8 hover:bg-neutral-100 dark:hover:bg-white/5"
+                    )}
                   >
                     <FolderOpen className="h-4 w-4" />
                   </Button>
                 </div>
+                <InlineFileBrowser
+                  open={sceneFileBrowserOpen}
+                  onSelect={(path) => { setValue("sceneFile", path, { shouldValidate: true }); setSceneFileBrowserOpen(false); }}
+                  mode="file"
+                  rootPath={ROOT_PATHS[1].path}
+                  projectFolder={projectFolder}
+                  fileExtensions={[".ma", ".mb", ".hip", ".hipnc", ".hiplc"]}
+                  currentValue={sceneFile}
+                />
               </div>
               <div className="col-span-3 space-y-1">
                 <FieldLabel required accent="warm">Output Directory</FieldLabel>
@@ -516,14 +547,27 @@ export default function SubmitPage() {
                   />
                   <Button
                     type="button"
-                    variant="ghost"
+                    variant={outputPathBrowserOpen ? "default" : "ghost"}
                     size="icon"
-                    onClick={() => setOutputPathBrowserOpen(true)}
-                    className="h-9 w-9 shrink-0 border border-neutral-200 dark:border-white/8 hover:bg-neutral-100 dark:hover:bg-white/5"
+                    onClick={() => { setOutputPathBrowserOpen(!outputPathBrowserOpen); setSceneFileBrowserOpen(false); }}
+                    className={cn(
+                      "h-9 w-9 shrink-0 border transition-all",
+                      outputPathBrowserOpen
+                        ? "bg-amber-500 hover:bg-amber-600 border-amber-500 text-white"
+                        : "border-neutral-200 dark:border-white/8 hover:bg-neutral-100 dark:hover:bg-white/5"
+                    )}
                   >
                     <FolderOpen className="h-4 w-4" />
                   </Button>
                 </div>
+                <InlineFileBrowser
+                  open={outputPathBrowserOpen}
+                  onSelect={(path) => { setValue("outputPath", path, { shouldValidate: true }); setOutputPathBrowserOpen(false); }}
+                  mode="directory"
+                  rootPath={ROOT_PATHS[0].path}
+                  projectFolder={projectFolder}
+                  currentValue={watch("outputPath")}
+                />
               </div>
             </div>
 
@@ -673,23 +717,6 @@ export default function SubmitPage() {
           </div>
         </div>
       </div>
-
-      {/* File Browser Dialogs */}
-      <FileBrowserDialog
-        open={sceneFileBrowserOpen}
-        onOpenChange={setSceneFileBrowserOpen}
-        onSelect={(path) => setValue("sceneFile", path, { shouldValidate: true })}
-        mode="file"
-        title="Select Scene File"
-        fileExtensions={[".ma", ".mb", ".hip", ".hipnc", ".hiplc"]}
-      />
-      <FileBrowserDialog
-        open={outputPathBrowserOpen}
-        onOpenChange={setOutputPathBrowserOpen}
-        onSelect={(path) => setValue("outputPath", path, { shouldValidate: true })}
-        mode="directory"
-        title="Select Output Directory"
-      />
     </div>
   );
 }
