@@ -1031,32 +1031,34 @@ export default function ProductionPage() {
           </Button>
         </div>
       ) : viewMode === "colorscript" ? (
-        /* Color Script – thumbnails only, acts as columns */
-        <div className="flex gap-2 overflow-x-auto pb-2">
+        /* Color Script – acts as big columns, shots as mini grid inside */
+        <div className="flex gap-4 overflow-x-auto pb-2">
           {acts.map((act) => {
             const actShots = shotsByAct.get(act.code) || [];
             if (actShots.length === 0) return null;
             return (
-              <div key={act.id} className="flex flex-col gap-0.5 w-[120px] shrink-0">
-                <h3 className="text-[10px] font-medium text-text-muted uppercase tracking-wider text-center">{act.code}</h3>
-                {actShots.map(shot => (
-                  <div key={shot.id} className="relative aspect-video rounded-sm overflow-hidden bg-neutral-100 dark:bg-white/5">
-                    {shot.thumbnail ? (
-                      <img
-                        src={`/api/production/thumbnails/${shot.thumbnail}`}
-                        alt={shot.combined_code}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <ImageIcon className="h-4 w-4 text-text-muted opacity-30" />
+              <div key={act.id} className="shrink-0">
+                <h3 className="text-[10px] font-medium text-text-muted uppercase tracking-wider text-center mb-1">{act.code}</h3>
+                <div className="grid grid-cols-2 gap-0.5">
+                  {actShots.map(shot => (
+                    <div key={shot.id} className="relative aspect-video w-[100px] rounded-sm overflow-hidden bg-neutral-100 dark:bg-white/5">
+                      {shot.thumbnail ? (
+                        <img
+                          src={`/api/production/thumbnails/${shot.thumbnail}`}
+                          alt={shot.combined_code}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <ImageIcon className="h-4 w-4 text-text-muted opacity-30" />
+                        </div>
+                      )}
+                      <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/50 to-transparent px-1 py-0.5">
+                        <span className="text-[7px] font-medium text-white/90">{shot.combined_code}</span>
                       </div>
-                    )}
-                    <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/50 to-transparent px-1 py-0.5">
-                      <span className="text-[7px] font-medium text-white/90">{shot.combined_code}</span>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             );
           })}
