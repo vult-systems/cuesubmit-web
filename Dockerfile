@@ -14,6 +14,9 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+ARG NEXT_PUBLIC_FILE_SERVER_IP=localhost
+ENV NEXT_PUBLIC_FILE_SERVER_IP=${NEXT_PUBLIC_FILE_SERVER_IP}
+
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 

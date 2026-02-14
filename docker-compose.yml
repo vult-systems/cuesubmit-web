@@ -1,6 +1,9 @@
 services:
   cuesubmit-web:
-    build: .
+    build:
+      context: .
+      args:
+        - NEXT_PUBLIC_FILE_SERVER_IP=${NEXT_PUBLIC_FILE_SERVER_IP:-localhost}
     container_name: cuesubmit-web
     restart: unless-stopped
     network_mode: host

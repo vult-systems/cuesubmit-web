@@ -20,7 +20,12 @@ const PATH_MAPPINGS = [
 // Convert UNC path to Linux path for filesystem access
 function uncToLinux(uncPath: string): string {
   const decoded = decodeURIComponent(uncPath);
-  const normalized = decoded.replace(/\\/g, "/").replace(/\/+$/, "");
+  // Normalize to forward slashes and strip trailing slash
+  let normalized = decoded.replace(/\\/g, "/").replace(/\/+$/, "");
+
+  // Replace any IP/hostname in the UNC path with the server's FILE_SERVER
+  // so client and server don't need to agree on the exact hostname
+  normalized = normalized.replace(/^\/\/[^/]+\//, `//${FILE_SERVER}/`);
 
   for (const mapping of PATH_MAPPINGS) {
     const uncNorm = mapping.unc.replace(/\\/g, "/");
