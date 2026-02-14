@@ -1032,12 +1032,12 @@ export default function ProductionPage() {
         </div>
       ) : viewMode === "colorscript" ? (
         /* Color Script – thumbnails only, acts as columns */
-        <div className="flex gap-3 overflow-x-auto pb-2">
+        <div className="flex gap-2 overflow-x-auto pb-2">
           {acts.map((act) => {
             const actShots = shotsByAct.get(act.code) || [];
             if (actShots.length === 0) return null;
             return (
-              <div key={act.id} className="flex flex-col gap-1 min-w-[140px]">
+              <div key={act.id} className="flex flex-col gap-0.5 w-[120px] shrink-0">
                 <h3 className="text-[10px] font-medium text-text-muted uppercase tracking-wider text-center">{act.code}</h3>
                 {actShots.map(shot => (
                   <div key={shot.id} className="relative aspect-video rounded-sm overflow-hidden bg-neutral-100 dark:bg-white/5">
