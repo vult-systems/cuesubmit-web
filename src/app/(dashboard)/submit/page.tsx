@@ -175,10 +175,11 @@ export default function SubmitPage() {
     catch { return {}; }
   })() : {};
 
-  const [sceneFileBrowserOpen, setSceneFileBrowserOpen] = useState<boolean>(savedUi.sceneOpen ?? false);
-  const [outputPathBrowserOpen, setOutputPathBrowserOpen] = useState<boolean>(savedUi.outputOpen ?? false);
   const [sceneStartPath, setSceneStartPath] = useState<string>(savedUi.sceneStartPath ?? "");
   const [outputStartPath, setOutputStartPath] = useState<string>(savedUi.outputStartPath ?? "");
+  // Auto-open browser if a start path was persisted
+  const [sceneFileBrowserOpen, setSceneFileBrowserOpen] = useState<boolean>(!!savedUi.sceneStartPath);
+  const [outputPathBrowserOpen, setOutputPathBrowserOpen] = useState<boolean>(!!savedUi.outputStartPath);
 
   // Load saved form state from sessionStorage
   const getSavedValues = useCallback((): FormData => {
@@ -216,17 +217,15 @@ export default function SubmitPage() {
     return () => subscription.unsubscribe();
   }, [watch]);
 
-  // Persist browser UI state whenever it changes
+  // Persist browser UI state whenever start paths change
   useEffect(() => {
     try {
       sessionStorage.setItem(UI_STATE_KEY, JSON.stringify({
-        sceneOpen: sceneFileBrowserOpen,
-        outputOpen: outputPathBrowserOpen,
         sceneStartPath,
         outputStartPath,
       }));
     } catch { /* ignore */ }
-  }, [sceneFileBrowserOpen, outputPathBrowserOpen, sceneStartPath, outputStartPath]);
+  }, [sceneStartPath, outputStartPath]);
 
   // Fetch shows and user session on mount
   useEffect(() => {
