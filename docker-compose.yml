@@ -12,6 +12,10 @@ services:
       - SESSION_SECRET=${SESSION_SECRET:?SESSION_SECRET is required}
       - DATABASE_PATH=/app/data/cuesubmit.db
       - ADMIN_INITIAL_PASSWORD=${ADMIN_INITIAL_PASSWORD:?ADMIN_INITIAL_PASSWORD is required}
+      - OPENCUE_DB_HOST=${OPENCUE_DB_HOST:-localhost}
+      - OPENCUE_DB_PASSWORD=${OPENCUE_DB_PASSWORD:-}
+      - FILE_SERVER_IP=${FILE_SERVER_IP:-localhost}
+      - NEXT_PUBLIC_FILE_SERVER_IP=${NEXT_PUBLIC_FILE_SERVER_IP:-localhost}
       - RENDER_REPO_PATH=/mnt/RenderOutputRepo
       - RENDER_SOURCE_PATH=/mnt/RenderSourceRepository
     volumes:
