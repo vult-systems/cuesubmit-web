@@ -13,6 +13,8 @@ import {
   Check,
   X,
   FolderSync,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -149,16 +151,19 @@ function getActCompletion(shots: Shot[]): number {
 
 // ─── Component: Shot Thumbnail ────────────────────────
 
-function ShotThumbnail({ shot, className }: {
+function ShotThumbnail({ shot, className, onClick }: {
   shot: Shot;
   className?: string;
+  onClick?: () => void;
 }) {
   return (
     <div
       className={cn(
         "aspect-video bg-surface-muted flex items-center justify-center overflow-hidden",
+        shot.thumbnail && "cursor-pointer",
         className
       )}
+      onClick={shot.thumbnail ? onClick : undefined}
     >
       {shot.thumbnail ? (
         /* eslint-disable-next-line @next/next/no-img-element */
@@ -353,6 +358,7 @@ export default function ProductionPage() {
 
   const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [csColumns, setCsColumns] = useState(3);
+  const [lightboxShot, setLightboxShot] = useState<Shot | null>(null);
 
   // ─── Data Fetching ──────────────────────────────────
 
@@ -999,7 +1005,11 @@ export default function ProductionPage() {
                 <h3 className="text-[10px] font-medium text-text-muted uppercase tracking-wider text-center mb-1">{act.code}</h3>
                 <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${csColumns}, 1fr)` }}>
                   {actShots.map(shot => (
-                    <div key={shot.id} className="relative aspect-video rounded-sm overflow-hidden bg-neutral-100 dark:bg-white/5">
+                    <div
+                      key={shot.id}
+                      className={cn("relative aspect-video rounded-sm overflow-hidden bg-neutral-100 dark:bg-white/5", shot.thumbnail && "cursor-pointer")}
+                      onClick={shot.thumbnail ? () => setLightboxShot(shot) : undefined}
+                    >
                       {shot.thumbnail ? (
                         <img
                           src={`/api/production/thumbnails/${shot.thumbnail}`}
@@ -1060,9 +1070,9 @@ export default function ProductionPage() {
                 <div className="p-2">
                   {actShots.length > 0 ? (
                     viewMode === "table" ? (
-                      <ShotTableView shots={actShots} canEdit={canEdit} canManage={canManage} onStatusChange={handleStatusChange} onUpdateShot={handleUpdateShot} onDeleteShot={handleDeleteShot} />
+                      <ShotTableView shots={actShots} canEdit={canEdit} canManage={canManage} onStatusChange={handleStatusChange} onUpdateShot={handleUpdateShot} onDeleteShot={handleDeleteShot} onViewShot={setLightboxShot} />
                     ) : (
-                      <ShotGridView shots={actShots} canEdit={canEdit} canManage={canManage} onStatusChange={handleStatusChange} onUpdateShot={handleUpdateShot} onDeleteShot={handleDeleteShot} />
+                      <ShotGridView shots={actShots} canEdit={canEdit} canManage={canManage} onStatusChange={handleStatusChange} onUpdateShot={handleUpdateShot} onDeleteShot={handleDeleteShot} onViewShot={setLightboxShot} />
                     )
                   ) : (
                     <div className="flex flex-col items-center py-8 text-text-muted">
@@ -1082,19 +1092,61 @@ export default function ProductionPage() {
       <p className="text-[10px] text-text-muted text-center">
         Showing {filteredShots.length} of {shots.length} shots
       </p>
+
+      {/* Lightbox */}
+      {lightboxShot && lightboxShot.thumbnail && (() => {
+        const idx = filteredShots.findIndex(s => s.id === lightboxShot.id);
+        const prev = idx > 0 ? filteredShots[idx - 1] : null;
+        const next = idx < filteredShots.length - 1 ? filteredShots[idx + 1] : null;
+        return (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center" onClick={() => setLightboxShot(null)}>
+            <div className="relative max-w-5xl max-h-[90vh] w-full mx-4" onClick={e => e.stopPropagation()}>
+              {/* Close */}
+              <button className="absolute -top-8 right-0 text-white/70 hover:text-white text-sm" onClick={() => setLightboxShot(null)}>Close</button>
+              {/* Image */}
+              <img
+                src={`/api/production/thumbnails/${lightboxShot.thumbnail}`}
+                alt={lightboxShot.combined_code}
+                className="w-full h-auto max-h-[85vh] object-contain rounded"
+              />
+              {/* Label */}
+              <p className="text-center text-white/80 text-xs mt-2 font-mono">{lightboxShot.combined_code}</p>
+              {/* Prev */}
+              {prev && prev.thumbnail && (
+                <button
+                  className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-2 transition-colors"
+                  onClick={() => setLightboxShot(prev)}
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+              )}
+              {/* Next */}
+              {next && next.thumbnail && (
+                <button
+                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-2 transition-colors"
+                  onClick={() => setLightboxShot(next)}
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
 
 // ─── Component: Shot Table View ───────────────────────
 
-function ShotTableView({ shots, canEdit, canManage, onStatusChange, onUpdateShot, onDeleteShot }: {
+function ShotTableView({ shots, canEdit, canManage, onStatusChange, onUpdateShot, onDeleteShot, onViewShot }: {
   shots: Shot[];
   canEdit: boolean;
   canManage: boolean;
   onStatusChange: (shotId: number, dept: Department, status: Status) => void;
   onUpdateShot: (shotId: number, updates: Record<string, string | number>) => void;
   onDeleteShot?: (shotId: number) => void;
+  onViewShot?: (shot: Shot) => void;
 }) {
   return (
     <div className="rounded-xl border border-neutral-200/80 dark:border-white/6 bg-white/80 dark:bg-neutral-950/60 backdrop-blur-xl overflow-hidden">
@@ -1129,7 +1181,7 @@ function ShotTableView({ shots, canEdit, canManage, onStatusChange, onUpdateShot
                 )}
               >
                 <td className="py-2 px-3 align-middle">
-                  <ShotThumbnail shot={shot} className="w-80 shrink-0 rounded-sm border border-border-muted" />
+                  <ShotThumbnail shot={shot} onClick={() => onViewShot?.(shot)} className="w-80 shrink-0 rounded-sm border border-border-muted" />
                 </td>
                 <td className="py-2 px-3 align-middle">
                   {canManage ? (
@@ -1201,13 +1253,14 @@ function ShotTableView({ shots, canEdit, canManage, onStatusChange, onUpdateShot
 
 // ─── Component: Shot Grid View ────────────────────────
 
-function ShotGridView({ shots, canEdit, canManage, onStatusChange, onUpdateShot, onDeleteShot }: {
+function ShotGridView({ shots, canEdit, canManage, onStatusChange, onUpdateShot, onDeleteShot, onViewShot }: {
   shots: Shot[];
   canEdit: boolean;
   canManage: boolean;
   onStatusChange: (shotId: number, dept: Department, status: Status) => void;
   onUpdateShot: (shotId: number, updates: Record<string, string | number>) => void;
   onDeleteShot?: (shotId: number) => void;
+  onViewShot?: (shot: Shot) => void;
 }) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
@@ -1227,7 +1280,7 @@ function ShotGridView({ shots, canEdit, canManage, onStatusChange, onUpdateShot,
               </Button>
             )}
             {/* Thumbnail */}
-            <ShotThumbnail shot={shot} />
+            <ShotThumbnail shot={shot} onClick={() => onViewShot?.(shot)} />
 
             {/* Info */}
             <div className="p-2 space-y-1.5">
