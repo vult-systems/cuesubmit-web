@@ -426,8 +426,8 @@ export default function ProductionPage() {
         const role = session.user?.role;
         // All authenticated users can edit statuses
         setCanEdit(!!role);
-        // Admin and manager can manage acts/shots
-        setCanManage(role === "admin" || role === "manager");
+        // All roles can manage acts/shots (add, edit, delete)
+        setCanManage(role === "admin" || role === "manager" || role === "student");
       }
     } catch {
       setError("Failed to load production data");

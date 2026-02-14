@@ -18,7 +18,7 @@ export type Permission =
 export const permissions: Record<Role, Permission[]> = {
   admin: ['submit', 'kill', 'pause', 'retry', 'eat', 'manage_users', 'view_all', 'lock_hosts', 'manage_hosts', 'manage_shows', 'manage_productions', 'view_productions'],
   manager: ['submit', 'kill', 'pause', 'retry', 'eat', 'view_all', 'lock_hosts', 'manage_hosts', 'manage_shows', 'manage_productions', 'view_productions'],
-  student: ['submit', 'kill', 'pause', 'retry', 'eat', 'view_own', 'view_productions'],
+  student: ['submit', 'kill', 'pause', 'retry', 'eat', 'view_own', 'view_productions', 'manage_productions'],
 };
 
 export function hasPermission(role: Role, permission: Permission): boolean {
