@@ -14,7 +14,6 @@ import {
   Loader2,
   Plus,
   Trash2,
-  Pencil,
   Check,
   X,
   FolderSync,
@@ -559,36 +558,10 @@ export default function ProductionPage() {
     }
   }, [fetchData]);
 
-  const handleUpdateAct = useCallback(async (actId: number, updates: { code?: string; name?: string }) => {
-    try {
-      const res = await fetch(`/api/production/acts/${actId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updates),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to update act");
-      }
-      setActs(prev => prev.map(a => a.id === actId ? { ...a, ...updates } : a));
-      if (updates.name || updates.code) {
-        setShots(prev => prev.map(s => {
-          if (s.act_id !== actId) return s;
-          const newCode = updates.code ?? s.act_code;
-          return { ...s, act_code: newCode, act_name: updates.name ?? s.act_name, combined_code: `${newCode}_${s.code}` };
-        }));
-      }
-      toast.success("Act updated");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update act");
-      fetchData();
-    }
-  }, [fetchData]);
-
   const handleDeleteAct = useCallback(async (actId: number) => {
     const act = acts.find(a => a.id === actId);
     if (!act) return;
-    if (!confirm(`Delete ${act.code} — ${act.name}? This will also delete all its shots.`)) return;
+    if (!confirm(`Delete ${act.code}? This will also delete all its shots.`)) return;
     try {
       const res = await fetch(`/api/production/acts/${actId}`, { method: "DELETE" });
       if (!res.ok) {
@@ -1442,59 +1415,5 @@ function AddShotButton({ actId, actCode, shots, onCreate }: {
         <Plus className="h-3 w-3" /> Add Shot ({actCode}_{nextCode})
       </Button>
     </div>
-  );
-}
-
-// ─── Component: Act Edit Button ───────────────────────
-
-function ActEditButton({ act, onSave }: {
-  act: Act;
-  onSave: (actId: number, updates: { code?: string; name?: string }) => void;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [name, setName] = useState(act.name);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (editing) {
-      setName(act.name);
-      setTimeout(() => { inputRef.current?.focus(); inputRef.current?.select(); }, 50);
-    }
-  }, [editing, act.name]);
-
-  const save = () => {
-    const trimmed = name.trim();
-    if (trimmed && trimmed !== act.name) {
-      onSave(act.id, { name: trimmed });
-    }
-    setEditing(false);
-  };
-
-  if (editing) {
-    return (
-      <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-        <Input
-          ref={inputRef}
-          value={name}
-          onChange={e => setName(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter") save(); if (e.key === "Escape") setEditing(false); }}
-          onBlur={save}
-          className="h-6 w-36 text-xs"
-        />
-      </div>
-    );
-  }
-
-  return (
-    <TooltipProvider delayDuration={200}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button variant="ghost" size="icon" className="h-6 w-6 text-text-muted hover:text-text-primary" onClick={(e) => { e.stopPropagation(); setEditing(true); }}>
-            <Pencil className="h-3 w-3" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="top" className="text-xs">Edit Name</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
   );
 }
