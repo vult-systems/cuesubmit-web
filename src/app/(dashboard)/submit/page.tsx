@@ -167,8 +167,8 @@ export default function SubmitPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [shows, setShows] = useState<Show[]>([]);
-  const [sceneFileBrowserOpen, setSceneFileBrowserOpen] = useState(false);
-  const [outputPathBrowserOpen, setOutputPathBrowserOpen] = useState(false);
+  const [sceneFileBrowserOpen, setSceneFileBrowserOpen] = useState(true);
+  const [outputPathBrowserOpen, setOutputPathBrowserOpen] = useState(true);
   const [sceneStartPath, setSceneStartPath] = useState("");
   const [outputStartPath, setOutputStartPath] = useState("");
 
@@ -498,7 +498,7 @@ export default function SubmitPage() {
                     value={sceneStartPath}
                     onSelect={(path) => {
                       setSceneStartPath(path);
-                      if (path) { setSceneFileBrowserOpen(true); setOutputPathBrowserOpen(false); }
+                      if (path) { setSceneFileBrowserOpen(true); }
                     }}
                   />
                 </div>
@@ -512,7 +512,7 @@ export default function SubmitPage() {
                     type="button"
                     variant={sceneFileBrowserOpen ? "default" : "ghost"}
                     size="icon"
-                    onClick={() => { setSceneFileBrowserOpen(!sceneFileBrowserOpen); setOutputPathBrowserOpen(false); }}
+                    onClick={() => { setSceneFileBrowserOpen(!sceneFileBrowserOpen); }}
                     className={cn(
                       "h-9 w-9 shrink-0 border transition-all",
                       sceneFileBrowserOpen
@@ -541,7 +541,7 @@ export default function SubmitPage() {
                     value={outputStartPath}
                     onSelect={(path) => {
                       setOutputStartPath(path);
-                      if (path) { setOutputPathBrowserOpen(true); setSceneFileBrowserOpen(false); }
+                      if (path) { setOutputPathBrowserOpen(true); }
                     }}
                   />
                 </div>
@@ -555,7 +555,7 @@ export default function SubmitPage() {
                     type="button"
                     variant={outputPathBrowserOpen ? "default" : "ghost"}
                     size="icon"
-                    onClick={() => { setOutputPathBrowserOpen(!outputPathBrowserOpen); setSceneFileBrowserOpen(false); }}
+                    onClick={() => { setOutputPathBrowserOpen(!outputPathBrowserOpen); }}
                     className={cn(
                       "h-9 w-9 shrink-0 border transition-all",
                       outputPathBrowserOpen
