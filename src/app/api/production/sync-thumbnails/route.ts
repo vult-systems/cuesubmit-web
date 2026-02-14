@@ -7,6 +7,8 @@ import {
   createAct,
   createShot,
   updateShot,
+  deleteAct,
+  deleteShot,
 } from "@/lib/db/production";
 import fs from "fs/promises";
 import path from "path";
@@ -129,9 +131,27 @@ export async function POST() {
       }
     }
 
+    // Remove shots & acts that have no matching thumbnails
+    let shotsRemoved = 0;
+    let actsRemoved = 0;
+    for (const shot of existingShots) {
+      const key = `${shot.act_code}_${shot.code}`;
+      if (!neededShots.has(key)) {
+        deleteShot(shot.id);
+        shotsRemoved++;
+      }
+    }
+    for (const act of existingActs) {
+      if (!neededActs.has(act.code)) {
+        deleteAct(act.id);
+        actsRemoved++;
+      }
+    }
+
     return NextResponse.json({
       message: `Synced ${imageFiles.length} thumbnails`,
       created: { acts: actsCreated, shots: shotsCreated },
+      removed: { acts: actsRemoved, shots: shotsRemoved },
       updated: { thumbnails: thumbnailsUpdated },
       total: { files: imageFiles.length },
     });

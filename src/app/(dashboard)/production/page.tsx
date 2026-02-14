@@ -525,9 +525,11 @@ export default function ProductionPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Sync failed");
       const parts: string[] = [];
-      if (data.created.acts > 0) parts.push(`${data.created.acts} act(s)`);
-      if (data.created.shots > 0) parts.push(`${data.created.shots} shot(s)`);
-      if (data.updated.thumbnails > 0) parts.push(`${data.updated.thumbnails} thumbnail(s)`);
+      if (data.created.acts > 0) parts.push(`${data.created.acts} act(s) created`);
+      if (data.created.shots > 0) parts.push(`${data.created.shots} shot(s) created`);
+      if (data.removed?.acts > 0) parts.push(`${data.removed.acts} act(s) removed`);
+      if (data.removed?.shots > 0) parts.push(`${data.removed.shots} shot(s) removed`);
+      if (data.updated.thumbnails > 0) parts.push(`${data.updated.thumbnails} thumbnail(s) updated`);
       toast.success(parts.length > 0 ? `Synced: ${parts.join(", ")}` : "Already up to date");
       fetchData();
     } catch (err) {
@@ -1147,7 +1149,7 @@ export default function ProductionPage() {
             return (
               <GroupedSection
                 key={act.id}
-                title={`${act.code} — ${act.name}`}
+                title={act.code}
                 badge={`${actShots.length} shots`}
                 stats={`${pct}% complete`}
                 accentColors={actAccents[actIdx % actAccents.length]}
@@ -1156,7 +1158,6 @@ export default function ProductionPage() {
                   <div className="flex items-center gap-2">
                     {canManage && (
                       <div className="flex items-center gap-1">
-                        <ActEditButton act={act} onSave={handleUpdateAct} />
                         <TooltipProvider delayDuration={200}>
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -1268,9 +1269,7 @@ function ShotTableView({ shots, canEdit, canManage, onStatusChange, onUpdateShot
                   ) : (
                     <span className="font-mono font-medium text-text-primary text-[11px]">{shot.combined_code}</span>
                   )}
-                  {shot.notes && (
-                    <p className="text-[10px] text-text-muted mt-0.5 truncate">{shot.notes}</p>
-                  )}
+
                 </td>
                 <td className="py-2 px-3 align-middle">
                   {canManage ? (
@@ -1402,53 +1401,16 @@ function AddActButton({ onCreate, acts }: {
   onCreate: (code: string, name: string) => void;
   acts: Act[];
 }) {
-  const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
-  const nameRef = useRef<HTMLInputElement>(null);
-
   const nextCode = useMemo(() => {
     const nums = acts.map(a => parseInt(a.code.replace("act", ""), 10)).filter(n => !isNaN(n));
     const next = nums.length > 0 ? Math.max(...nums) + 1 : 1;
     return `act${next.toString().padStart(2, "0")}`;
   }, [acts]);
 
-  useEffect(() => {
-    if (open) setTimeout(() => nameRef.current?.focus(), 50);
-  }, [open]);
-
-  const submit = () => {
-    if (!name.trim()) return;
-    onCreate(nextCode, name.trim());
-    setName("");
-    setOpen(false);
-  };
-
-  if (!open) {
-    return (
-      <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => setOpen(true)}>
-        <Plus className="h-3 w-3" /> Add Act
-      </Button>
-    );
-  }
-
   return (
-    <div className="flex items-center gap-1.5">
-      <span className="text-xs font-mono text-text-muted">{nextCode}</span>
-      <Input
-        ref={nameRef}
-        value={name}
-        onChange={e => setName(e.target.value)}
-        onKeyDown={e => { if (e.key === "Enter") submit(); if (e.key === "Escape") { setOpen(false); setName(""); } }}
-        placeholder="Act name..."
-        className="h-7 w-40 text-xs"
-      />
-      <Button variant="ghost" size="icon" className="h-6 w-6 text-emerald-500" onClick={submit} disabled={!name.trim()}>
-        <Check className="h-3 w-3" />
-      </Button>
-      <Button variant="ghost" size="icon" className="h-6 w-6 text-text-muted" onClick={() => { setOpen(false); setName(""); }}>
-        <X className="h-3 w-3" />
-      </Button>
-    </div>
+    <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => onCreate(nextCode, nextCode)}>
+      <Plus className="h-3 w-3" /> Add Act
+    </Button>
   );
 }
 
