@@ -1039,9 +1039,9 @@ export default function ProductionPage() {
             return (
               <div key={act.id} className="shrink-0">
                 <h3 className="text-[10px] font-medium text-text-muted uppercase tracking-wider text-center mb-1">{act.code}</h3>
-                <div className="grid grid-cols-2 gap-0.5">
+                <div className="grid grid-cols-2 gap-1">
                   {actShots.map(shot => (
-                    <div key={shot.id} className="relative aspect-video w-[100px] rounded-sm overflow-hidden bg-neutral-100 dark:bg-white/5">
+                    <div key={shot.id} className="relative aspect-video w-[180px] rounded-sm overflow-hidden bg-neutral-100 dark:bg-white/5">
                       {shot.thumbnail ? (
                         <img
                           src={`/api/production/thumbnails/${shot.thumbnail}`}
