@@ -86,7 +86,7 @@ const defaultValues: FormData = {
   shot: "",
   service: "maya",
   renderer: "arnold",
-  version: "2024",
+  version: "2026",
   projectPath: "",
   sceneFile: "",
   outputPath: "",
@@ -450,7 +450,7 @@ export default function SubmitPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="2024">2024</SelectItem>
+                    <SelectItem value="2026">2026</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
