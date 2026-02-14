@@ -359,6 +359,15 @@ export default function ProductionPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [csColumns, setCsColumns] = useState(3);
   const [lightboxShot, setLightboxShot] = useState<Shot | null>(null);
+  const [lightboxZoom, setLightboxZoom] = useState(1);
+  const [lightboxPan, setLightboxPan] = useState({ x: 0, y: 0 });
+  const lightboxDrag = useRef<{ dragging: boolean; startX: number; startY: number; startPanX: number; startPanY: number }>({ dragging: false, startX: 0, startY: 0, startPanX: 0, startPanY: 0 });
+
+  // Reset zoom/pan when shot changes
+  useEffect(() => {
+    setLightboxZoom(1);
+    setLightboxPan({ x: 0, y: 0 });
+  }, [lightboxShot]);
 
   // ─── Data Fetching ──────────────────────────────────
 
@@ -582,6 +591,25 @@ export default function ProductionPage() {
     }
     return map;
   }, [filteredShots]);
+
+  // Keyboard navigation for lightbox
+  useEffect(() => {
+    if (!lightboxShot) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { setLightboxShot(null); return; }
+      const idx = filteredShots.findIndex(s => s.id === lightboxShot.id);
+      if (e.key === "ArrowLeft" && idx > 0) {
+        const prev = filteredShots[idx - 1];
+        if (prev.thumbnail) setLightboxShot(prev);
+      }
+      if (e.key === "ArrowRight" && idx < filteredShots.length - 1) {
+        const next = filteredShots[idx + 1];
+        if (next.thumbnail) setLightboxShot(next);
+      }
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [lightboxShot, filteredShots]);
 
 
 
@@ -1099,16 +1127,59 @@ export default function ProductionPage() {
         const prev = idx > 0 ? filteredShots[idx - 1] : null;
         const next = idx < filteredShots.length - 1 ? filteredShots[idx + 1] : null;
         return (
-          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center" onClick={() => setLightboxShot(null)}>
+          <div
+            className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center"
+            onClick={() => setLightboxShot(null)}
+            onWheel={(e) => {
+              e.preventDefault();
+              setLightboxZoom(z => {
+                const next = e.deltaY < 0 ? Math.min(z * 1.2, 8) : Math.max(z / 1.2, 1);
+                if (next === 1) setLightboxPan({ x: 0, y: 0 });
+                return next;
+              });
+            }}
+          >
             <div className="relative max-w-5xl max-h-[90vh] w-full mx-4" onClick={e => e.stopPropagation()}>
               {/* Close */}
-              <button className="absolute -top-8 right-0 text-white/70 hover:text-white text-sm" onClick={() => setLightboxShot(null)}>Close</button>
+              <button className="absolute -top-8 right-0 text-white/70 hover:text-white text-sm z-10" onClick={() => setLightboxShot(null)}>Close</button>
+              {/* Zoom hint */}
+              <span className="absolute -top-8 left-0 text-white/40 text-[10px]">Scroll to zoom{lightboxZoom > 1 ? ` (${Math.round(lightboxZoom * 100)}%)` : ""}</span>
               {/* Image */}
-              <img
-                src={`/api/production/thumbnails/${lightboxShot.thumbnail}`}
-                alt={lightboxShot.combined_code}
-                className="w-full h-auto max-h-[85vh] object-contain rounded"
-              />
+              <div
+                className="overflow-hidden rounded"
+                style={{ cursor: lightboxZoom > 1 ? "grab" : "default" }}
+                onMouseDown={(e) => {
+                  if (lightboxZoom <= 1) return;
+                  lightboxDrag.current = { dragging: true, startX: e.clientX, startY: e.clientY, startPanX: lightboxPan.x, startPanY: lightboxPan.y };
+                  e.currentTarget.style.cursor = "grabbing";
+                }}
+                onMouseMove={(e) => {
+                  if (!lightboxDrag.current.dragging) return;
+                  const dx = e.clientX - lightboxDrag.current.startX;
+                  const dy = e.clientY - lightboxDrag.current.startY;
+                  setLightboxPan({ x: lightboxDrag.current.startPanX + dx, y: lightboxDrag.current.startPanY + dy });
+                }}
+                onMouseUp={(e) => {
+                  lightboxDrag.current.dragging = false;
+                  e.currentTarget.style.cursor = lightboxZoom > 1 ? "grab" : "default";
+                }}
+                onMouseLeave={(e) => {
+                  lightboxDrag.current.dragging = false;
+                  e.currentTarget.style.cursor = lightboxZoom > 1 ? "grab" : "default";
+                }}
+              >
+                <img
+                  src={`/api/production/thumbnails/${lightboxShot.thumbnail}`}
+                  alt={lightboxShot.combined_code}
+                  className="w-full h-auto max-h-[85vh] object-contain select-none"
+                  draggable={false}
+                  style={{
+                    transform: `scale(${lightboxZoom}) translate(${lightboxPan.x / lightboxZoom}px, ${lightboxPan.y / lightboxZoom}px)`,
+                    transformOrigin: "center center",
+                    transition: lightboxDrag.current.dragging ? "none" : "transform 0.15s ease-out",
+                  }}
+                />
+              </div>
               {/* Label */}
               <p className="text-center text-white/80 text-xs mt-2 font-mono">{lightboxShot.combined_code}</p>
               {/* Prev */}
