@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -19,6 +19,8 @@ import { RotateCcw, Loader2, Send, FolderOpen } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { FileBrowserDialog } from "@/components/file-browser-dialog";
+
+const STORAGE_KEY = "cuesubmit-form-state";
 
 // Maya format flag values for the -of CLI option
 const mayaFormatFlags: Record<string, string> = {
@@ -84,7 +86,7 @@ const defaultValues: FormData = {
   shot: "",
   service: "maya",
   renderer: "arnold",
-  version: "2026",
+  version: "2024",
   projectPath: "",
   sceneFile: "",
   outputPath: "",
@@ -167,6 +169,19 @@ export default function SubmitPage() {
   const [sceneFileBrowserOpen, setSceneFileBrowserOpen] = useState(false);
   const [outputPathBrowserOpen, setOutputPathBrowserOpen] = useState(false);
 
+  // Load saved form state from sessionStorage
+  const getSavedValues = useCallback((): FormData => {
+    if (typeof window === "undefined") return defaultValues;
+    try {
+      const saved = sessionStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved) as Partial<FormData>;
+        return { ...defaultValues, ...parsed };
+      }
+    } catch { /* ignore parse errors */ }
+    return defaultValues;
+  }, []);
+
   const {
     register,
     handleSubmit,
@@ -176,9 +191,19 @@ export default function SubmitPage() {
     formState: { isValid },
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
-    defaultValues,
+    defaultValues: getSavedValues(),
     mode: "onChange",
   });
+
+  // Persist form state to sessionStorage on every change
+  useEffect(() => {
+    const subscription = watch((values) => {
+      try {
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(values));
+      } catch { /* ignore quota errors */ }
+    });
+    return () => subscription.unsubscribe();
+  }, [watch]);
 
   // Fetch shows and user session on mount
   useEffect(() => {
@@ -218,6 +243,9 @@ export default function SubmitPage() {
   const useRenderLayer = watch("useRenderLayer");
   const useCamera = watch("useCamera");
   const useResolution = watch("useResolution");
+  const service = watch("service");
+  const renderer = watch("renderer");
+  const version = watch("version");
 
   const frameCount = Math.max(0, Math.ceil((frameEnd - frameStart + 1) / frameStep));
   const chunkCount = frameCount; // 1 frame per task (no chunk)
@@ -308,6 +336,7 @@ export default function SubmitPage() {
 
       const result = await response.json();
       if (response.ok) {
+        sessionStorage.removeItem(STORAGE_KEY);
         toast.success(result.message || "Job submitted successfully!");
         router.push("/jobs");
       } else {
@@ -337,6 +366,7 @@ export default function SubmitPage() {
             variant="ghost"
             size="icon"
             onClick={() => {
+              sessionStorage.removeItem(STORAGE_KEY);
               reset(defaultValues);
             }}
             className="h-8 w-8 rounded-lg border border-neutral-200 dark:border-white/8 hover:bg-neutral-100 dark:hover:bg-white/5 hover:border-neutral-300 dark:hover:border-white/12 transition-all duration-300"
@@ -375,7 +405,7 @@ export default function SubmitPage() {
               </div>
               <div className="col-span-3 space-y-1">
                 <FieldLabel required accent="cool">Show</FieldLabel>
-                <Select onValueChange={(value) => setValue("show", value, { shouldValidate: true })}>
+                <Select value={show || undefined} onValueChange={(value) => setValue("show", value, { shouldValidate: true })}>
                   <SelectTrigger>
                     <SelectValue placeholder="Choose show" />
                   </SelectTrigger>
@@ -392,7 +422,7 @@ export default function SubmitPage() {
             <div className="grid grid-cols-6 gap-3">
               <div className="col-span-2 space-y-1">
                 <FieldLabel required accent="warm">Software</FieldLabel>
-                <Select defaultValue="maya" onValueChange={(value) => setValue("service", value, { shouldValidate: true })}>
+                <Select value={service} onValueChange={(value) => setValue("service", value, { shouldValidate: true })}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -404,7 +434,7 @@ export default function SubmitPage() {
               </div>
               <div className="col-span-2 space-y-1">
                 <FieldLabel required accent="warm">Renderer</FieldLabel>
-                <Select defaultValue="arnold" onValueChange={(value) => setValue("renderer", value, { shouldValidate: true })}>
+                <Select value={renderer} onValueChange={(value) => setValue("renderer", value, { shouldValidate: true })}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -415,13 +445,11 @@ export default function SubmitPage() {
               </div>
               <div className="col-span-2 space-y-1">
                 <FieldLabel required accent="warm">Version</FieldLabel>
-                <Select defaultValue="2026" onValueChange={(value) => setValue("version", value, { shouldValidate: true })}>
+                <Select value={version} onValueChange={(value) => setValue("version", value, { shouldValidate: true })}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="2026">2026</SelectItem>
-                    <SelectItem value="2025">2025</SelectItem>
                     <SelectItem value="2024">2024</SelectItem>
                   </SelectContent>
                 </Select>
@@ -546,7 +574,7 @@ export default function SubmitPage() {
                   <FieldLabel htmlFor="useFormat" accent="warm">Format</FieldLabel>
                 </div>
                 <Select
-                  defaultValue="png"
+                  value={imageFormat}
                   disabled={!useFormat}
                   onValueChange={(value) => setValue("imageFormat", value, { shouldValidate: true })}
                 >
