@@ -388,6 +388,7 @@ export default function ProductionPage() {
   const [searchQuery, setSearchQuery] = useState("");
 
   const [viewMode, setViewMode] = useState<ViewMode>("table");
+  const [csColumns, setCsColumns] = useState(3);
 
   // ─── Data Fetching ──────────────────────────────────
 
@@ -1014,6 +1015,15 @@ export default function ProductionPage() {
             </button>
           ))}
         </div>
+
+        {/* Column control for Color Script */}
+        {viewMode === "colorscript" && (
+          <div className="flex items-center gap-1 border border-border rounded-lg overflow-hidden">
+            <button onClick={() => setCsColumns(c => Math.max(1, c - 1))} className="px-2 py-1.5 text-xs text-text-muted hover:text-text-primary hover:bg-surface-muted transition-colors">−</button>
+            <span className="text-[10px] text-text-muted w-4 text-center">{csColumns}</span>
+            <button onClick={() => setCsColumns(c => Math.min(8, c + 1))} className="px-2 py-1.5 text-xs text-text-muted hover:text-text-primary hover:bg-surface-muted transition-colors">+</button>
+          </div>
+        )}
       </div>
 
       {/* Shot Display */}
@@ -1031,17 +1041,17 @@ export default function ProductionPage() {
           </Button>
         </div>
       ) : viewMode === "colorscript" ? (
-        /* Color Script – acts as big columns, shots as mini grid inside */
+        /* Color Script – acts as columns, shots in configurable grid */
         <div className="flex gap-4 overflow-x-auto pb-2">
           {acts.map((act) => {
             const actShots = shotsByAct.get(act.code) || [];
             if (actShots.length === 0) return null;
             return (
-              <div key={act.id} className="shrink-0">
+              <div key={act.id} className="shrink-0 flex-1 min-w-0">
                 <h3 className="text-[10px] font-medium text-text-muted uppercase tracking-wider text-center mb-1">{act.code}</h3>
-                <div className="grid grid-cols-2 gap-1">
+                <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${csColumns}, 1fr)` }}>
                   {actShots.map(shot => (
-                    <div key={shot.id} className="relative aspect-video w-[180px] rounded-sm overflow-hidden bg-neutral-100 dark:bg-white/5">
+                    <div key={shot.id} className="relative aspect-video rounded-sm overflow-hidden bg-neutral-100 dark:bg-white/5">
                       {shot.thumbnail ? (
                         <img
                           src={`/api/production/thumbnails/${shot.thumbnail}`}
