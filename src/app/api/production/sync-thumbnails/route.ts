@@ -17,8 +17,21 @@ const THUMBNAIL_DIR = path.join(
   "Thesis_25-26/NLG/Editorial/Thumbnail"
 );
 
-// Pattern: act01_shot01_0000.png  or  act01_shot01.png
-const FILENAME_RE = /^(act\d+)_(shot\d+)(?:_\d+)?\.(png|jpe?g)$/i;
+// Pattern variations:
+//   act01_shot01_0000.png     (standard)
+//   Act01_Shot09_0000.png     (capitalized)
+//   act1_shot18_0000.png      (no leading zero on act)
+//   act01_shot_21_0000.png    (underscore before shot number)
+//   Act1_Shot_22_0000.png     (mixed)
+const FILENAME_RE = /^act(\d+)[_]shot[_]?(\d+)(?:_\d+)?\.(png|jpe?g)$/i;
+
+/** Normalize act/shot numbers to zero-padded codes */
+function toActCode(num: string): string {
+  return `act${num.padStart(2, "0")}`;
+}
+function toShotCode(num: string): string {
+  return `shot${num.padStart(2, "0")}`;
+}
 
 export async function POST() {
   try {
@@ -48,8 +61,8 @@ export async function POST() {
         const match = e.name.match(FILENAME_RE)!;
         return {
           filename: e.name,
-          actCode: match[1].toLowerCase(),
-          shotCode: match[2].toLowerCase(),
+          actCode: toActCode(match[1]),
+          shotCode: toShotCode(match[2]),
         };
       });
 
