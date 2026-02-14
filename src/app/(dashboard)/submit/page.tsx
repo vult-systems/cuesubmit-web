@@ -36,13 +36,6 @@ const formSchema = z.object({
     .min(2, "Project code must be 2-6 uppercase letters")
     .max(6, "Project code must be 2-6 uppercase letters")
     .regex(/^[A-Z]+$/, "Only uppercase letters allowed"),
-  // Core naming fields
-  scope: z.string().min(1, "Scope is required"),
-  department: z.string().min(1, "Department is required"),
-  // Rendered frame base name (validated conditionally below)
-  renderedFrameName: z.string()
-    .regex(/^\w*$/, "Only letters, numbers, and underscores allowed")
-    .optional(),
   // Shot Structure (only used when scope is "shot")
   useAct: z.boolean().optional(),
   useSequence: z.boolean().optional(),
@@ -79,19 +72,7 @@ const formSchema = z.object({
   // Advanced
   envVars: z.string().optional(),
   customArgs: z.string().optional(),
-}).refine(
-  (data) => {
-    // Rendered frame name is required when scope is "shot"
-    if (data.scope === "shot") {
-      return data.renderedFrameName && data.renderedFrameName.length > 0;
-    }
-    return true;
-  },
-  {
-    message: "Rendered frame name is required for shots",
-    path: ["renderedFrameName"],
-  }
-);
+});
 
 type FormData = z.infer<typeof formSchema>;
 
@@ -99,9 +80,6 @@ const defaultValues: FormData = {
   user: "",
   show: "",
   projectCode: "",
-  scope: "",
-  department: "",
-  renderedFrameName: "",
   useAct: false,
   useSequence: false,
   useScene: false,
@@ -153,42 +131,6 @@ function generateJobName(data: {
   return sceneName || "job";
 }
 
-// Generate rendered frame base name
-// Format: ProjectCode_Dept_SceneName (descriptive for output files)
-function generateRenderedFrameName(data: {
-  projectCode: string;
-  department: string;
-  sceneFile: string;
-}): string {
-  const parts: string[] = [];
-  if (data.projectCode) parts.push(data.projectCode);
-  if (data.department) parts.push(data.department);
-  const sceneName = extractSceneName(data.sceneFile);
-  if (sceneName) parts.push(sceneName);
-  return parts.join("_") || "";
-}
-
-// Generate shot code from shot structure
-function generateShotCode(data: {
-  useAct?: boolean;
-  useShot?: boolean;
-  act?: string;
-  shot?: string;
-}): string {
-  const parts: string[] = [];
-
-  if (data.useAct && data.act) {
-    // Convert "act01" to "A01"
-    parts.push(data.act.replace("act", "A"));
-  }
-  if (data.useShot && data.shot) {
-    // Convert "sh01" to "SH01"
-    parts.push(data.shot.replace("sh", "SH"));
-  }
-
-  return parts.join("_");
-}
-
 // Required field marker component
 function Required({ color = "cool" }: Readonly<{ color?: "cool" | "warm" }>) {
   const colorClass = color === "cool" ? "text-blue-400" : "text-amber-400";
@@ -228,7 +170,6 @@ export default function SubmitPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [shows, setShows] = useState<Show[]>([]);
-  const [manualFrameName, setManualFrameName] = useState(false);
   const [sceneFileBrowserOpen, setSceneFileBrowserOpen] = useState(false);
   const [outputPathBrowserOpen, setOutputPathBrowserOpen] = useState(false);
 
@@ -274,10 +215,7 @@ export default function SubmitPage() {
   const frameStep = watch("frameStep") || 1;
   const show = watch("show");
   const projectCode = watch("projectCode");
-  const scope = watch("scope");
-  const department = watch("department");
   const sceneFile = watch("sceneFile");
-  const renderedFrameName = watch("renderedFrameName");
   const useFormat = watch("useFormat");
   const imageFormat = watch("imageFormat") || "png";
   const useAct = watch("useAct");
@@ -294,27 +232,7 @@ export default function SubmitPage() {
   // Generate job name preview
   const jobNamePreview = generateJobName({ sceneFile });
 
-  // Generate rendered frame name preview - always compute fresh
-  const autoRenderedFrameName = generateRenderedFrameName({ projectCode, department, sceneFile });
-  // Use the watched value if manually edited, otherwise use auto-generated
-  const finalFrameName = manualFrameName ? renderedFrameName : autoRenderedFrameName;
-  const frameOutputPreview = finalFrameName ? `${finalFrameName}._####.${imageFormat}` : "";
 
-  // Auto-generate shot code when shot structure changes
-  useEffect(() => {
-    if (scope === "shot") {
-      const shotCode = generateShotCode({ useAct, useShot, act, shot });
-      // Shot code is stored in the shot field for metadata
-    }
-  }, [scope, useAct, useShot, act, shot, setValue]);
-
-  // Auto-populate rendered frame name when inputs change
-  useEffect(() => {
-    const autoName = generateRenderedFrameName({ projectCode, department, sceneFile });
-    if (autoName && !manualFrameName) {
-      setValue("renderedFrameName", autoName, { shouldValidate: true });
-    }
-  }, [projectCode, department, sceneFile, manualFrameName, setValue]);
 
   const onSubmit = async (data: FormData) => {
     setIsSubmitting(true);
@@ -359,13 +277,6 @@ export default function SubmitPage() {
         sceneFile: data.sceneFile,
       });
 
-      // Generate rendered frame name
-      const frameBaseName = data.renderedFrameName || generateRenderedFrameName({
-        projectCode: data.projectCode,
-        department: data.department,
-        sceneFile: data.sceneFile,
-      });
-
       // Build frame range string with step (e.g., "1-100x2" for every 2nd frame)
       const frameRangeStr = step > 1
         ? `${data.frameStart}-${data.frameEnd}x${step}`
@@ -380,15 +291,10 @@ export default function SubmitPage() {
           shot: data.shot || "default",
           priority: 100,
           maxRetries: 3,
-          // Rendered frame naming
-          renderedFrameName: frameBaseName,
-          frameOutputPattern: `${frameBaseName}._####.${data.imageFormat || "png"}`,
-          // Include all structured metadata
+          // Include structured metadata
           metadata: {
             user: data.user,
             projectCode: data.projectCode,
-            scope: data.scope,
-            department: data.department,
             act: data.act,
             sequence: data.sequence,
             scene: data.scene,
@@ -440,7 +346,6 @@ export default function SubmitPage() {
             size="icon"
             onClick={() => {
               reset(defaultValues);
-              setManualFrameName(false);
             }}
             className="h-8 w-8 rounded-lg border border-neutral-200 dark:border-white/8 hover:bg-neutral-100 dark:hover:bg-white/5 hover:border-neutral-300 dark:hover:border-white/12 transition-all duration-300"
           >
@@ -448,10 +353,10 @@ export default function SubmitPage() {
           </Button>
         </div>
 
-        {/* Job Information Card */}
+        {/* Job Settings */}
         <GroupedSection
-          title="Job Information"
-          badge="Metadata"
+          title="Job Settings"
+          badge="Submit"
           accentColors={sectionAccents.cool}
           contentClassName="p-4"
           rightContent={
@@ -505,93 +410,6 @@ export default function SubmitPage() {
               </div>
             </div>
 
-            {/* Scope, Department */}
-            <div className="grid grid-cols-6 gap-3">
-              <div className="col-span-3 space-y-1">
-                <FieldLabel required accent="cool">Scope</FieldLabel>
-                <Select onValueChange={(value) => {
-                  setValue("scope", value, { shouldValidate: true });
-                }}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="asset">Asset</SelectItem>
-                    <SelectItem value="shot">Shot</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="col-span-3 space-y-1">
-                <FieldLabel required accent="cool">Department</FieldLabel>
-                <Select onValueChange={(value) => setValue("department", value, { shouldValidate: true })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="model">Model</SelectItem>
-                    <SelectItem value="lookdev">Lookdev</SelectItem>
-                    <SelectItem value="light">Light</SelectItem>
-                    <SelectItem value="anim">Anim</SelectItem>
-                    <SelectItem value="fx">FX</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* Shot Structure (only visible when scope is "shot") */}
-            {scope === "shot" && (
-              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-neutral-200 dark:border-white/6">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1.5">
-                    <Checkbox
-                      id="useAct"
-                      checked={useAct}
-                      onCheckedChange={(checked) => setValue("useAct", !!checked, { shouldValidate: true })}
-                      className="border-neutral-300 dark:border-white/15 h-3.5 w-3.5 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
-                    />
-                    <FieldLabel htmlFor="useAct">Act</FieldLabel>
-                  </div>
-                  <Select disabled={!useAct} onValueChange={(value) => setValue("act", value, { shouldValidate: true })}>
-                    <SelectTrigger className="disabled:opacity-40">
-                      <SelectValue placeholder="—" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {["act01", "act02", "act03", "act04", "act05"].map(v => (
-                        <SelectItem key={v} value={v}>{v}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1.5">
-                    <Checkbox
-                      id="useShot"
-                      checked={useShot}
-                      onCheckedChange={(checked) => setValue("useShot", !!checked, { shouldValidate: true })}
-                      className="border-neutral-300 dark:border-white/15 h-3.5 w-3.5 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
-                    />
-                    <FieldLabel htmlFor="useShot">Shot</FieldLabel>
-                  </div>
-                  <Select disabled={!useShot} onValueChange={(value) => setValue("shot", value, { shouldValidate: true })}>
-                    <SelectTrigger className="disabled:opacity-40">
-                      <SelectValue placeholder="—" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-48">
-                      {Array.from({ length: 50 }, (_, i) => `sh${String(i + 1).padStart(2, '0')}`).map(v => (
-                        <SelectItem key={v} value={v}>{v}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            )}
-
-          </div>
-        </GroupedSection>
-
-        {/* Render Settings Card */}
-        <GroupedSection title="Render Settings" badge="Render" accentColors={sectionAccents.warm} contentClassName="p-4">
-          <div className="space-y-3">
             {/* Software, Renderer, Version */}
             <div className="grid grid-cols-6 gap-3">
               <div className="col-span-2 space-y-1">
@@ -807,45 +625,6 @@ export default function SubmitPage() {
                 />
               </div>
               <div className="col-span-1" />
-            </div>
-
-            {/* Rendered Frame Name */}
-            <div className="grid grid-cols-6 gap-3">
-              <div className="col-span-3 space-y-1">
-                <FieldLabel required={scope === "shot"} accent="warm">
-                  Rendered Frame Name
-                </FieldLabel>
-                <Input
-                  value={manualFrameName ? renderedFrameName : autoRenderedFrameName}
-                  placeholder="e.g., PROJ_hero_beauty"
-                  className="font-mono"
-                  onChange={(e) => {
-                    // Only allow letters, numbers, underscores
-                    const value = e.target.value.replaceAll(/\W/g, "");
-                    setValue("renderedFrameName", value, { shouldValidate: true });
-                    // Mark as manually edited once user starts typing
-                    setManualFrameName(true);
-                  }}
-                  onFocus={() => {
-                    // When user focuses, copy auto value to form if not manually edited
-                    if (!manualFrameName && autoRenderedFrameName) {
-                      setValue("renderedFrameName", autoRenderedFrameName, { shouldValidate: true });
-                    }
-                  }}
-                />
-              </div>
-              <div className="col-span-3 space-y-1">
-                <FieldLabel accent="warm">Output Preview</FieldLabel>
-                <div className="h-8 px-2.5 flex items-center bg-white dark:bg-white/3 border border-neutral-200 dark:border-white/8 rounded-lg">
-                  {frameOutputPreview ? (
-                    <code className="text-xs font-mono text-amber-600 dark:text-amber-400">
-                      {frameOutputPreview}
-                    </code>
-                  ) : (
-                    <span className="text-xs text-text-muted">Fill in fields above...</span>
-                  )}
-                </div>
-              </div>
             </div>
 
           </div>
