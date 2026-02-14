@@ -28,6 +28,10 @@ Quick-reference for CueSubmit Web + OpenCue administration.
 ## Deploy
 
 ```bash
+# Standard deploy — uses Docker layer cache, fast when only code changes (~20-30s)
+ssh YOUR_SSH_USER@YOUR_SERVER_IP "cd /home/perforce/cuesubmit-web && git pull && docker compose build && docker compose up -d"
+
+# Full rebuild — only needed when Dockerfile or system dependencies change (~80s)
 ssh YOUR_SSH_USER@YOUR_SERVER_IP "cd /home/perforce/cuesubmit-web && git pull && docker compose build --no-cache && docker compose up -d"
 ```
 

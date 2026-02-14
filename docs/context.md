@@ -193,6 +193,7 @@ Excluded from linting: `opencue/`, `scripts/`, `.next/`, `node_modules/`
 - **Windows build**: Must use `npm run build` (uses `--webpack` flag). Turbopack creates files with `:` in names which Windows doesn't support.
 - **macOS build**: Can use either Turbopack or webpack.
 - **Standalone output**: `next.config.ts` has `output: "standalone"` for self-contained deployment.
+- **Docker builds**: Use `docker compose build` (no `--no-cache`) for normal deploys — Docker layer caching skips `npm ci` when only code changes (~20-30s vs ~80s). Only use `--no-cache` when the Dockerfile or system dependencies change.
 
 ## Gotchas
 
