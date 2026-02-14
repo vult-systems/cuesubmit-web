@@ -491,7 +491,7 @@ export default function SubmitPage() {
             {/* Paths */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
                   <FieldLabel required accent="warm">Scene File</FieldLabel>
                   <PathShortcuts
                     shortcuts={SCENE_SHORTCUTS}
@@ -525,7 +525,7 @@ export default function SubmitPage() {
                 </div>
                 <InlineFileBrowser
                   open={sceneFileBrowserOpen}
-                  onSelect={(path) => { setValue("sceneFile", path, { shouldValidate: true }); setSceneFileBrowserOpen(false); }}
+                  onSelect={(path) => { setValue("sceneFile", path, { shouldValidate: true }); }}
                   mode="file"
                   rootPath={ROOT_PATHS[1].path}
                   projectFolder={sceneStartPath}
@@ -534,7 +534,7 @@ export default function SubmitPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
                   <FieldLabel required accent="warm">Output Directory</FieldLabel>
                   <PathShortcuts
                     shortcuts={OUTPUT_SHORTCUTS}
@@ -568,7 +568,7 @@ export default function SubmitPage() {
                 </div>
                 <InlineFileBrowser
                   open={outputPathBrowserOpen}
-                  onSelect={(path) => { setValue("outputPath", path, { shouldValidate: true }); setOutputPathBrowserOpen(false); }}
+                  onSelect={(path) => { setValue("outputPath", path, { shouldValidate: true }); }}
                   mode="directory"
                   rootPath={ROOT_PATHS[0].path}
                   projectFolder={outputStartPath}
