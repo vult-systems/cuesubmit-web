@@ -31,12 +31,7 @@ const mayaFormatFlags: Record<string, string> = {
 const formSchema = z.object({
   user: z.string().min(1, "Username is required"),
   show: z.string().min(1, "Show is required"),
-  // Project Code - 2-6 uppercase letters only
-  projectCode: z.string()
-    .min(2, "Project code must be 2-6 uppercase letters")
-    .max(6, "Project code must be 2-6 uppercase letters")
-    .regex(/^[A-Z]+$/, "Only uppercase letters allowed"),
-  // Shot Structure (only used when scope is "shot")
+  // Shot Structure
   useAct: z.boolean().optional(),
   useSequence: z.boolean().optional(),
   useScene: z.boolean().optional(),
@@ -79,7 +74,6 @@ type FormData = z.infer<typeof formSchema>;
 const defaultValues: FormData = {
   user: "",
   show: "",
-  projectCode: "",
   useAct: false,
   useSequence: false,
   useScene: false,
@@ -214,7 +208,6 @@ export default function SubmitPage() {
   const frameEnd = watch("frameEnd");
   const frameStep = watch("frameStep") || 1;
   const show = watch("show");
-  const projectCode = watch("projectCode");
   const sceneFile = watch("sceneFile");
   const useFormat = watch("useFormat");
   const imageFormat = watch("imageFormat") || "png";
@@ -294,7 +287,6 @@ export default function SubmitPage() {
           // Include structured metadata
           metadata: {
             user: data.user,
-            projectCode: data.projectCode,
             act: data.act,
             sequence: data.sequence,
             scene: data.scene,
@@ -371,9 +363,9 @@ export default function SubmitPage() {
           }
         >
           <div className="space-y-3">
-            {/* Username, Show & Project Code */}
+            {/* Username & Show */}
             <div className="grid grid-cols-6 gap-3">
-              <div className="col-span-2 space-y-1">
+              <div className="col-span-3 space-y-1">
                 <FieldLabel required accent="cool">Username</FieldLabel>
                 <Input
                   {...register("user")}
@@ -381,7 +373,7 @@ export default function SubmitPage() {
                   
                 />
               </div>
-              <div className="col-span-2 space-y-1">
+              <div className="col-span-3 space-y-1">
                 <FieldLabel required accent="cool">Show</FieldLabel>
                 <Select onValueChange={(value) => setValue("show", value, { shouldValidate: true })}>
                   <SelectTrigger>
@@ -393,20 +385,6 @@ export default function SubmitPage() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="col-span-2 space-y-1">
-                <FieldLabel required accent="cool">Project Code</FieldLabel>
-                <Input
-                  {...register("projectCode")}
-                  placeholder="e.g., PROJ"
-                  maxLength={6}
-                  className="uppercase font-mono tracking-wider"
-                  onChange={(e) => {
-                    // Force uppercase
-                    const value = e.target.value.toUpperCase().replaceAll(/[^A-Z]/g, "");
-                    setValue("projectCode", value, { shouldValidate: true });
-                  }}
-                />
               </div>
             </div>
 
@@ -595,19 +573,16 @@ export default function SubmitPage() {
                   className="font-mono text-xs"
                 />
               </div>
-              <div className="col-span-1 space-y-1">
-                <div className="flex items-center gap-1.5 h-[16px]">
+              <div className="col-span-2 space-y-1">
+                <div className="flex items-center gap-1.5">
                   <Checkbox
                     id="useResolution"
                     checked={useResolution}
                     onCheckedChange={(checked) => setValue("useResolution", !!checked, { shouldValidate: true })}
                     className="border-neutral-300 dark:border-white/15 h-3.5 w-3.5 data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500"
                   />
-                  <FieldLabel htmlFor="useResolution" accent="warm">Resolution</FieldLabel>
+                  <FieldLabel htmlFor="useResolution" accent="warm">Width</FieldLabel>
                 </div>
-              </div>
-              <div className="col-span-1 space-y-1">
-                <FieldLabel accent="warm">Width</FieldLabel>
                 <Input
                   type="number"
                   {...register("resWidth", { valueAsNumber: true })}
@@ -615,7 +590,7 @@ export default function SubmitPage() {
                   className={!useResolution ? "opacity-40" : ""}
                 />
               </div>
-              <div className="col-span-1 space-y-1">
+              <div className="col-span-2 space-y-1">
                 <FieldLabel accent="warm">Height</FieldLabel>
                 <Input
                   type="number"
@@ -624,7 +599,6 @@ export default function SubmitPage() {
                   className={!useResolution ? "opacity-40" : ""}
                 />
               </div>
-              <div className="col-span-1" />
             </div>
 
           </div>
