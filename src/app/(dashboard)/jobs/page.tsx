@@ -155,8 +155,11 @@ export default function JobsPage() {
   }, [activeTab, globalFilter, pageSize]);
 
   // Group paginated jobs by show
+  // For completed tab, group from ALL filtered jobs so every show appears with correct counts
+  // For active tab, group from paginated jobs
   const jobsByShow = useMemo(() => {
-    const grouped = paginatedJobs.reduce((acc, job) => {
+    const source = activeTab === "completed" ? textFiltered : paginatedJobs;
+    const grouped = source.reduce((acc, job) => {
       const show = job.show || "Unknown";
       if (!acc[show]) acc[show] = [];
       acc[show].push(job);
@@ -172,7 +175,7 @@ export default function JobsPage() {
     
     // Sort shows alphabetically
     return Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b));
-  }, [paginatedJobs, activeTab, allShows]);
+  }, [paginatedJobs, textFiltered, activeTab, allShows]);
 
   // Show color mapping (include allShows for completed tab empty sections)
   const showColorMap = useMemo(() => {

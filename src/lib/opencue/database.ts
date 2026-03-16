@@ -333,12 +333,22 @@ export async function getJobHistory(opts?: {
     const result = await client.query(
       `SELECT jh.pk_job, jh.str_name, COALESCE(s.str_name, 'unknown') as show_name,
               jh.str_shot, jh.str_user,
-              jh.int_frame_count, jh.int_succeeded_count, jh.int_dead_count,
-              jh.int_eaten_count, jh.int_waiting_count, jh.int_running_count,
-              jh.int_depend_count, jh.int_ts_started, jh.int_ts_stopped,
-              jh.int_max_rss
+              jh.int_frame_count, jh.int_ts_started, jh.int_ts_stopped,
+              jh.int_max_rss,
+              COALESCE(fh.succeeded, 0) as computed_succeeded,
+              COALESCE(fh.dead, 0) as computed_dead,
+              COALESCE(jh.int_eaten_count, 0) as int_eaten_count,
+              COALESCE(jh.int_waiting_count, 0) as int_waiting_count,
+              COALESCE(jh.int_depend_count, 0) as int_depend_count
        FROM job_history jh
        LEFT JOIN show s ON s.pk_show = jh.pk_show
+       LEFT JOIN (
+         SELECT pk_job,
+                SUM(CASE WHEN int_exit_status = 0 AND int_ts_stopped > int_ts_started THEN 1 ELSE 0 END) as succeeded,
+                SUM(CASE WHEN int_exit_status != 0 THEN 1 ELSE 0 END) as dead
+         FROM frame_history
+         GROUP BY pk_job
+       ) fh ON fh.pk_job = jh.pk_job
        ${where}
        ORDER BY jh.int_ts_stopped DESC
        LIMIT $${paramIdx}`,
@@ -352,11 +362,11 @@ export async function getJobHistory(opts?: {
       shot: row.str_shot,
       user: row.str_user,
       totalFrames: Number.parseInt(row.int_frame_count, 10),
-      succeededFrames: Number.parseInt(row.int_succeeded_count, 10),
-      deadFrames: Number.parseInt(row.int_dead_count, 10),
+      succeededFrames: Number.parseInt(row.computed_succeeded, 10),
+      deadFrames: Number.parseInt(row.computed_dead, 10),
       eatenFrames: Number.parseInt(row.int_eaten_count, 10),
       waitingFrames: Number.parseInt(row.int_waiting_count, 10),
-      runningFrames: Number.parseInt(row.int_running_count, 10),
+      runningFrames: 0,
       dependFrames: Number.parseInt(row.int_depend_count, 10),
       startTime: row.int_ts_started,
       stopTime: row.int_ts_stopped,
