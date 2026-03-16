@@ -54,7 +54,7 @@ src/
     ├── opencue/
     │   ├── gateway-client.ts # All REST gateway API calls
     │   ├── spec-builder.ts   # Job XML spec generation (DTD-compliant)
-    │   └── database.ts       # Direct PostgreSQL queries (show deletion, etc.)
+    │   └── database.ts       # Direct PostgreSQL queries (archived jobs, frames, show stats)
     ├── auth/
     │   ├── session.ts        # iron-session config
     │   └── permissions.ts    # Role-based permissions
@@ -81,9 +81,11 @@ data/                         # SQLite database (gitignored)
 | Production tracking DB | `src/lib/db/production.ts` |
 | Job submission API | `src/app/api/submit/route.ts` |
 | Frame log retrieval | `src/app/api/jobs/[id]/logs/route.ts` |
+| Archived output dir | `src/app/api/jobs/[id]/output-dir/route.ts` |
 | Frame preview API | `src/app/api/files/frame-preview/route.ts` |
 | Job detail drawer | `src/components/job-detail-drawer.tsx` |
 | Submit form | `src/app/(dashboard)/submit/page.tsx` |
+| PostgreSQL (archived) | `src/lib/opencue/database.ts` |
 | Docker config | `docker-compose.yml`, `Dockerfile` |
 
 ## Environment Variables
@@ -114,11 +116,12 @@ data/                         # SQLite database (gitignored)
 
 ### Jobs
 
-- `GET /api/jobs` — List jobs
+- `GET /api/jobs` — List jobs (active from gateway, archived from `job_history` when `includeFinished=true`)
 - `GET /api/jobs/[id]` — Job details
-- `GET /api/jobs/[id]/frames` — Frame data
-- `GET /api/jobs/[id]/layers` — Layer data (for preview)
+- `GET /api/jobs/[id]/frames` — Frame data (add `?archived=true` for archived jobs via `frame_history`)
+- `GET /api/jobs/[id]/layers` — Layer data (for preview output dir extraction)
 - `GET /api/jobs/[id]/logs` — Frame log content
+- `GET /api/jobs/[id]/output-dir` — Extract output dir from archived RQD log files
 - `POST /api/jobs/[id]` — Actions: kill, pause, resume, retry, eat
 
 ### Files
@@ -201,7 +204,7 @@ Excluded from linting: `opencue/`, `scripts/`, `.next/`, `node_modules/`
 
 2. **Shows must be created via API** — Direct SQL `INSERT INTO show` won't work because cuebot caches shows in memory. Use `show.ShowInterface/CreateShow` via the REST gateway.
 
-3. **Frame preview needs `-rd` in render command** — The preview panel parses the layer command for `-rd "path"`. Without it, preview shows "No output directory found."
+3. **Frame preview needs `-rd` in render command** — For active jobs, the preview panel parses the layer command for `-rd "path"`. For archived jobs, the output dir is extracted from RQD log file headers via `/api/jobs/[id]/output-dir`. Without it, preview shows "No output directory found."
 
 4. **EXR/TIFF won't preview** — Only browser-viewable formats work (PNG, JPG, GIF, WebP, BMP). Set `-of png` or `-of jpg` in the submit form for previewable output.
 
@@ -220,6 +223,12 @@ Excluded from linting: `opencue/`, `scripts/`, `.next/`, `node_modules/`
 11. **`npm run sync-db` fails with EBUSY** — Stop the dev server first. SQLite is locked while Next.js is running.
 
 12. **Docker volumes are read-only** — Both render repo mounts are `:ro`. Logs/images can only be read, not written from the web container.
+
+13. **`job_history.int_succeeded_count` is always 0** — Cuebot clears frame counts during archival. Real counts must be computed from `frame_history` by checking `int_exit_status` (0 = succeeded, non-zero = dead).
+
+14. **`layer_history` has no `str_cmd`** — The render command is not preserved after archival. To get the output directory for archived jobs, read the RQD log file header which contains the full command including `-rd "path"`.
+
+15. **`frame_history.str_state` is always `RUNNING`** — Cuebot archives all frames with state `RUNNING` regardless of actual outcome. Derive real states from `int_exit_status`: 0 with `int_ts_stopped > int_ts_started` = SUCCEEDED, non-zero = DEAD.
 
 ## Security
 

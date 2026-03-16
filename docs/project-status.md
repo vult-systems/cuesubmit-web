@@ -1,6 +1,6 @@
 # CueSubmit Web - Project Status
 
-**Last Updated:** February 8, 2026
+**Last Updated:** March 16, 2026
 
 ## Current State: ✅ Production Ready
 
@@ -9,9 +9,12 @@ The web-based job submission and monitoring interface for OpenCue is fully funct
 ### Active Features
 
 - ✅ **Job submission** — Arnold-only, DTD-compliant XML specs, optional layer/camera/output format, tags, override resolution, frame step
-- ✅ **Job monitoring** — Tabbed filtering (All/Running/Pending/Finished/Dead), pagination, row coloring by state, newest-first ordering
+- ✅ **Job monitoring** — Active/Completed tabs, pagination, row coloring by state, newest-first ordering
+- ✅ **Archived job viewing** — Completed jobs from `job_history` table with real frame counts computed from `frame_history`
+- ✅ **Archived frame listing** — Frame data served from `frame_history` with states derived from exit codes
 - ✅ **Frame detail drawer** — Frame table, resizable log viewer with auto-scroll, frame preview panel
 - ✅ **Frame preview** — Right-side 480px panel showing rendered frame images (PNG/JPG/etc.), scans output dir + subdirectories
+- ✅ **Archived job previews** — Output directory extracted from RQD log files for completed/archived jobs
 - ✅ **Host management** — Lab grouping, display ID mapping, host deletion via UI
 - ✅ **User permissions** — Role-based (admin/instructor/student). Students: submit, kill, pause, retry, eat, view own jobs
 - ✅ **Render logs** — UNC-to-Linux path conversion, Docker + Windows dev support
@@ -100,6 +103,46 @@ Consider:
 - `SESSION_SECRET not set in production` warnings during build (cosmetic only)
 
 ## Completed Items
+
+### ✅ Archived Job Previews (Mar 16, 2026)
+
+- Created `/api/jobs/[id]/output-dir` endpoint that extracts the render output directory from archived RQD log files
+- Log files at `<RENDER_REPO>/OpenCue/Logs/<show>/<shot>/logs/<jobName>--<jobId>/` contain the full render command in their header
+- Reads the first 2KB of the first `.rqlog` file and parses `-rd "path"` to get the output directory
+- Updated job detail drawer to fetch output dir for archived jobs, enabling the existing preview pipeline
+
+### ✅ Archived Frame Listing (Mar 16, 2026)
+
+- Created `getArchivedFrames()` in `database.ts` — queries `frame_history` table for completed job frames
+- Derives real frame states from `int_exit_status` (archival stores all as `RUNNING`): exit 0 → `SUCCEEDED`, non-zero → `DEAD`
+- Extracts frame numbers from names like `0001-render`
+- Added `?archived=true` support to `/api/jobs/[id]/frames` route
+- Updated drawer to fetch archived frames when `job.isArchived` is true
+
+### ✅ Archived Job Frame Counts (Mar 16, 2026)
+
+- `job_history.int_succeeded_count` is always 0 (Cuebot archival behavior)
+- Fixed by computing real counts from `frame_history` via LEFT JOIN subquery in `getJobHistory()`
+- Succeeded = `int_exit_status = 0 AND int_ts_stopped > int_ts_started`
+- Dead = `int_exit_status != 0`
+- Progress bars now show correct green/red proportions for archived jobs
+
+### ✅ Completed Jobs Tab (Mar 16, 2026)
+
+- Simplified Jobs page tabs from All/Running/Pending/Finished/Dead to **Active/Completed**
+- Active tab: live jobs from REST Gateway
+- Completed tab: archived jobs from `job_history` table via direct PostgreSQL query
+- All shows always visible in Completed tab (groups from all filtered jobs, not just paginated page)
+- Added `isArchived` flag to Job interface to distinguish archived from live jobs
+- `allShows` state ensures show sections appear even when pagination hides some jobs
+
+### ✅ Direct PostgreSQL Integration (Mar 16, 2026)
+
+- Added `database.ts` with connection pool to OpenCue's PostgreSQL database
+- `getJobHistory()` — fetches archived jobs with real frame counts from `frame_history`
+- `getArchivedFrames()` — fetches archived frames with derived states
+- `getShowJobHistoryStats()` — job/subscription counts for show management
+- Uses `OPENCUE_DB_HOST` and `OPENCUE_DB_PASSWORD` environment variables
 
 ### ✅ Frame Preview Panel (Feb 8, 2026)
 
