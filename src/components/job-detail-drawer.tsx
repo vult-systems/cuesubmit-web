@@ -192,7 +192,7 @@ export function JobDetailDrawer({
       setPreviewError(null);
 
       if (job.isArchived) {
-        // Archived jobs: fetch frames from frame_history, skip layers
+        // Archived jobs: fetch frames from frame_history
         setOutputDir(null);
         setLoading(true);
         fetch(`/api/jobs/${job.id}/frames?archived=true`)
@@ -203,6 +203,11 @@ export function JobDetailDrawer({
         fetch("/api/host-lookup")
           .then(r => r.json())
           .then(d => setHostLookup(d.lookup || {}))
+          .catch(() => {});
+        // Extract output directory from archived RQD log files
+        fetch(`/api/jobs/${job.id}/output-dir`)
+          .then(r => r.json())
+          .then(d => { if (d.outputDir) setOutputDir(d.outputDir); })
           .catch(() => {});
         return;
       }
