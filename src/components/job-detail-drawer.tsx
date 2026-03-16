@@ -57,6 +57,7 @@ interface Job {
   name: string;
   state: string;
   isPaused: boolean;
+  isArchived?: boolean;
   user: string;
   show: string;
   priority: number;
@@ -184,6 +185,17 @@ export function JobDetailDrawer({
 
   useEffect(() => {
     if (open && job) {
+      // Archived jobs have no live data in the gateway - skip fetches
+      if (job.isArchived) {
+        setFrames([]);
+        setSelectedFrames(new Set());
+        setActiveFrame(null);
+        setLogs("");
+        setPreviewUrl(null);
+        setPreviewError(null);
+        setOutputDir(null);
+        return;
+      }
       fetchFrames();
       setSelectedFrames(new Set());
       setActiveFrame(null);

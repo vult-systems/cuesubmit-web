@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
-import { getJobs, type Job } from "@/lib/opencue/gateway-client";
+import { getJobs, getShows, type Job } from "@/lib/opencue/gateway-client";
 import { getJobHistory } from "@/lib/opencue/database";
 import { config } from "@/lib/config";
 
@@ -26,11 +26,15 @@ export async function GET(request: Request) {
     const liveJobs: Job[] = result.jobs || [];
     const liveJobIds = new Set(liveJobs.map(j => j.id));
 
-    // For finished/all tabs, also fetch archived jobs from job_history
+    // For completed tab, also fetch archived jobs from job_history + show list
     let allJobs = liveJobs;
+    let allShows: string[] = [];
     if (includeFinished && config.mode === "online") {
       try {
-        const archived = await getJobHistory({ show, user: user_filter });
+        const [archived, showsResult] = await Promise.all([
+          getJobHistory({ show, user: user_filter }),
+          getShows().catch(() => ({ shows: [] })),
+        ]);
         const archivedAsJobs: Job[] = archived
           .filter(a => !liveJobIds.has(a.id))
           .map(a => ({
@@ -38,6 +42,7 @@ export async function GET(request: Request) {
             name: a.name,
             state: "FINISHED",
             isPaused: false,
+            isArchived: true,
             user: a.user,
             show: a.show,
             shot: a.shot,
@@ -54,13 +59,16 @@ export async function GET(request: Request) {
             totalFrames: a.totalFrames,
           }));
         allJobs = [...liveJobs, ...archivedAsJobs];
+        // Gateway returns { shows: { shows: [...] } } or { shows: [...] }
+        const rawShows = showsResult.shows;
+        const showList = Array.isArray(rawShows) ? rawShows : (rawShows?.shows || []);
+        allShows = showList.map((s: { name?: string }) => s.name).filter((n): n is string => Boolean(n));
       } catch (error) {
         console.error("Failed to fetch job history:", error);
-        // Fall back to live jobs only
       }
     }
 
-    return NextResponse.json({ jobs: allJobs });
+    return NextResponse.json({ jobs: allJobs, shows: allShows });
   } catch (error) {
     console.error("Failed to fetch jobs:", error);
     return NextResponse.json(

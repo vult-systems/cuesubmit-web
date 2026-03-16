@@ -44,6 +44,7 @@ interface Job {
   name: string;
   state: string;
   isPaused: boolean;
+  isArchived?: boolean;
   user: string;
   show: string;
   priority: number;
@@ -67,12 +68,11 @@ const stateColors: Record<string, string> = {
   PAUSED: "bg-surface-muted text-text-muted border-border",
 };
 
-type JobTab = "active" | "finished" | "all";
+type JobTab = "active" | "completed";
 
 const TAB_CONFIG: { key: JobTab; label: string; description: string }[] = [
   { key: "active", label: "Active", description: "Running, pending & problematic jobs" },
-  { key: "finished", label: "Finished", description: "Completed jobs" },
-  { key: "all", label: "All", description: "All jobs including finished" },
+  { key: "completed", label: "Completed", description: "All completed jobs" },
 ];
 
 function ProgressBar({ job }: Readonly<{ job: Job }>) {
@@ -103,6 +103,7 @@ function ProgressBar({ job }: Readonly<{ job: Job }>) {
 
 export default function JobsPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [allShows, setAllShows] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [globalFilter, setGlobalFilter] = useState("");
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
@@ -120,9 +121,8 @@ export default function JobsPage() {
     switch (activeTab) {
       case "active":
         return jobs.filter(j => j.state !== "FINISHED");
-      case "finished":
+      case "completed":
         return jobs.filter(j => j.state === "FINISHED");
-      case "all":
       default:
         return jobs;
     }
@@ -163,18 +163,26 @@ export default function JobsPage() {
       return acc;
     }, {} as Record<string, Job[]>);
     
+    // In completed tab, ensure all known shows appear (even if empty)
+    if (activeTab === "completed") {
+      for (const show of allShows) {
+        if (!grouped[show]) grouped[show] = [];
+      }
+    }
+    
     // Sort shows alphabetically
     return Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b));
-  }, [paginatedJobs]);
+  }, [paginatedJobs, activeTab, allShows]);
 
-  // Show color mapping
+  // Show color mapping (include allShows for completed tab empty sections)
   const showColorMap = useMemo(() => {
-    const shows = [...new Set(jobs.map(j => j.show || "Unknown"))].sort((a, b) => a.localeCompare(b));
-    return shows.reduce((acc, show, index) => {
+    const showsFromJobs = jobs.map(j => j.show || "Unknown");
+    const combined = [...new Set([...showsFromJobs, ...allShows])].sort((a, b) => a.localeCompare(b));
+    return combined.reduce((acc, show, index) => {
       acc[show] = accentColorList[index % accentColorList.length];
       return acc;
     }, {} as Record<string, { border: string; pill: string }>);
-  }, [jobs]);
+  }, [jobs, allShows]);
 
   const fetchJobs = useCallback(async () => {
     try {
@@ -185,6 +193,7 @@ export default function JobsPage() {
       const data = await response.json();
       if (response.ok) {
         setJobs(data.jobs || []);
+        if (data.shows) setAllShows(data.shows);
       } else {
         toast.error(data.error || "Failed to fetch jobs");
       }
@@ -231,8 +240,7 @@ export default function JobsPage() {
   // Tab counts (from full dataset)
   const tabCounts = useMemo(() => ({
     active: jobs.filter(j => j.state !== "FINISHED").length,
-    finished: jobs.filter(j => j.state === "FINISHED").length,
-    all: jobs.length,
+    completed: jobs.filter(j => j.state === "FINISHED").length,
   }), [jobs]);
 
   return (
@@ -335,9 +343,14 @@ export default function JobsPage() {
                   key={show}
                   title={show.toUpperCase()}
                   badge={`${showJobs.length} ${pluralize(showJobs.length, 'job')}`}
-                  stats={`${showRunning} running • ${showSucceededFrames}/${showTotalFrames} frames`}
+                  stats={showJobs.length > 0 ? `${showRunning} running • ${showSucceededFrames}/${showTotalFrames} frames` : undefined}
                   accentColors={colors}
                 >
+                  {showJobs.length === 0 ? (
+                    <div className="px-4 py-6 text-center text-text-muted text-xs">
+                      No completed jobs
+                    </div>
+                  ) : (
                   <ResizableTable storageKey={`jobs-${show}`}>
                     <ResizableTableHeader>
                       <ResizableTableRow className="hover:bg-transparent border-neutral-200 dark:border-white/6">
@@ -499,6 +512,7 @@ export default function JobsPage() {
                       })}
                     </ResizableTableBody>
                   </ResizableTable>
+                  )}
                 </GroupedSection>
               );
             })}
