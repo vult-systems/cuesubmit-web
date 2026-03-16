@@ -279,3 +279,90 @@ export async function renameShow(showId: string, newName: string): Promise<{ suc
     client.release();
   }
 }
+
+// ============================================================================
+// Job History (archived jobs from job_history table)
+// ============================================================================
+
+export interface ArchivedJob {
+  id: string;
+  name: string;
+  show: string;
+  shot: string;
+  user: string;
+  totalFrames: number;
+  succeededFrames: number;
+  deadFrames: number;
+  eatenFrames: number;
+  waitingFrames: number;
+  runningFrames: number;
+  dependFrames: number;
+  startTime: number;
+  stopTime: number;
+  maxRss: number;
+}
+
+/**
+ * Get archived jobs from job_history table.
+ * These are jobs that have completed and been moved out of the active job table.
+ */
+export async function getJobHistory(opts?: {
+  show?: string;
+  user?: string;
+  limit?: number;
+}): Promise<ArchivedJob[]> {
+  const client = await pool.connect();
+  try {
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+    let paramIdx = 1;
+
+    if (opts?.show) {
+      conditions.push(`s.str_name = $${paramIdx++}`);
+      params.push(opts.show);
+    }
+    if (opts?.user) {
+      conditions.push(`jh.str_user = $${paramIdx++}`);
+      params.push(opts.user);
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const limit = opts?.limit || 1000;
+    params.push(limit);
+
+    const result = await client.query(
+      `SELECT jh.pk_job, jh.str_name, COALESCE(s.str_name, 'unknown') as show_name,
+              jh.str_shot, jh.str_user,
+              jh.int_frame_count, jh.int_succeeded_count, jh.int_dead_count,
+              jh.int_eaten_count, jh.int_waiting_count, jh.int_running_count,
+              jh.int_depend_count, jh.int_ts_started, jh.int_ts_stopped,
+              jh.int_max_rss
+       FROM job_history jh
+       LEFT JOIN show s ON s.pk_show = jh.pk_show
+       ${where}
+       ORDER BY jh.int_ts_stopped DESC
+       LIMIT $${paramIdx}`,
+      params
+    );
+
+    return result.rows.map(row => ({
+      id: row.pk_job,
+      name: row.str_name,
+      show: row.show_name,
+      shot: row.str_shot,
+      user: row.str_user,
+      totalFrames: Number.parseInt(row.int_frame_count, 10),
+      succeededFrames: Number.parseInt(row.int_succeeded_count, 10),
+      deadFrames: Number.parseInt(row.int_dead_count, 10),
+      eatenFrames: Number.parseInt(row.int_eaten_count, 10),
+      waitingFrames: Number.parseInt(row.int_waiting_count, 10),
+      runningFrames: Number.parseInt(row.int_running_count, 10),
+      dependFrames: Number.parseInt(row.int_depend_count, 10),
+      startTime: row.int_ts_started,
+      stopTime: row.int_ts_stopped,
+      maxRss: Number.parseInt(row.int_max_rss, 10),
+    }));
+  } finally {
+    client.release();
+  }
+}
