@@ -185,23 +185,29 @@ export function JobDetailDrawer({
 
   useEffect(() => {
     if (open && job) {
-      // Archived jobs have no live data in the gateway - skip fetches
-      if (job.isArchived) {
-        setFrames([]);
-        setSelectedFrames(new Set());
-        setActiveFrame(null);
-        setLogs("");
-        setPreviewUrl(null);
-        setPreviewError(null);
-        setOutputDir(null);
-        return;
-      }
-      fetchFrames();
       setSelectedFrames(new Set());
       setActiveFrame(null);
       setLogs("");
       setPreviewUrl(null);
       setPreviewError(null);
+
+      if (job.isArchived) {
+        // Archived jobs: fetch frames from frame_history, skip layers
+        setOutputDir(null);
+        setLoading(true);
+        fetch(`/api/jobs/${job.id}/frames?archived=true`)
+          .then(r => r.json())
+          .then(d => setFrames(d.frames || []))
+          .catch(() => setFrames([]))
+          .finally(() => setLoading(false));
+        fetch("/api/host-lookup")
+          .then(r => r.json())
+          .then(d => setHostLookup(d.lookup || {}))
+          .catch(() => {});
+        return;
+      }
+
+      fetchFrames();
       // Fetch host lookup map
       fetch("/api/host-lookup")
         .then(r => r.json())

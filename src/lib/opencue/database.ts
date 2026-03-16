@@ -376,3 +376,66 @@ export async function getJobHistory(opts?: {
     client.release();
   }
 }
+
+// ============================================================================
+// Archived Frames (from frame_history table)
+// ============================================================================
+
+export interface ArchivedFrame {
+  id: string;
+  name: string;
+  number: number;
+  state: string;
+  retryCount: number;
+  exitStatus: number;
+  lastResource: string;
+  startTime: number;
+  stopTime: number;
+}
+
+/**
+ * Get archived frames for a job from frame_history.
+ * Derives real state from exit_status since frame_history stores all as RUNNING.
+ */
+export async function getArchivedFrames(jobId: string): Promise<ArchivedFrame[]> {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `SELECT pk_frame, str_name, str_state, str_host,
+              int_exit_status, int_ts_started, int_ts_stopped,
+              int_checkpoint_count
+       FROM frame_history
+       WHERE pk_job = $1
+       ORDER BY str_name`,
+      [jobId]
+    );
+
+    return result.rows.map(row => {
+      // Derive real state from exit status since archival stores all as RUNNING
+      let state = row.str_state;
+      if (row.int_exit_status === 0 && row.int_ts_stopped > row.int_ts_started) {
+        state = 'SUCCEEDED';
+      } else if (row.int_exit_status !== 0) {
+        state = 'DEAD';
+      }
+
+      // Extract frame number from name like "0001-render"
+      const numMatch = row.str_name.match(/^(\d+)/);
+      const frameNumber = numMatch ? parseInt(numMatch[1], 10) : 0;
+
+      return {
+        id: row.pk_frame,
+        name: row.str_name,
+        number: frameNumber,
+        state,
+        retryCount: row.int_checkpoint_count || 0,
+        exitStatus: row.int_exit_status,
+        lastResource: row.str_host || '',
+        startTime: row.int_ts_started,
+        stopTime: row.int_ts_stopped,
+      };
+    });
+  } finally {
+    client.release();
+  }
+}

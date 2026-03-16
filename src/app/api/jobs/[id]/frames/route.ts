@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getFrames, type Frame } from "@/lib/opencue/gateway-client";
+import { getArchivedFrames } from "@/lib/opencue/database";
 
 // Helper to extract nested array from gateway response
 function extractFrames(data: { frames: Frame[] } | Frame[]): Frame[] {
@@ -19,8 +20,15 @@ export async function GET(
     }
 
     const { id } = await params;
-
     const { searchParams } = new URL(request.url);
+    const archived = searchParams.get("archived") === "true";
+
+    // Archived jobs: fetch from frame_history instead of gateway
+    if (archived) {
+      const frames = await getArchivedFrames(id);
+      return NextResponse.json({ frames });
+    }
+
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "1000");
 
