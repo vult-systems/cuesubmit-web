@@ -20,6 +20,7 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
+  TooltipProvider,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -419,6 +420,7 @@ export default function SubmitPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <TooltipProvider delayDuration={200}>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -452,6 +454,7 @@ export default function SubmitPage() {
                 <p>Sync Perforce depot to render farm</p>
               </TooltipContent>
             </Tooltip>
+            </TooltipProvider>
             <Button
               type="button"
               variant="ghost"
