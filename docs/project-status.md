@@ -1,6 +1,6 @@
 # CueSubmit Web - Project Status
 
-**Last Updated:** March 16, 2026
+**Last Updated:** March 17, 2026
 
 ## Current State: ✅ Production Ready
 
@@ -15,6 +15,7 @@ The web-based job submission and monitoring interface for OpenCue is fully funct
 - ✅ **Frame detail drawer** — Frame table, resizable log viewer with auto-scroll, frame preview panel
 - ✅ **Frame preview** — Right-side 480px panel showing rendered frame images (PNG/JPG/etc.), scans output dir + subdirectories
 - ✅ **Archived job previews** — Output directory extracted from RQD log files for completed/archived jobs
+- ✅ **P4 Sync** — One-click Perforce depot sync from submit page header, with loading/success/error visual feedback
 - ✅ **Host management** — Lab grouping, display ID mapping, host deletion via UI
 - ✅ **User permissions** — Role-based (admin/instructor/student). Students: submit, kill, pause, retry, eat, view own jobs
 - ✅ **Render logs** — UNC-to-Linux path conversion, Docker + Windows dev support
@@ -40,6 +41,7 @@ This would require DNS configuration pointing to `YOUR_SERVER_IP` and optionally
 - **Cuebot**: Running on port 8443 (PostgreSQL database: `cuebot_local`, password: `YOUR_DB_PASSWORD`)
 - **REST Gateway**: Docker container `opencue-rest-gateway` on port 8448
 - **CueSubmit Web**: Docker container `cuesubmit-web` on port 3000
+- **P4 Sync Listener**: systemd service `p4Sync.service` on port 5005 (Flask, runs `p4 sync` against `ANGDRenderFarm` client)
 - **SSH Access**: `YOUR_SSH_USER@YOUR_SERVER_IP`
 
 ### Deployment Commands

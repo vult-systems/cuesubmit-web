@@ -85,6 +85,7 @@ data/                         # SQLite database (gitignored)
 | Frame preview API | `src/app/api/files/frame-preview/route.ts` |
 | Job detail drawer | `src/components/job-detail-drawer.tsx` |
 | Submit form | `src/app/(dashboard)/submit/page.tsx` |
+| P4 Sync API | `src/app/api/p4-sync/route.ts` |
 | PostgreSQL (archived) | `src/lib/opencue/database.ts` |
 | Docker config | `docker-compose.yml`, `Dockerfile` |
 
@@ -129,6 +130,10 @@ data/                         # SQLite database (gitignored)
 - `GET /api/files/browse` — Browse network paths
 - `GET /api/files/preview` — Serve image by path
 - `GET /api/files/frame-preview` — Find + serve frame image by output dir + frame number
+
+### P4 Sync
+
+- `POST /api/p4-sync` — Trigger Perforce depot sync (proxies to local `p4Sync.service` on port 5005)
 
 ### Other
 
