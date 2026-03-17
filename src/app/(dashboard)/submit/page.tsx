@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { RotateCcw, Loader2, Send, FolderOpen, RefreshCw, CheckCircle2, XCircle } from "lucide-react";
+import { Loader2, Send, FolderOpen, RefreshCw, CheckCircle2, XCircle } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -455,23 +455,6 @@ export default function SubmitPage() {
               </TooltipContent>
             </Tooltip>
             </TooltipProvider>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={() => {
-                sessionStorage.removeItem(STORAGE_KEY);
-                sessionStorage.removeItem(UI_STATE_KEY);
-                reset(defaultValues);
-                setSceneFileBrowserOpen(false);
-                setOutputPathBrowserOpen(false);
-                setSceneStartPath("");
-                setOutputStartPath("");
-              }}
-              className="h-8 w-8 rounded-lg border border-neutral-200 dark:border-white/8 hover:bg-neutral-100 dark:hover:bg-white/5 hover:border-neutral-300 dark:hover:border-white/12 transition-all duration-300"
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-            </Button>
           </div>
         </div>
 
