@@ -15,7 +15,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { RotateCcw, Loader2, Send, FolderOpen } from "lucide-react";
+import { RotateCcw, Loader2, Send, FolderOpen, RefreshCw, CheckCircle2, XCircle } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -168,6 +173,8 @@ export default function SubmitPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [shows, setShows] = useState<Show[]>([]);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<"idle" | "success" | "error">("idle");
 
   // Load persisted UI state (browser open/closed, start paths)
   const savedUi = typeof window !== "undefined" ? (() => {
@@ -275,6 +282,33 @@ export default function SubmitPage() {
   // Generate job name preview
   const jobNamePreview = generateJobName({ sceneFile });
 
+  const handleP4Sync = async () => {
+    setIsSyncing(true);
+    setSyncStatus("idle");
+    try {
+      const response = await fetch("/api/p4-sync", { method: "POST" });
+      const data = await response.json();
+      if (response.ok) {
+        setSyncStatus("success");
+        toast.success("P4 sync completed", {
+          description: data.stdout?.trim()
+            ? data.stdout.trim().split("\n").slice(-3).join("\n")
+            : undefined,
+        });
+      } else {
+        setSyncStatus("error");
+        toast.error("P4 sync failed", {
+          description: data.details || data.error,
+        });
+      }
+    } catch {
+      setSyncStatus("error");
+      toast.error("Failed to connect to P4 sync service");
+    } finally {
+      setIsSyncing(false);
+      setTimeout(() => setSyncStatus("idle"), 4000);
+    }
+  };
 
 
   const onSubmit = async (data: FormData) => {
@@ -384,23 +418,58 @@ export default function SubmitPage() {
               {frameCount} frames • {chunkCount} tasks
             </p>
           </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => {
-              sessionStorage.removeItem(STORAGE_KEY);
-              sessionStorage.removeItem(UI_STATE_KEY);
-              reset(defaultValues);
-              setSceneFileBrowserOpen(false);
-              setOutputPathBrowserOpen(false);
-              setSceneStartPath("");
-              setOutputStartPath("");
-            }}
-            className="h-8 w-8 rounded-lg border border-neutral-200 dark:border-white/8 hover:bg-neutral-100 dark:hover:bg-white/5 hover:border-neutral-300 dark:hover:border-white/12 transition-all duration-300"
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-          </Button>
+          <div className="flex items-center gap-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={isSyncing}
+                  onClick={handleP4Sync}
+                  className={cn(
+                    "h-8 gap-1.5 px-3 rounded-lg border text-xs font-medium transition-all duration-300",
+                    syncStatus === "success"
+                      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                      : syncStatus === "error"
+                        ? "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400"
+                        : "border-neutral-200 dark:border-white/8 hover:bg-neutral-100 dark:hover:bg-white/5 hover:border-neutral-300 dark:hover:border-white/12"
+                  )}
+                >
+                  {isSyncing ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : syncStatus === "success" ? (
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                  ) : syncStatus === "error" ? (
+                    <XCircle className="h-3.5 w-3.5" />
+                  ) : (
+                    <RefreshCw className="h-3.5 w-3.5" />
+                  )}
+                  {isSyncing ? "Syncing..." : syncStatus === "success" ? "Synced" : syncStatus === "error" ? "Failed" : "P4 Sync"}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Sync Perforce depot to render farm</p>
+              </TooltipContent>
+            </Tooltip>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => {
+                sessionStorage.removeItem(STORAGE_KEY);
+                sessionStorage.removeItem(UI_STATE_KEY);
+                reset(defaultValues);
+                setSceneFileBrowserOpen(false);
+                setOutputPathBrowserOpen(false);
+                setSceneStartPath("");
+                setOutputStartPath("");
+              }}
+              className="h-8 w-8 rounded-lg border border-neutral-200 dark:border-white/8 hover:bg-neutral-100 dark:hover:bg-white/5 hover:border-neutral-300 dark:hover:border-white/12 transition-all duration-300"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         </div>
 
         {/* Job Settings */}
