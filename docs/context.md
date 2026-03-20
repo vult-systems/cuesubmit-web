@@ -211,7 +211,7 @@ Excluded from linting: `opencue/`, `scripts/`, `.next/`, `node_modules/`
 
 3. **Frame preview needs `-rd` in render command** — For active jobs, the preview panel parses the layer command for `-rd "path"`. For archived jobs, the output dir is extracted from RQD log file headers via `/api/jobs/[id]/output-dir`. Without it, preview shows "No output directory found."
 
-4. **EXR/TIFF won't preview** — Only browser-viewable formats work (PNG, JPG, GIF, WebP, BMP). Set `-of png` or `-of jpg` in the submit form for previewable output.
+4. **EXR/TIFF preview uses ffmpeg** — Non-browser formats (EXR, TIFF, HDR, DPX) are converted to JPEG server-side via ffmpeg with sRGB tonemapping. Converted previews are cached by file path + mtime. Requires `ffmpeg` installed in Docker image.
 
 5. **Gateway returns HTML on 404** — If an API route isn't deployed, Next.js returns HTML → frontend gets `Unexpected token '<'`. Fix: verify route file is committed and rebuild.
 

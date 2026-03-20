@@ -1,6 +1,6 @@
 # CueSubmit Web - Project Status
 
-**Last Updated:** March 17, 2026
+**Last Updated:** March 20, 2026
 
 ## Current State: ✅ Production Ready
 
@@ -13,7 +13,7 @@ The web-based job submission and monitoring interface for OpenCue is fully funct
 - ✅ **Archived job viewing** — Completed jobs from `job_history` table with real frame counts computed from `frame_history`
 - ✅ **Archived frame listing** — Frame data served from `frame_history` with states derived from exit codes
 - ✅ **Frame detail drawer** — Frame table, resizable log viewer with auto-scroll, frame preview panel
-- ✅ **Frame preview** — Right-side 480px panel showing rendered frame images (PNG/JPG/etc.), scans output dir + subdirectories
+- ✅ **Frame preview** — Right-side 480px panel showing rendered frame images (PNG/JPG/EXR/TIFF/HDR/DPX), scans output dir + subdirectories, server-side ffmpeg conversion for non-browser formats
 - ✅ **Archived job previews** — Output directory extracted from RQD log files for completed/archived jobs
 - ✅ **P4 Sync** — One-click Perforce depot sync from submit page header, with loading/success/error visual feedback
 - ✅ **Host management** — Lab grouping, display ID mapping, host deletion via UI
@@ -105,6 +105,19 @@ Consider:
 - `SESSION_SECRET not set in production` warnings during build (cosmetic only)
 
 ## Completed Items
+
+### ✅ EXR/HDR Frame Preview (Mar 20, 2026)
+
+- Added server-side ffmpeg conversion for non-browser image formats (EXR, TIFF, HDR, DPX)
+- Converts to JPEG on-the-fly with `apply_trc iec61966_2_1` for proper HDR-to-sRGB tonemapping
+- Caches converted images in temp directory keyed by file path + modification time
+- Installed `ffmpeg` in production Docker image (`apk add ffmpeg`)
+- Previously returned 415 "not viewable in browser" — now renders inline
+
+### ✅ Frame 0 Support (Mar 20, 2026)
+
+- Changed Zod validation for `frameStart` and `frameEnd` from `.min(1)` to `.min(0)`
+- Allows submitting render jobs starting at frame 0
 
 ### ✅ Archived Job Previews (Mar 16, 2026)
 
