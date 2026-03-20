@@ -69,8 +69,8 @@ const formSchema = z.object({
   resWidth: z.number().min(1).optional(),
   resHeight: z.number().min(1).optional(),
   // Frames
-  frameStart: z.number().min(1),
-  frameEnd: z.number().min(1),
+  frameStart: z.number().min(0),
+  frameEnd: z.number().min(0),
   frameStep: z.number().min(1).optional(),
   // Tags
   tags: z.string().optional(),
