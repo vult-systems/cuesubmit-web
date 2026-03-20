@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
 import fs from "fs/promises";
 import path from "path";
+import { execFile } from "child_process";
+import { promisify } from "util";
+import crypto from "crypto";
+import os from "os";
+
+const execFileAsync = promisify(execFile);
 
 // Path translation between UNC and Linux mount
 const RENDER_OUTPUT_LINUX = process.env.RENDER_REPO_PATH || "/mnt/RenderOutputRepo";
@@ -26,6 +32,34 @@ const MIME_TYPES: Record<string, string> = {
 };
 
 const VIEWABLE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"]);
+const CONVERTIBLE_EXTENSIONS = new Set([".exr", ".tif", ".tiff", ".hdr", ".dpx"]);
+const PREVIEW_CACHE_DIR = path.join(os.tmpdir(), "frame-preview-cache");
+
+// Convert HDR/non-browser image formats to JPEG using ffmpeg
+async function convertToPreviewable(filePath: string): Promise<string> {
+  await fs.mkdir(PREVIEW_CACHE_DIR, { recursive: true });
+  const stat = await fs.stat(filePath);
+  const hash = crypto.createHash("sha256").update(`${filePath}:${stat.mtimeMs}`).digest("hex");
+  const cachedPath = path.join(PREVIEW_CACHE_DIR, `${hash}.jpg`);
+
+  // Return cached version if it exists
+  try {
+    await fs.access(cachedPath);
+    return cachedPath;
+  } catch { /* not cached yet */ }
+
+  // Convert with ffmpeg — apply_trc maps HDR to sRGB for viewable output
+  await execFileAsync("ffmpeg", [
+    "-y",
+    "-apply_trc", "iec61966_2_1",
+    "-i", filePath,
+    "-vframes", "1",
+    "-q:v", "2",
+    cachedPath,
+  ]);
+
+  return cachedPath;
+}
 
 // Convert UNC path to Linux path for Docker filesystem access
 function uncToLinux(uncPath: string): string {
@@ -122,13 +156,13 @@ async function findFrameImage(
       }
     }
 
-    // Second pass: check for non-viewable image files (EXR, TIFF, etc.)
+    // Second pass: check for convertible image files (EXR, TIFF, etc.)
     for (const entry of entries) {
       if (entry.isDirectory()) continue;
       const ext = path.extname(entry.name).toLowerCase();
       if (VIEWABLE_EXTENSIONS.has(ext)) continue;
-      if ([".exr", ".tif", ".tiff", ".hdr", ".dpx"].includes(ext) && matchesFrame(entry.name)) {
-        return { error: `Rendered as ${ext.toUpperCase().replace(".", "")} — not viewable in browser` };
+      if (CONVERTIBLE_EXTENSIONS.has(ext) && matchesFrame(entry.name)) {
+        return { filePath: path.join(dirPath, entry.name), ext };
       }
     }
 
@@ -172,8 +206,8 @@ async function findFrameImageFlat(
     for (const entry of entries) {
       if (entry.isDirectory()) continue;
       const ext = path.extname(entry.name).toLowerCase();
-      if ([".exr", ".tif", ".tiff", ".hdr", ".dpx"].includes(ext) && matchesFrame(entry.name)) {
-        return { error: `Rendered as ${ext.toUpperCase().replace(".", "")} — not viewable in browser` };
+      if (CONVERTIBLE_EXTENSIONS.has(ext) && matchesFrame(entry.name)) {
+        return { filePath: path.join(dirPath, entry.name), ext };
       }
     }
 
@@ -241,13 +275,29 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: result.error }, { status: 415 });
     }
 
+    // Convert non-browser formats (EXR, TIFF, etc.) to JPEG
+    let servePath = result.filePath;
+    let serveMime = MIME_TYPES[result.ext] || "application/octet-stream";
+
+    if (CONVERTIBLE_EXTENSIONS.has(result.ext)) {
+      try {
+        servePath = await convertToPreviewable(result.filePath);
+        serveMime = "image/jpeg";
+      } catch (err) {
+        console.error("EXR conversion error:", err);
+        return NextResponse.json(
+          { error: "Failed to convert image for preview" },
+          { status: 500 }
+        );
+      }
+    }
+
     // Read and serve the image
-    const fileBuffer = await fs.readFile(result.filePath);
-    const mimeType = MIME_TYPES[result.ext] || "application/octet-stream";
+    const fileBuffer = await fs.readFile(servePath);
 
     return new NextResponse(fileBuffer, {
       headers: {
-        "Content-Type": mimeType,
+        "Content-Type": serveMime,
         "Content-Length": fileBuffer.length.toString(),
         "Cache-Control": "public, max-age=30",
       },
