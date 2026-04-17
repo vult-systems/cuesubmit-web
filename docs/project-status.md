@@ -16,7 +16,7 @@ The web-based job submission and monitoring interface for OpenCue is fully funct
 - ✅ **Frame preview** — Right-side 480px panel showing rendered frame images (PNG/JPG/EXR/TIFF/HDR/DPX), scans output dir + subdirectories, server-side ffmpeg conversion for non-browser formats
 - ✅ **Archived job previews** — Output directory extracted from RQD log files for completed/archived jobs
 - ✅ **P4 Sync** — One-click Perforce depot sync from submit page header, with loading/success/error visual feedback
-- ✅ **Host management** — Lab grouping, display ID mapping, host deletion via UI
+- ✅ **Host management** — Lab grouping by tag-derived display ID (e.g., `AD415-05`), uppercase hostname display, host deletion via UI
 - ✅ **User permissions** — Role-based (admin/instructor/student). Students: submit, kill, pause, retry, eat, view own jobs
 - ✅ **Render logs** — UNC-to-Linux path conversion, Docker + Windows dev support
 - ✅ **Scene/output file browsers** — Browse render source and output repos from submit form
@@ -67,14 +67,16 @@ ssh YOUR_SSH_USER@YOUR_SERVER_IP "docker logs --tail 50 cuesubmit-web"
 
 ### Labs (6 rooms, ~100 hosts in local.general)
 
-| Room | Hosts | Cores/Host | Tags |
-|------|-------|-----------|------|
-| AD400 | ~8 | 28 | `general`, `AD400`, `AD400-NN` |
-| AD404 | ~15 | 28 | `general`, `AD404`, `AD404-NN` |
-| AD405 | ~15 | 28 | `general`, `AD405`, `AD405-NN` |
-| AD406 | ~15 | 28 | `general`, `AD406`, `AD406-NN` |
-| AD407 | ~15 | 28 | `general`, `AD407`, `AD407-NN` |
-| AD415 | ~17 | 28 | `general`, `AD415`, `AD415-NN` |
+| Room | Hosts | Cores/Host | Tags | Example Display ID |
+|------|-------|-----------|------|--------------------|
+| AD400 | ~8 | 28 | `general`, `AD400`, `AD400-NN` | `AD400-01` |
+| AD404 | ~15 | 28 | `general`, `AD404`, `AD404-NN` | `AD404-12` |
+| AD405 | ~15 | 28 | `general`, `AD405`, `AD405-NN` | `AD405-INST` |
+| AD406 | ~15 | 28 | `general`, `AD406`, `AD406-NN` | `AD406-03` |
+| AD407 | ~15 | 28 | `general`, `AD407`, `AD407-NN` | `AD407-07` |
+| AD415 | ~17 | 28 | `general`, `AD415`, `AD415-NN` | `AD415-05` |
+
+> **Display IDs are derived from tags.** The hosts page extracts the most specific tag matching `LETTERS+DIGITS-SUFFIX` (e.g., `AD415-05`) and uses it as the display ID. No metadata DB lookup needed.
 
 ### Allocation Model
 
@@ -117,6 +119,27 @@ Consider:
 - `SESSION_SECRET not set in production` warnings during build (cosmetic only)
 
 ## Completed Items
+
+### ✅ Host Display ID from Tags (Apr 17, 2026)
+
+**Problem**: All hosts showed as "Unassigned" after migrating host metadata from UUID-keyed to hostname-keyed. DNS-resolved hostnames didn't reliably match stored metadata.
+
+**Solution**: Derive display IDs directly from OpenCue host tags instead of the SQLite metadata table.
+
+| Change | Detail |
+|--------|--------|
+| Tag extraction | Regex `/^[A-Za-z]+\d+-\w+$/` finds tags like `AD415-05`, `AD405-INST` |
+| Hostname display | Shown in uppercase (e.g., `C751M34`) via `.toUpperCase()` |
+| Swap column | Removed from hosts table |
+| Host-lookup route | Simplified — derives display ID from tags, removed DNS reverse lookup and metadata DB dependency |
+| Edit dialog | Simplified to read-only host identification (ID from tags, hostname, IP) |
+
+**Files Changed:**
+
+| File | Change |
+|------|--------|
+| `src/app/(dashboard)/hosts/page.tsx` | `getDisplayIdFromTags()` helper, removed `hostMetadata` state, removed swap column, uppercase hostname |
+| `src/app/api/host-lookup/route.ts` | Tag-based lookup, removed DNS/metadata dependencies |
 
 ### ✅ Dispatch Throttle Fix (Apr 17, 2026)
 

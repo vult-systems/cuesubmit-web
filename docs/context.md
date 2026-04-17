@@ -244,7 +244,7 @@ Excluded from linting: `opencue/`, `scripts/`, `.next/`, `node_modules/`
 
 17. **Three dispatch throttles** — Jobs won't dispatch to more machines if ANY of these is too low: (a) job `maxCores` (from `<maxcores>` in spec XML, defaults to 100 cores if omitted), (b) show `defaultMaxCores` (from `show.int_default_max_cores`, defaults to 100 cores), (c) subscription `burst` (from `subscription.int_burst`). All three must be raised for full farm utilization.
 
-18. **Host metadata is keyed by hostname, not UUID** — The `host_metadata` SQLite table uses the machine's hostname (e.g., "J65LM34") as primary key. RQD defaults to `RQD_USE_IP_AS_HOSTNAME=True`, so `host.name` from OpenCue is the IP address. The hosts API resolves hostnames from IPs via reverse DNS. When a machine's IP changes (DHCP), the metadata persists because it's tied to the hostname, not the OpenCue host UUID.
+18. **Host display IDs come from tags, not the database** — Each host's display ID (e.g., `AD415-05`) is derived from its OpenCue tags at render time. The regex `/^[A-Za-z]+\d+-\w+$/` finds the most specific tag (room prefix + hyphen + identifier). No metadata DB lookup needed. The `host_metadata` SQLite table still exists but is no longer used for display IDs. Hostnames are resolved via reverse DNS and displayed in uppercase.
 
 ## Security
 
