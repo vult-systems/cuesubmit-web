@@ -11,8 +11,10 @@ import {
 } from "@/lib/opencue/gateway-client";
 import { config } from "@/lib/config";
 
-// Room allocations
+// Room allocations (debug shows are per-room for diagnostics)
 const ROOMS = ['AD400', 'AD404', 'AD405', 'AD406', 'AD407', 'AD415'];
+// The default allocation all production shows use
+const DEFAULT_ALLOCATION_NAME = "local.general";
 
 // Extract allocations from gateway response
 function extractAllocations(data: unknown): Allocation[] {
@@ -159,17 +161,16 @@ export async function POST() {
         }
       }
 
-      // Find room allocation
-      const alloc = allocations.find(a => a.tag?.toLowerCase() === room.toLowerCase());
-      if (!alloc) {
-        errorMessages.push(`No allocation found for room ${room}`);
+      // Subscribe debug show to local.general (same allocation all production shows use)
+      const generalAlloc = allocations.find(a => a.name.toLowerCase() === DEFAULT_ALLOCATION_NAME);
+      if (!generalAlloc) {
+        errorMessages.push(`Allocation '${DEFAULT_ALLOCATION_NAME}' not found`);
         continue;
       }
 
-      // Create subscription
       if (show) {
         try {
-          await createSubscription(show.id, alloc.id, 0, 100);
+          await createSubscription(show.id, generalAlloc.id, 0, 2000);
           subscribed++;
         } catch (err) {
           const msg = err instanceof Error ? err.message : 'Unknown error';

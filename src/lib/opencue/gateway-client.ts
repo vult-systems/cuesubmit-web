@@ -516,16 +516,20 @@ export async function createSubscription(
 }
 
 export async function setSubscriptionSize(subscriptionId: string, size: number): Promise<void> {
+  // SetSize gRPC expects centicores (int32), but our API accepts full cores for consistency
+  // with CreateSubscription which also accepts full cores
   await gatewayCall('subscription.SubscriptionInterface', 'SetSize', {
     subscription: { id: subscriptionId },
-    new_size: Math.floor(size)
+    new_size: Math.floor(size * 100)
   });
 }
 
 export async function setSubscriptionBurst(subscriptionId: string, burst: number): Promise<void> {
+  // SetBurst gRPC expects centicores (int32), but our API accepts full cores for consistency
+  // with CreateSubscription which also accepts full cores
   await gatewayCall('subscription.SubscriptionInterface', 'SetBurst', {
     subscription: { id: subscriptionId },
-    burst: Math.floor(burst)
+    burst: Math.floor(burst * 100)
   });
 }
 

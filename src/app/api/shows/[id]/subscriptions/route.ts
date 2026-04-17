@@ -29,9 +29,17 @@ export async function GET(
 
     // Online mode - fetch from OpenCue
     const response = await getShowSubscriptions(id);
-    const subscriptions: Subscription[] = Array.isArray(response.subscriptions)
+    const rawSubscriptions: Subscription[] = Array.isArray(response.subscriptions)
       ? response.subscriptions
       : response.subscriptions?.subscriptions || [];
+
+    // OpenCue returns size/burst in centicores — convert to full cores for API consistency
+    const subscriptions = rawSubscriptions.map(sub => ({
+      ...sub,
+      size: sub.size / 100,
+      burst: sub.burst / 100,
+      reservedCores: sub.reservedCores / 100,
+    }));
 
     return NextResponse.json({ subscriptions });
   } catch (error) {
@@ -61,7 +69,7 @@ export async function POST(
 
     const { id: showId } = await params;
     const body = await request.json();
-    const { allocationId, size = 0, burst = 100 } = body;
+    const { allocationId, size = 0, burst = 2000 } = body;
 
     if (!allocationId) {
       return NextResponse.json(
