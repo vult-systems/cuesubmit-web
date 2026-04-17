@@ -98,6 +98,52 @@ PGPASSWORD=$OPENCUE_DB_PASSWORD psql -U cuebot -h 127.0.0.1 -d cuebot_local
 | `job` | ← `frame`, `layer`, `job_history` |
 | `host` | (no FK deps) |
 
+---
+
+## Show & Subscription Management
+
+When a show is created via the web UI (`POST /api/shows`), it automatically:
+1. Subscribes to `local.general` allocation with burst = 2000 cores
+2. Sets `defaultMaxCores` to 2000 cores
+3. Exception: shows starting with `sndbx` subscribe to `local.ad405` instead
+
+### Check Show Subscriptions
+
+```bash
+# Via gateway (inside Docker)
+docker exec cuesubmit-web node -e "
+  // ... (generate JWT as shown in Gateway API section)
+  // Then:
+  const shows = await gw('show.ShowInterface', 'GetShows', {});
+  for (const show of shows.shows.shows) {
+    const subs = await gw('show.ShowInterface', 'GetSubscriptions', {show: {id: show.id}});
+    console.log(show.name, '→', JSON.stringify(subs));
+  }
+"
+```
+
+### Fix a Job's maxCores (Already Running)
+
+If a job was submitted before the `<maxcores>` fix:
+
+```bash
+# Set maxCores to 2000 for a specific job
+curl -s -X POST http://127.0.0.1:8448/job.JobInterface/SetMaxCores \
+  -H "Content-Type: application/json" -H "Authorization: Bearer <JWT>" \
+  -d '{"job":{"id":"<JOB_UUID>"},"val":2000}'
+```
+
+### Migrate Existing Shows (One-Time)
+
+If shows existed before the subscription fix, hit the migration endpoint:
+
+```bash
+curl -s http://localhost:3000/api/migrate-subscriptions \
+  -H "Cookie: session=<admin_session_cookie>"
+```
+
+This sets `defaultMaxCores=2000` for all shows, ensures each has a subscription to `local.general` (or `local.ad405` for sndbx), and removes stale per-room subscriptions.
+
 ### Delete a Show
 
 ```sql

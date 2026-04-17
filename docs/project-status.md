@@ -1,6 +1,6 @@
 # CueSubmit Web - Project Status
 
-**Last Updated:** March 20, 2026
+**Last Updated:** April 17, 2026
 
 ## Current State: ✅ Production Ready
 
@@ -8,7 +8,7 @@ The web-based job submission and monitoring interface for OpenCue is fully funct
 
 ### Active Features
 
-- ✅ **Job submission** — Arnold-only, DTD-compliant XML specs, optional layer/camera/output format, tags, override resolution, frame step
+- ✅ **Job submission** — Arnold-only, DTD 1.13 XML specs with `<maxcores>`, optional layer/camera/output format, tags, override resolution, frame step
 - ✅ **Job monitoring** — Active/Completed tabs, pagination, row coloring by state, newest-first ordering
 - ✅ **Archived job viewing** — Completed jobs from `job_history` table with real frame counts computed from `frame_history`
 - ✅ **Archived frame listing** — Frame data served from `frame_history` with states derived from exit codes
@@ -65,28 +65,40 @@ ssh YOUR_SSH_USER@YOUR_SERVER_IP "docker logs --tail 50 cuesubmit-web"
 
 ## Render Farm Status
 
-### Working Labs (86 hosts total)
+### Labs (6 rooms, ~100 hosts in local.general)
 
-- **AD400** (Room 400): 8 machines - All operational
-- **AD404** (Room 404): Operational after IP fixes
+| Room | Hosts | Cores/Host | Tags |
+|------|-------|-----------|------|
+| AD400 | ~8 | 28 | `general`, `AD400`, `AD400-NN` |
+| AD404 | ~15 | 28 | `general`, `AD404`, `AD404-NN` |
+| AD405 | ~15 | 28 | `general`, `AD405`, `AD405-NN` |
+| AD406 | ~15 | 28 | `general`, `AD406`, `AD406-NN` |
+| AD407 | ~15 | 28 | `general`, `AD407`, `AD407-NN` |
+| AD415 | ~17 | 28 | `general`, `AD415`, `AD415-NN` |
 
-### Recent Host Fixes
+### Allocation Model
 
-| Host     | Old IP       | New IP       | System Name |
-| -------- | ------------ | ------------ | ----------- |
-| AD400-08 | YOUR_SERVER_IP | YOUR_SERVER_IP | REDACTED     |
-| AD404-02 | YOUR_SERVER_IP  | YOUR_SERVER_IP | REDACTED     |
-| AD404-05 | YOUR_SERVER_IP  | YOUR_SERVER_IP | REDACTED     |
+- **`local.general`** — Universal allocation containing all lab machines. All shows subscribe to this.
+- **`local.ad405`** — Used only by the `sndbx` (sandbox) show.
+- Per-room allocations (`local.ad400`, `local.ad404`, etc.) exist but are not used for show subscriptions.
 
-**Root Cause**: DHCP changed IPs but RQD registered with old addresses. Solution: Delete stale entries from PostgreSQL, update SQLite metadata.
+### Tag-Based Dispatch
+
+To target a specific room, set the layer's `<tags>` to the room name (e.g., `AD415`). OpenCue matches hosts whose tag set **contains** the layer tag. To target all machines, use `general`.
+
+### Dispatch Limits (Configured Apr 2026)
+
+| Limit | Value | Where Set |
+|-------|-------|-----------|
+| Show `defaultMaxCores` | 2000 cores | `setShowDefaultMaxCores()` on show creation |
+| Subscription burst | 2000 cores | `createSubscription()` on show creation |
+| Job `maxCores` | 2000 cores | `<maxcores>` in job spec XML |
+
+All three must be high enough or dispatch is throttled. See [Dispatch Throttle Fix (Apr 17, 2026)](#-dispatch-throttle-fix-apr-17-2026) below.
 
 ## Known Issues / TODO
 
-### 1. � EXR Preview Not Supported (Priority: Low)
-
-Arnold default output is EXR, which browsers can't display. The frame preview detects EXR files and shows a message. Workaround: set output format to PNG or JPG in the submit form.
-
-### 2. 🟡 Job Names Too Long (Priority: Low)
+### 1. 🟡 Job Names Too Long (Priority: Low)
 
 OpenCue generates verbose job names like:
 
@@ -100,11 +112,33 @@ Consider:
 - UI truncation with tooltips
 - Job name format configuration
 
-### 3. 🟢 Minor Warnings (Non-blocking)
+### 2. 🟢 Minor Warnings (Non-blocking)
 
 - `SESSION_SECRET not set in production` warnings during build (cosmetic only)
 
 ## Completed Items
+
+### ✅ Dispatch Throttle Fix (Apr 17, 2026)
+
+**Problem**: Jobs were only dispatching to ~6 machines regardless of farm size.
+
+**Root Causes** (three independent throttles, all defaulting too low):
+
+1. **Job `maxCores` = 100** — The job spec XML had no `<maxcores>` element. Without it, a PostgreSQL trigger in cuebot defaults `job_resource.int_max_cores` to 10,000 core units (100 cores). On 28-core hosts, that's ~3-4 machines.
+2. **Show `defaultMaxCores` = 100** — The `show` table defaults `int_default_max_cores` to 10,000 core units. Never overridden during show creation.
+3. **Subscription burst = 100** — Subscription burst defaulted to 100 cores, further capping dispatch.
+
+**Fixes Applied:**
+
+| File | Change |
+|------|--------|
+| `src/lib/opencue/spec-builder.ts` | Added `<maxcores>2000</maxcores>` to job spec XML, upgraded DTD from 1.12 → 1.13 |
+| `src/app/api/shows/route.ts` | Auto-subscribe new shows to `local.general` (burst=2000), call `setShowDefaultMaxCores(2000)` on creation |
+| `src/lib/opencue/gateway-client.ts` | Fixed `setSubscriptionBurst`/`setSubscriptionSize` to convert cores → centicores (×100) |
+| `src/app/api/shows/[id]/subscriptions/route.ts` | Fixed GET response to convert centicores → cores (÷100), default burst 100 → 2000 |
+| `src/app/api/migrate-subscriptions/route.ts` | One-shot migration endpoint to fix all existing shows |
+
+**Unit Conversion Gotcha:** OpenCue uses "core units" (centicores) internally. `CreateSubscription` gRPC takes float cores (cuebot converts ×100), but `SetBurst`/`SetSize` take int32 centicores stored directly. The `<maxcores>` spec element takes whole cores (cuebot converts via `coresToWholeCoreUnits`).
 
 ### ✅ EXR/HDR Frame Preview (Mar 20, 2026)
 

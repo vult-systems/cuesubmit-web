@@ -53,7 +53,7 @@ src/
 └── lib/
     ├── opencue/
     │   ├── gateway-client.ts # All REST gateway API calls
-    │   ├── spec-builder.ts   # Job XML spec generation (DTD-compliant)
+    │   ├── spec-builder.ts   # Job XML spec generation (DTD 1.13, maxcores=2000)
     │   └── database.ts       # Direct PostgreSQL queries (archived jobs, frames, show stats)
     ├── auth/
     │   ├── session.ts        # iron-session config
@@ -74,7 +74,7 @@ data/                         # SQLite database (gitignored)
 | Purpose | File |
 |---------|------|
 | Gateway API client | `src/lib/opencue/gateway-client.ts` |
-| Job XML spec builder | `src/lib/opencue/spec-builder.ts` |
+| Job XML spec builder | `src/lib/opencue/spec-builder.ts` (DTD 1.13, includes `<maxcores>`) |
 | Session / auth | `src/lib/auth/session.ts` |
 | Permissions (roles) | `src/lib/auth/permissions.ts` |
 | SQLite DB setup | `src/lib/db/index.ts` |
@@ -234,6 +234,15 @@ Excluded from linting: `opencue/`, `scripts/`, `.next/`, `node_modules/`
 14. **`layer_history` has no `str_cmd`** — The render command is not preserved after archival. To get the output directory for archived jobs, read the RQD log file header which contains the full command including `-rd "path"`.
 
 15. **`frame_history.str_state` is always `RUNNING`** — Cuebot archives all frames with state `RUNNING` regardless of actual outcome. Derive real states from `int_exit_status`: 0 with `int_ts_stopped > int_ts_started` = SUCCEEDED, non-zero = DEAD.
+
+16. **OpenCue core units (centicores)** — Cuebot stores cores internally as "core units" where 100 units = 1 core. Different APIs handle conversion differently:
+    - `CreateSubscription` gRPC: takes **float cores** (cuebot multiplies ×100 internally)
+    - `SetBurst` / `SetSize` gRPC: takes **int32 centicores** (stored directly, no conversion)
+    - `SetShowDefaultMaxCores` gRPC: takes **int32 cores** (cuebot uses `coresToWholeCoreUnits`, rounds to nearest 100)
+    - Job spec `<maxcores>` XML: takes **whole cores** (cuebot converts via `coresToWholeCoreUnits`)
+    - DB columns (`int_max_cores`, `int_burst`): always **centicores**
+
+17. **Three dispatch throttles** — Jobs won't dispatch to more machines if ANY of these is too low: (a) job `maxCores` (from `<maxcores>` in spec XML, defaults to 100 cores if omitted), (b) show `defaultMaxCores` (from `show.int_default_max_cores`, defaults to 100 cores), (c) subscription `burst` (from `subscription.int_burst`). All three must be raised for full farm utilization.
 
 ## Security
 
