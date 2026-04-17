@@ -33,9 +33,16 @@ function escapeXml(str: string): string {
     .replace(/'/g, "&apos;");
 }
 
+// Maximum cores a single job can consume (in whole cores).
+// Cuebot converts this via coresToWholeCoreUnits (×100) before storing.
+// Without this, the DB trigger defaults to 10000 core units (100 cores),
+// which limits dispatch to ~3-4 machines on 28-core hosts.
+const DEFAULT_JOB_MAX_CORES = 2000;
+
 export function buildJobSpec(spec: JobSpec): string {
   const priority = spec.priority ?? 100;
   const maxRetries = spec.maxRetries ?? 3;
+  const maxCores = DEFAULT_JOB_MAX_CORES;
   const paused = spec.paused ?? false;
   // Default to Windows since our render farm is Windows-based
   const os = spec.os ?? "Windows";
@@ -66,8 +73,8 @@ export function buildJobSpec(spec: JobSpec): string {
   // OpenCue job spec format with DOCTYPE declaration pointing to cuebot's DTD
   // The DOCTYPE URL must start with http://localhost:8080/spcue/dtd/ for cuebot to resolve it
   // The <os> element tells cuebot which log path root to use (e.g., "Windows" uses log.frame-log-root.Windows)
-  // DTD element order: (paused?,priority?,maxretries?,autoeat?,localbook?,os?,env*,layers?)
-  return `<?xml version="1.0"?><!DOCTYPE spec PUBLIC "SPI Cue Specification Language" "http://localhost:8080/spcue/dtd/cjsl-1.12.dtd"><spec><facility>local</facility><show>${escapeXml(spec.show)}</show><shot>${escapeXml(spec.shot)}</shot><user>${escapeXml(spec.user)}</user><job name="${escapeXml(spec.name)}"><paused>${paused}</paused><priority>${priority}</priority><maxretries>${maxRetries}</maxretries><autoeat>false</autoeat><os>${escapeXml(os)}</os><env></env><layers>${layersXml}</layers></job></spec>`;
+  // DTD 1.13+ element order: (paused?,priority?,maxretries?,maxcores?,maxgpus?,autoeat?,localbook?,os?,env*,layers?)
+  return `<?xml version="1.0"?><!DOCTYPE spec PUBLIC "SPI Cue Specification Language" "http://localhost:8080/spcue/dtd/cjsl-1.13.dtd"><spec><facility>local</facility><show>${escapeXml(spec.show)}</show><shot>${escapeXml(spec.shot)}</shot><user>${escapeXml(spec.user)}</user><job name="${escapeXml(spec.name)}"><paused>${paused}</paused><priority>${priority}</priority><maxretries>${maxRetries}</maxretries><maxcores>${maxCores}</maxcores><autoeat>false</autoeat><os>${escapeXml(os)}</os><env></env><layers>${layersXml}</layers></job></spec>`;
 }
 
 // Common render command templates
