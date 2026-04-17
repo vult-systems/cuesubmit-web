@@ -106,7 +106,7 @@ export async function POST() {
     let errors = 0;
 
     for (const show of shows) {
-      const isSndbx = show.name.toLowerCase() === "sndbx";
+      const isSndbx = show.name.toLowerCase().startsWith("sndbx");
       const targetAllocName = isSndbx ? SNDBX_ALLOCATION_NAME : DEFAULT_ALLOCATION_NAME;
       const targetAlloc = isSndbx ? (sndbxAlloc ?? generalAlloc) : generalAlloc;
 
