@@ -13,8 +13,8 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = await params;
-    const metadata = getHostMetadata(id);
+    const { id: hostname } = await params;
+    const metadata = getHostMetadata(hostname);
 
     return NextResponse.json({ metadata: metadata || null });
   } catch (error) {
@@ -41,13 +41,12 @@ export async function POST(
       return NextResponse.json({ error: "Permission denied" }, { status: 403 });
     }
 
-    const { id } = await params;
+    const { id: hostname } = await params;
     const body = await request.json();
-    const { display_id, system_name, notes } = body;
+    const { display_id, notes } = body;
 
-    const metadata = upsertHostMetadata(id, {
+    const metadata = upsertHostMetadata(hostname, {
       display_id,
-      system_name,
       notes,
     });
 

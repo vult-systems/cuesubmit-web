@@ -35,6 +35,7 @@ import { iconButton } from "@/lib/icon-button-styles";
 interface Host {
   id: string;
   name: string;
+  hostname: string | null;
   state: string;
   lockState: string;
   nimbyEnabled: boolean;
@@ -152,9 +153,8 @@ import { accentColorList } from "@/lib/accent-colors";
 import { GroupedSection } from "@/components/grouped-section";
 
 interface HostMetadata {
-  opencue_host_id: string;
+  hostname: string;
   display_id: string | null;
-  system_name: string | null;
   notes: string | null;
   updated_at: string;
 }
@@ -170,7 +170,7 @@ export default function HostsPage() {
   const [selectedHost, setSelectedHost] = useState<Host | null>(null);
   const [newTag, setNewTag] = useState("");
   const [editId, setEditId] = useState("");
-  const [editSystemName, setEditSystemName] = useState("");
+  const [editHostname, setEditHostname] = useState("");
   const [saving, setSaving] = useState(false);
 
   // Host delete dialog state
@@ -200,10 +200,10 @@ export default function HostsPage() {
       const response = await fetch("/api/host-metadata");
       const data = await response.json();
       if (response.ok) {
-        // Convert array to map keyed by opencue_host_id
+        // Convert array to map keyed by hostname
         const metadataMap: Record<string, HostMetadata> = {};
         for (const m of data.metadata || []) {
-          metadataMap[m.opencue_host_id] = m;
+          metadataMap[m.hostname] = m;
         }
         setHostMetadata(metadataMap);
       }
@@ -249,10 +249,11 @@ export default function HostsPage() {
   const openEditDialog = (host: Host) => {
     setSelectedHost(host);
     setNewTag("");
-    // Load existing metadata from local database
-    const metadata = hostMetadata[host.id];
+    // Load existing metadata keyed by hostname
+    const hostname = host.hostname || "";
+    const metadata = hostname ? hostMetadata[hostname] : undefined;
+    setEditHostname(hostname);
     setEditId(metadata?.display_id || "");
-    setEditSystemName(metadata?.system_name || "");
     setEditDialogOpen(true);
   };
 
@@ -290,14 +291,19 @@ export default function HostsPage() {
   const handleSaveMetadata = async () => {
     if (!selectedHost) return;
 
+    const hostname = editHostname.trim();
+    if (!hostname) {
+      toast.error("Hostname is required");
+      return;
+    }
+
     setSaving(true);
     try {
-      const response = await fetch(`/api/host-metadata/${selectedHost.id}`, {
+      const response = await fetch(`/api/host-metadata/${encodeURIComponent(hostname)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           display_id: editId.trim() || null,
-          system_name: editSystemName.trim() || null,
         }),
       });
 
@@ -307,8 +313,14 @@ export default function HostsPage() {
         // Update local state
         setHostMetadata(prev => ({
           ...prev,
-          [selectedHost.id]: data.metadata
+          [hostname]: data.metadata
         }));
+        // Update the host's hostname in local state if it was manually set
+        if (hostname !== selectedHost.hostname) {
+          setHosts(prev => prev.map(h =>
+            h.id === selectedHost.id ? { ...h, hostname } : h
+          ));
+        }
       } else {
         toast.error(data.error || "Failed to save metadata");
       }
@@ -348,34 +360,39 @@ export default function HostsPage() {
     setDeleting(false);
   };
 
+  // Helper to get metadata for a host via its hostname
+  const getMetadataForHost = useCallback((host: Host) => {
+    return host.hostname ? hostMetadata[host.hostname] : undefined;
+  }, [hostMetadata]);
+
   // Helper to extract group prefix from ID (e.g., "AD400" from "AD400-01")
-  const getGroupFromId = useCallback((hostId: string) => {
-    const metadata = hostMetadata[hostId];
+  const getGroupFromHost = useCallback((host: Host) => {
+    const metadata = getMetadataForHost(host);
     const displayId = metadata?.display_id;
     if (!displayId) return "Unassigned";
     // Extract prefix before the hyphen (e.g., "AD400" from "AD400-01")
     const parts = displayId.split("-");
     return parts[0] || "Unassigned";
-  }, [hostMetadata]);
+  }, [getMetadataForHost]);
 
   // Group hosts by ID prefix (e.g., AD400, AD404)
   const hostsByGroup = useMemo(() => {
     const filtered = globalFilter
       ? hosts.filter(h => {
-          const metadata = hostMetadata[h.id];
+          const metadata = getMetadataForHost(h);
           const searchLower = globalFilter.toLowerCase();
           return (
             h.name.toLowerCase().includes(searchLower) ||
+            h.hostname?.toLowerCase().includes(searchLower) ||
             h.alloc?.toLowerCase().includes(searchLower) ||
             h.ipAddress?.toLowerCase().includes(searchLower) ||
-            metadata?.display_id?.toLowerCase().includes(searchLower) ||
-            metadata?.system_name?.toLowerCase().includes(searchLower)
+            metadata?.display_id?.toLowerCase().includes(searchLower)
           );
         })
       : hosts;
 
     const grouped = filtered.reduce((acc, host) => {
-      const group = getGroupFromId(host.id);
+      const group = getGroupFromHost(host);
       if (!acc[group]) acc[group] = [];
       acc[group].push(host);
       return acc;
@@ -384,8 +401,8 @@ export default function HostsPage() {
     // Sort hosts within each group by their display_id
     for (const group in grouped) {
       grouped[group].sort((a, b) => {
-        const aId = hostMetadata[a.id]?.display_id || "";
-        const bId = hostMetadata[b.id]?.display_id || "";
+        const aId = getMetadataForHost(a)?.display_id || "";
+        const bId = getMetadataForHost(b)?.display_id || "";
         // Natural sort to handle numbers correctly (AD400-2 before AD400-10)
         return aId.localeCompare(bId, undefined, { numeric: true, sensitivity: "base" });
       });
@@ -397,16 +414,16 @@ export default function HostsPage() {
       if (b === "Unassigned") return -1;
       return a.localeCompare(b);
     });
-  }, [hosts, globalFilter, hostMetadata, getGroupFromId]);
+  }, [hosts, globalFilter, getMetadataForHost, getGroupFromHost]);
 
   // Group color mapping
   const groupColorMap = useMemo(() => {
-    const groups = [...new Set(hosts.map(h => getGroupFromId(h.id)))].sort((a, b) => a.localeCompare(b));
+    const groups = [...new Set(hosts.map(h => getGroupFromHost(h)))].sort((a, b) => a.localeCompare(b));
     return groups.reduce((acc, group, index) => {
       acc[group] = accentColorList[index % accentColorList.length];
       return acc;
     }, {} as Record<string, { border: string; pill: string }>);
-  }, [hosts, getGroupFromId]);
+  }, [hosts, getGroupFromHost]);
 
   // Summary stats
   const upHosts = hosts.filter((h) => h.state === "UP").length;
@@ -494,7 +511,7 @@ export default function HostsPage() {
                   <ResizableTableHeader>
                     <ResizableTableRow className="hover:bg-transparent border-neutral-200 dark:border-white/6">
                       <ResizableTableHead columnId="id" minWidth={70} maxWidth={120}>ID</ResizableTableHead>
-                      <ResizableTableHead columnId="system" minWidth={120} maxWidth={250}>System Name</ResizableTableHead>
+                      <ResizableTableHead columnId="system" minWidth={120} maxWidth={250}>Hostname</ResizableTableHead>
                       <ResizableTableHead columnId="status" minWidth={80} maxWidth={140}>Status</ResizableTableHead>
                       <ResizableTableHead columnId="cores" minWidth={80} maxWidth={140}>Cores</ResizableTableHead>
                       <ResizableTableHead columnId="mem" minWidth={80} maxWidth={140}>Mem</ResizableTableHead>
@@ -514,10 +531,10 @@ export default function HostsPage() {
                       const memoryUsed = host.memory - host.idleMemory;
                       const isRendering = coresUsed > 0 && isUp;
 
-                      // Get local metadata for this host
-                      const metadata = hostMetadata[host.id];
+                      // Get local metadata for this host via hostname
+                      const metadata = getMetadataForHost(host);
                       const displayId = metadata?.display_id || "-";
-                      const systemName = metadata?.system_name || "-";
+                      const hostname = host.hostname || "-";
                       // OpenCue's host.name is the IP address
                       const ipAddress = host.name;
                       // All tags are displayed (no more id:/name: prefix filtering)
@@ -541,11 +558,11 @@ export default function HostsPage() {
                             </div>
                           </ResizableTableCell>
 
-                          {/* IP + System Name */}
+                          {/* Hostname + IP */}
                           <ResizableTableCell columnId="system">
                             <div className="space-y-0.5 min-w-0">
-                              <div className="font-mono text-xs text-text-primary truncate">{ipAddress}</div>
-                              <div className="text-[10px] text-text-muted truncate">{systemName}</div>
+                              <div className="font-mono text-xs text-text-primary truncate">{hostname}</div>
+                              <div className="text-[10px] text-text-muted truncate">{ipAddress}</div>
                             </div>
                           </ResizableTableCell>
 
@@ -730,14 +747,14 @@ export default function HostsPage() {
 
           {selectedHost && (
             <div className="space-y-6 py-4">
-              {/* ID and System Name Section */}
+              {/* ID and Hostname Section */}
               <div className="space-y-3">
                 <Label className="text-text-muted text-xs font-medium">
-                  Host Identification (Local Reference)
+                  Host Identification
                 </Label>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label className="text-text-muted text-[10px]">ID (e.g., AD400-01)</Label>
+                    <Label className="text-text-muted text-[10px]">Display ID (e.g., AD400-01)</Label>
                     <Input
                       placeholder="Enter ID..."
                       value={editId}
@@ -746,19 +763,24 @@ export default function HostsPage() {
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-text-muted text-[10px]">System Name</Label>
+                    <Label className="text-text-muted text-[10px]">
+                      Hostname
+                      {selectedHost.hostname && (
+                        <span className="ml-1 text-emerald-500">(auto-resolved)</span>
+                      )}
+                    </Label>
                     <Input
-                      placeholder="Enter name..."
-                      value={editSystemName}
-                      onChange={(e) => setEditSystemName(e.target.value)}
-                      className="h-8 text-xs bg-white dark:bg-white/3 border-neutral-200 dark:border-white/8 rounded-lg"
+                      placeholder="e.g., J65LM34"
+                      value={editHostname}
+                      onChange={(e) => setEditHostname(e.target.value)}
+                      className="h-8 text-xs bg-white dark:bg-white/3 border-neutral-200 dark:border-white/8 rounded-lg font-mono"
                     />
                   </div>
                 </div>
                 <Button
                   size="sm"
                   onClick={handleSaveMetadata}
-                  disabled={saving}
+                  disabled={saving || !editHostname.trim()}
                   className="h-8 px-3 text-xs"
                 >
                   {saving ? "Saving..." : "Save Identification"}
@@ -858,7 +880,7 @@ export default function HostsPage() {
                   <div className="text-text-muted">State:</div>
                   <div className="font-medium">{hostToDelete.state}</div>
                   <div className="text-text-muted">Display ID:</div>
-                  <div className="font-medium">{hostMetadata[hostToDelete.id]?.display_id || "Unassigned"}</div>
+                  <div className="font-medium">{(hostToDelete.hostname ? hostMetadata[hostToDelete.hostname]?.display_id : null) || "Unassigned"}</div>
                   <div className="text-text-muted">Cores:</div>
                   <div className="font-medium">{hostToDelete.cores}</div>
                 </div>

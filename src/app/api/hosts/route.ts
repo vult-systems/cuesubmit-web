@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getHosts, type Host } from "@/lib/opencue/gateway-client";
+import dns from "dns/promises";
 
 // OpenCue REST Gateway returns camelCase fields with some values as strings
 interface OpenCueHost {
@@ -141,6 +142,34 @@ function extractHosts(data: unknown): OpenCueHost[] {
   return [];
 }
 
+// DNS reverse lookup cache: IP → { hostname, timestamp }
+const dnsCache = new Map<string, { hostname: string | null; ts: number }>();
+const DNS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+// Check if a string looks like an IP address (v4)
+function looksLikeIp(name: string): boolean {
+  return /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(name);
+}
+
+// Resolve hostname from IP via reverse DNS, with caching
+async function resolveHostname(ip: string): Promise<string | null> {
+  const cached = dnsCache.get(ip);
+  if (cached && Date.now() - cached.ts < DNS_CACHE_TTL) {
+    return cached.hostname;
+  }
+
+  try {
+    const hostnames = await dns.reverse(ip);
+    // Take the first result and extract the short hostname (before first dot)
+    const hostname = hostnames[0]?.split('.')[0] || null;
+    dnsCache.set(ip, { hostname, ts: Date.now() });
+    return hostname;
+  } catch {
+    dnsCache.set(ip, { hostname: null, ts: Date.now() });
+    return null;
+  }
+}
+
 export async function GET() {
   try {
     const user = await getCurrentUser();
@@ -154,7 +183,19 @@ export async function GET() {
     const rawHosts = extractHosts(result);
     const hosts = rawHosts.map(mapOpenCueHost);
 
-    return NextResponse.json({ hosts });
+    // Resolve hostnames from IPs via reverse DNS (parallel, cached)
+    const hostsWithHostnames = await Promise.all(
+      hosts.map(async (host) => {
+        if (looksLikeIp(host.name)) {
+          const hostname = await resolveHostname(host.name);
+          return { ...host, hostname };
+        }
+        // host.name is already a hostname (RQD_USE_IP_AS_HOSTNAME=False)
+        return { ...host, hostname: host.name };
+      })
+    );
+
+    return NextResponse.json({ hosts: hostsWithHostnames });
   } catch (error) {
     console.error("Failed to fetch hosts:", error);
     return NextResponse.json(

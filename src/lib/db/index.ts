@@ -35,16 +35,9 @@ function initializeDatabase(db: Database.Database) {
     );
   `);
 
-  // Host metadata table - stores local reference info for OpenCue hosts
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS host_metadata (
-      opencue_host_id TEXT PRIMARY KEY,
-      display_id TEXT,
-      system_name TEXT,
-      notes TEXT,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-  `);
+  // Host metadata table - stores local reference info keyed by machine hostname
+  // Hostname is the stable identifier (e.g., "J65LM34") that persists across IP/UUID changes
+  migrateHostMetadata(db);
 
   // Check if admin user exists, create if not
   const adminExists = db.prepare('SELECT id FROM users WHERE username = ?').get('admin');
@@ -139,18 +132,68 @@ export function updateUserPassword(id: string, newPassword: string): void {
   db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, id);
 }
 
+// Migrate host_metadata from opencue_host_id-keyed (old) to hostname-keyed (new)
+function migrateHostMetadata(db: Database.Database) {
+  // Check if we already have the new schema
+  const tableInfo = db.prepare("PRAGMA table_info(host_metadata)").all() as { name: string }[];
+  const hasHostnameKey = tableInfo.some(col => col.name === 'hostname');
+
+  if (hasHostnameKey) {
+    // Already migrated
+    return;
+  }
+
+  const tableExists = tableInfo.length > 0;
+
+  if (tableExists) {
+    // Old schema exists — migrate entries that have system_name (= hostname)
+    const oldEntries = db.prepare('SELECT * FROM host_metadata WHERE system_name IS NOT NULL AND system_name != ""').all() as {
+      opencue_host_id: string;
+      display_id: string | null;
+      system_name: string;
+      notes: string | null;
+    }[];
+
+    db.exec('DROP TABLE host_metadata');
+
+    db.exec(`
+      CREATE TABLE host_metadata (
+        hostname TEXT PRIMARY KEY,
+        display_id TEXT,
+        notes TEXT,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Re-insert migrated entries keyed by hostname (system_name)
+    const insert = db.prepare('INSERT OR IGNORE INTO host_metadata (hostname, display_id, notes) VALUES (?, ?, ?)');
+    for (const entry of oldEntries) {
+      insert.run(entry.system_name, entry.display_id, entry.notes);
+    }
+  } else {
+    // Fresh install
+    db.exec(`
+      CREATE TABLE host_metadata (
+        hostname TEXT PRIMARY KEY,
+        display_id TEXT,
+        notes TEXT,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+  }
+}
+
 // Host metadata types and functions
 export interface HostMetadata {
-  opencue_host_id: string;
+  hostname: string;
   display_id: string | null;
-  system_name: string | null;
   notes: string | null;
   updated_at: string;
 }
 
-export function getHostMetadata(opencueHostId: string): HostMetadata | undefined {
+export function getHostMetadata(hostname: string): HostMetadata | undefined {
   const db = getDb();
-  return db.prepare('SELECT * FROM host_metadata WHERE opencue_host_id = ?').get(opencueHostId) as HostMetadata | undefined;
+  return db.prepare('SELECT * FROM host_metadata WHERE hostname = ?').get(hostname) as HostMetadata | undefined;
 }
 
 export function getAllHostMetadata(): HostMetadata[] {
@@ -159,16 +202,14 @@ export function getAllHostMetadata(): HostMetadata[] {
 }
 
 export function upsertHostMetadata(
-  opencueHostId: string,
-  updates: { display_id?: string | null; system_name?: string | null; notes?: string | null }
+  hostname: string,
+  updates: { display_id?: string | null; notes?: string | null }
 ): HostMetadata {
   const db = getDb();
 
-  // Check if record exists
-  const existing = getHostMetadata(opencueHostId);
+  const existing = getHostMetadata(hostname);
 
   if (existing) {
-    // Update existing record
     const sets: string[] = ['updated_at = CURRENT_TIMESTAMP'];
     const values: (string | null)[] = [];
 
@@ -176,29 +217,28 @@ export function upsertHostMetadata(
       sets.push('display_id = ?');
       values.push(updates.display_id);
     }
-    if (updates.system_name !== undefined) {
-      sets.push('system_name = ?');
-      values.push(updates.system_name);
-    }
     if (updates.notes !== undefined) {
       sets.push('notes = ?');
       values.push(updates.notes);
     }
 
-    values.push(opencueHostId);
-    db.prepare(`UPDATE host_metadata SET ${sets.join(', ')} WHERE opencue_host_id = ?`).run(...values);
+    values.push(hostname);
+    db.prepare(`UPDATE host_metadata SET ${sets.join(', ')} WHERE hostname = ?`).run(...values);
   } else {
-    // Insert new record
     db.prepare(`
-      INSERT INTO host_metadata (opencue_host_id, display_id, system_name, notes)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO host_metadata (hostname, display_id, notes)
+      VALUES (?, ?, ?)
     `).run(
-      opencueHostId,
+      hostname,
       updates.display_id ?? null,
-      updates.system_name ?? null,
       updates.notes ?? null
     );
   }
 
-  return getHostMetadata(opencueHostId)!;
+  return getHostMetadata(hostname)!;
+}
+
+export function deleteHostMetadata(hostname: string): void {
+  const db = getDb();
+  db.prepare('DELETE FROM host_metadata WHERE hostname = ?').run(hostname);
 }
