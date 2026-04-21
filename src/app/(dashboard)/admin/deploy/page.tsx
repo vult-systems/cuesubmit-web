@@ -74,23 +74,30 @@ function jobDisplayState(job: DeployJob): string {
   return job.state || "UNKNOWN";
 }
 
-/** Extract the host tag (e.g. "AD404-05") from a deploy job name.
- * Case-insensitive since Cuebot lowercases job names (ad404-05 → AD404-05). */
+/**
+ * OpenCue rewrites job names to lowercase with underscores in a composite format:
+ *   {show}-{shot_normalized}-{user}_{show}_{shot_normalized}_{yyyy}_{mm}_{dd}_{hh}_{mm}_{tag_normalized}
+ * e.g. maintenance-rqd_update-sysadmin_maintenance_rqd_update_2026_04_21_21_12_ad404_11
+ *
+ * Extract the host tag (e.g. "AD404-11") — last two underscore-separated segments.
+ */
 function jobHostTag(name: string): string {
-  const m = name.match(/AD\d+-\w+$/i);
-  return m ? m[0].toUpperCase() : "";
+  const m = name.match(/(ad\d+)_(\d+)$/i);
+  return m ? `${m[1]}-${m[2]}`.toUpperCase() : "";
 }
 
-/** Extract the batch timestamp prefix (e.g. "2026-04-21-14-35") from a deploy job name */
+/**
+ * Extract the batch timestamp string (e.g. "2026_04_21_21_12") used to group
+ * jobs submitted in the same minute (same deploy action).
+ */
 function jobBatchId(name: string): string {
-  const prefix = "maintenance-rqd-update-";
-  if (!name.startsWith(prefix)) return name.slice(0, 16);
-  return name.slice(prefix.length, prefix.length + 16);
+  const m = name.match(/(\d{4}_\d{2}_\d{2}_\d{2}_\d{2})_ad\d+_\d+$/i);
+  return m ? m[1] : name.slice(-20);
 }
 
-/** Format a batch ID for display (e.g. "2026-04-21-14-35" → "Apr 21, 2:35 PM") */
+/** Format a batch ID for display (e.g. "2026_04_21_21_12" → "Apr 21, 9:12 PM") */
 function formatBatchId(batchId: string): string {
-  const parts = batchId.split("-");
+  const parts = batchId.split("_");
   if (parts.length < 5) return batchId;
   const date = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]), Number(parts[3]), Number(parts[4]));
   return (

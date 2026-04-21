@@ -20,24 +20,17 @@ export async function GET() {
   }
 
   try {
-    // Use substr filter to find maintenance-rqd-update jobs by name.
-    // This works with include_finished and is more reliable than the shows filter.
-    const nameSubstr = `${DEPLOY_SHOW}-${DEPLOY_SHOT}`;
-    const { jobs } = await getJobs({ substr: nameSubstr, includeFinished: true });
+    // Jobs in the maintenance show filter to rqd-update shot.
+    // Actual OpenCue job name format (Cuebot rewrites it):
+    //   maintenance-rqd_update-{user}_{show}_{shot}_{timestamp}_{tag}
+    // e.g. maintenance-rqd_update-sysadmin_maintenance_rqd_update_2026_04_21_21_12_ad404_11
+    const { jobs } = await getJobs({ show: DEPLOY_SHOW, includeFinished: true });
 
-    console.log(`[deploy/status] substr="${nameSubstr}" includeFinished=true → ${jobs.length} jobs`);
-    if (jobs.length > 0) {
-      console.log(`[deploy/status] first job: name="${jobs[0].name}" state=${jobs[0].state} show=${jobs[0].show}`);
-    } else {
-      // Fallback: try without any filter to see how many total jobs OpenCue returns
-      const { jobs: allJobs } = await getJobs({ includeFinished: true });
-      console.log(`[deploy/status] fallback all-jobs count: ${allJobs.length}, first:`, allJobs[0]?.name);
-      // Try show filter as backup
-      const { jobs: showJobs } = await getJobs({ show: DEPLOY_SHOW, includeFinished: true });
-      console.log(`[deploy/status] show-filter count: ${showJobs.length}, first:`, showJobs[0]?.name);
-    }
+    console.log(`[deploy/status] show=${DEPLOY_SHOW} includeFinished=true → ${jobs.length} jobs`);
+    if (jobs.length > 0) console.log(`[deploy/status] first job name: "${jobs[0].name}"`);
 
-    const namePrefix = `${DEPLOY_SHOW}-${DEPLOY_SHOT}-`;
+    // Match jobs whose name starts with maintenance-rqd_update- (OpenCue normalizes shot name)
+    const namePrefix = `${DEPLOY_SHOW}-${DEPLOY_SHOT.replace('-', '_')}-`;
     const deployJobs = jobs
       .filter((j) => j.name?.toLowerCase().startsWith(namePrefix))
       .sort((a, b) => b.startTime - a.startTime)
