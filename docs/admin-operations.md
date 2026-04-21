@@ -703,3 +703,115 @@ ssh YOUR_SSH_USER@YOUR_SERVER_IP "docker restart opencue-rest-gateway"
 ```bash
 ssh YOUR_SSH_USER@YOUR_SERVER_IP "docker restart cuesubmit-web"
 ```
+
+---
+
+## Farm-Wide RQD/CueNimby Deployment
+
+The render farm is updated remotely by submitting OpenCue jobs that run `DEPLOY-AS-ADMIN.bat` on each host. No WinRM, no manual admin login needed.
+
+### How it works
+
+```
+opencue-deploy.js   →   LaunchSpec (OpenCue job)
+                               ↓
+                    Cuebot dispatches frame to host
+                               ↓
+                    RQD runs: DEPLOY-AS-ADMIN.bat <share>
+                               ↓
+                    schtasks /create → OC_Deploy task (runs as csadminXXX, elevated)
+                    schtasks /run   → fires immediately
+                               ↓
+                    UPDATE.bat copies sources + configs
+                    Schedules OpenCueRQDRestart task (+2 min)
+                               ↓
+                    RQD restarts with new code, CueNimby picks up new config
+```
+
+### Files on the UNC share
+
+All files are published from this repo via `scripts/publish-to-share.ps1`:
+
+| Path on share | Purpose |
+|---|---|
+| `DEPLOY-AS-ADMIN.bat` | Entry point called by RQD; creates elevated schtask |
+| `UPDATE.bat` | Does the actual copy + restart scheduling |
+| `source\rqd\rqnimby.py` | CueNimby integration shim for RQD |
+| `source\rqd\rqconstants.py` | RQD constants |
+| `source\cuenimby\*.py` | CueNimby source files |
+| `source\config\cuenimby.json` | CueNimby config (`idle_threshold`, cuebot host, etc.) |
+| `source\config\rqd.conf` | RQD config |
+| `source\config\StartCueNimby.vbs` | Startup launcher for CueNimby |
+
+### Admin account pattern
+
+Each room has a local admin account used for elevated installs:
+
+| Hostname pattern | Admin username | Password |
+|---|---|---|
+| `AD400-*` | `AD400-BYWXK44\csadmin400` | `Adam12-angd` |
+| `AD404-*` | `AD404-XXXXXX\csadmin404` | `Adam12-angd` |
+| `AD407-*` | `AD407-XXXXXX\csadmin407` | `Adam12-angd` |
+| `AD415-*` | `AD415-XXXXXX\csadmin415` | `Adam12-angd` |
+
+`DEPLOY-AS-ADMIN.bat` derives the room number from the hostname automatically:
+```bat
+for /f "tokens=*" %%h in ('hostname') do set "HOST=%%h"
+set "ROOM=!HOST:~2,3!"    :: e.g. AD400-BYWXK44 → 400
+set "ADMIN_FULL=!HOST!\csadmin!ROOM!"
+```
+
+> **Note:** `%COMPUTERNAME%` is NOT passed through by the RQD subprocess — must use `hostname` command.
+
+### Monitoring deployments
+
+Jobs appear in OpenCue under **show: `maintenance`**, **shot: `rqd-update`**.
+
+- **Green frame** = host updated successfully, RQD restart scheduled
+- **Red/dead frame** = something failed — check the `.rqlog` file at:
+  `\\10.40.14.25\RenderOutputRepo\OpenCue\Logs\maintenance\rqd-update\logs\<job>\`
+- **Pending frame** = host is LOCKED (CueNimby with user activity) — will dispatch when idle
+
+The DEPLOY-AS-ADMIN.bat log inside the frame log (`[DEPLOY] ...` lines) shows exactly where it failed. The UPDATE.bat log is written to `C:\OpenCue\logs\update.log` on the host itself.
+
+### Running a deployment
+
+**Prerequisites:** publish updated files to the share first:
+```powershell
+.\scripts\publish-to-share.ps1
+```
+
+**Test on one host:**
+```powershell
+$env:JWT_SECRET = "<secret>"
+$env:REST_GATEWAY_URL = "http://10.40.14.25:8448"
+$env:TARGET_HOST = "10.40.14.116"   # AD400-03, comma-separate for multiple
+$env:DRY_RUN = "0"
+node scripts/opencue-deploy.js
+```
+
+**Test on a small group:**
+```powershell
+$env:TARGET_HOST = "10.40.14.106,10.40.14.108"   # AD404-05, AD404-07
+node scripts/opencue-deploy.js
+```
+
+**Farm-wide rollout** (remove TARGET_HOST):
+```powershell
+Remove-Item Env:TARGET_HOST -ErrorAction SilentlyContinue
+node scripts/opencue-deploy.js
+```
+
+The script auto-resolves each IP to its OpenCue host tag (e.g. `AD400-03`) and submits one pinned job per host. Farm-wide mode submits one multi-frame job.
+
+### Common failure modes
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `[DEPLOY] Admin: \csadmin~2,3` | `%COMPUTERNAME%` empty in RQD env | Already fixed: use `hostname` cmd |
+| `No mapping between account names` | `.\username` rejected by schtasks | Already fixed: use `COMPUTERNAME\username` |
+| `multiple connections with different credentials` | `net use` in RQD process conflicts with log SMB session | Already fixed: moved `net use` inside schtasks task |
+| Frame dispatches to wrong room | `<tags>` in job spec incorrect | Check tag in GetHosts response |
+| Frame stuck PENDING | Host LOCKED by CueNimby | Wait for idle, or the frame will dispatch when machine is free |
+| `IncorrectResultSizeDataAccessException` | No `<services><service>maya</service></services>` in job XML | Required by Cuebot — already in script |
+| Frames all go to one machine | Farm-wide job has no `<tags>` but only 1 frame | Ensure frame count = eligible host count |
