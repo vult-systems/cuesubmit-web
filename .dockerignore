@@ -4,7 +4,27 @@ node_modules
 .gitignore
 *.md
 .env*
+# Exclude the whole opencue monorepo from the build context, then re-include
+# only the specific files needed for the deploy-payload bundle.
 opencue
+!opencue/uiw3d_installers/OpenCue_Deploy/UPDATE.bat
+!opencue/uiw3d_installers/OpenCue_Deploy/DEPLOY-AS-ADMIN.bat
+!opencue/uiw3d_installers/OpenCue_Deploy/DIAGNOSE.bat
+!opencue/uiw3d_installers/OpenCue_Deploy/LaunchCueNimby.bat
+!opencue/uiw3d_installers/OpenCue_Deploy/post-update.ps1
+!opencue/uiw3d_installers/OpenCue_Deploy/TEST-CUEBOT.py
+!opencue/uiw3d_installers/OpenCue_Deploy/utils/config/cuenimby.json
+!opencue/uiw3d_installers/OpenCue_Deploy/utils/config/opencue.yaml
+!opencue/uiw3d_installers/OpenCue_Deploy/utils/config/StartCueNimby.vbs
+!opencue/uiw3d_installers/OpenCue_Deploy/utils/config/rqd.conf
+!opencue/rqd/rqd/rqnimby.py
+!opencue/rqd/rqd/rqconstants.py
+!opencue/cuenimby/cuenimby/activity.py
+!opencue/cuenimby/cuenimby/config.py
+!opencue/cuenimby/cuenimby/monitor.py
+!opencue/cuenimby/cuenimby/notifier.py
+!opencue/cuenimby/cuenimby/tray.py
+!opencue/cuenimby/cuenimby/__main__.py
 data
 .DS_Store
 *.log
