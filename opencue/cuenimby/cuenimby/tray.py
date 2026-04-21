@@ -315,9 +315,11 @@ class CueNIMBYTray:
                 )
             except RuntimeError as e:
                 logger.error("Failed to lock host on user activity: %s", e)
-        else:
-            logger.debug(
-                "User activity detected but host is already in state: %s", state.value)
+        elif state in (HostState.DISABLED, HostState.NIMBY_LOCKED) and not self._activity_locked:
+            # Host is already locked (e.g. from a previous session or startup state).
+            # Claim it as an activity lock so the idle timer will unlock it correctly.
+            self._activity_locked = True
+            logger.debug("Host already locked — claiming as activity lock for idle timeout")
 
     def _on_user_idle(self) -> None:
         """Called when no user input has been detected for idle_threshold seconds.
