@@ -52,6 +52,96 @@ ssh YOUR_SSH_USER@YOUR_SERVER_IP "docker logs cuesubmit-web --tail 30"
 
 ---
 
+## OpenCue Client Deploy
+
+This system remotely deploys updated CueNimby/RQD files to render stations and automatically restarts everything without manual intervention.
+
+### Components
+
+| Component | Location |
+|-----------|----------|
+| Deploy share | `\\10.40.14.25\RenderSourceRepository\Utility\OpenCue_Deploy` |
+| `UPDATE.bat` | `opencue/uiw3d_installers/OpenCue_Deploy/UPDATE.bat` |
+| `post-update.ps1` | `opencue/uiw3d_installers/OpenCue_Deploy/post-update.ps1` |
+| Publish script | `scripts/publish-to-share.ps1` |
+| Deploy trigger | `scripts/opencue-deploy.js` |
+| Web UI deploy page | `src/app/(dashboard)/admin/deploy/page.tsx` |
+| Debug log on clients | `C:\OpenCue\logs\post-update-debug.log` |
+| Update log on clients | `C:\OpenCue\logs\update.log` |
+
+### How It Works (End-to-End)
+
+1. **Publish** — Run `scripts/publish-to-share.ps1` from the dev machine. Copies 18 files from the repo to the deploy share (including `post-update.ps1` and `UPDATE.bat`).
+2. **Trigger** — Submit via the web UI deploy page or `node scripts/opencue-deploy.js`. This submits a maintenance frame to OpenCue targeting the selected host's IP tag.
+3. **Client execution** — OpenCue dispatches the frame to the target host. The frame runs `UPDATE.bat` as SYSTEM, which:
+   a. Copies all deploy share files to `C:\OpenCue\`
+   b. Computes a time ~40 seconds in the future via PowerShell
+   c. Creates a Windows scheduled task (`OpenCueRQDRestart`) via `schtasks /create /ru SYSTEM /rl HIGHEST /st HH:mm:ss`
+4. **Post-update** — `post-update.ps1` runs as SYSTEM ~40 seconds later:
+   a. Restarts the `OpenCueRQD` Windows service
+   b. Detects the logged-in user via `Win32_ComputerSystem.UserName` + `explorer.exe GetOwner` on the explorer process
+   c. Registers a per-user scheduled task (`Register-ScheduledTask -LogonType Interactive`) whose action is: `cmd.exe /c taskkill /F /IM pythonw.exe /T & timeout /t 2 & wscript.exe "C:\...\StartCueNimby.vbs"`
+   d. This task runs in the user's own interactive session so `taskkill` has authority to kill pythonw across the Windows 11 session boundary
+
+### Publishing to the Share
+
+```powershell
+# From the repo root on your dev machine:
+powershell.exe -File scripts\publish-to-share.ps1
+```
+
+### Deploying to a Specific Host
+
+```bash
+# Via web UI
+http://YOUR_SERVER_IP:3000/admin/deploy
+# Select host, click Deploy
+
+# Via command line (target host by IP)
+$env:TARGET_HOST = "10.40.14.239"
+node scripts/opencue-deploy.js
+```
+
+### Checking Deploy Status
+
+```bash
+# On production server — look for the maintenance frame
+curl -s -X POST http://127.0.0.1:8448/job.JobInterface/GetJobs \
+  -H "Content-Type: application/json" -H "Authorization: Bearer <JWT>" \
+  -d '{"r":{"show":"maintenance"}}'
+```
+
+### Reading the Debug Log (on client)
+
+After a deploy, check:
+```
+\\<HOST_IP>\C$\OpenCue\logs\post-update-debug.log
+```
+
+A successful run includes entries like:
+```
+[INFO] === post-update.ps1 starting ===
+[INFO] Restarting OpenCueRQD service...
+[OK]   OpenCueRQD restarted
+[INFO] Interactive users found: AD\username
+[OK]   Task triggered for AD\username
+[OK]   pythonw running: YES PID=XXXX
+```
+
+### Known PowerShell 5.1 Gotchas (for Future Maintenance)
+
+When editing `post-update.ps1`, keep these in mind:
+
+| Gotcha | Detail |
+|--------|--------|
+| **UTF-8 without BOM** | PS 5.1 reads files as Windows-1252. Any character > 127 (em dash, smart quotes, etc.) causes a parse error before the first line executes. Always write via terminal with `Out-File -Encoding ASCII` or `[System.IO.File]::WriteAllText(..., [Text.Encoding]::ASCII)`. |
+| **`-DeleteExpiredTaskAfter`** | `New-ScheduledTaskSettingsSet -DeleteExpiredTaskAfter` generates invalid XML (`<EndBoundary/>` with no content), causing `Register-ScheduledTask` to fail with error 47. Omit this parameter. |
+| **`Win32_LogonSession` for domain accounts** | Returns `\` (empty) for all domain-authenticated sessions. 80+ queries, 28 seconds, no usable data. Use `explorer.exe GetOwner` instead. |
+| **SYSTEM `Stop-Process -Force` cross-session** | On Windows 11, SYSTEM cannot forcibly kill user-session processes even with `-Force`. Use `taskkill /F /IM pythonw.exe` run inside a task that executes in the user's own session. |
+| **Inline `-Command "^..."` in batch files** | PowerShell launched via `cmd.exe /c powershell.exe -Command "..."` inside a SYSTEM non-interactive context hangs indefinitely. Use `schtasks /create` (native) instead, with a brief separate PS call only for time math. |
+
+---
+
 ## Environment Variables
 
 ### Production (docker-compose.yml)

@@ -1,6 +1,6 @@
 # CueSubmit Web - Project Status
 
-**Last Updated:** April 17, 2026
+**Last Updated:** April 21, 2026
 
 ## Current State: ✅ Production Ready
 
@@ -21,6 +21,7 @@ The web-based job submission and monitoring interface for OpenCue is fully funct
 - ✅ **Render logs** — UNC-to-Linux path conversion, Docker + Windows dev support
 - ✅ **Scene/output file browsers** — Browse render source and output repos from submit form
 - ✅ **Resizable table columns** — Drag handles with localStorage persistence
+- ✅ **OpenCue client auto-deploy** — Remote deploy via web UI triggers RQD restart + CueNimby relaunch in the logged-in user's session automatically
 
 ### 🌐 Custom URL Ideas
 
@@ -119,6 +120,39 @@ Consider:
 - `SESSION_SECRET not set in production` warnings during build (cosmetic only)
 
 ## Completed Items
+
+### ✅ OpenCue Client Auto-Deploy with CueNimby Relaunch (Apr 21, 2026)
+
+**Problem**: After a remote deploy pushed new CueNimby/RQD files to a render station, OpenCueRQD did not restart and CueNimby did not reappear in the system tray. A user had to manually relaunch the app on every machine.
+
+**Solution**: `UPDATE.bat` (runs on the client as SYSTEM during deployment) now:
+1. Copies all updated files from the deploy share
+2. Schedules `post-update.ps1` to run ~40 seconds later via `schtasks /create /ru SYSTEM /rl HIGHEST`
+3. `post-update.ps1` restarts the `OpenCueRQD` Windows service, then detects the logged-in user via `Win32_ComputerSystem.UserName` + `explorer.exe GetOwner`
+4. Registers a per-user `Register-ScheduledTask -LogonType Interactive` task whose action runs `cmd.exe /c taskkill /F /IM pythonw.exe & wscript.exe StartCueNimby.vbs` in the user's own session (so taskkill has authority across Windows 11's session boundary)
+
+**Bugs discovered and fixed during development:**
+
+| # | Bug | Symptom | Fix |
+|---|-----|---------|-----|
+| 1 | Inline `powershell.exe -Command "^..."` in UPDATE.bat | Script hangs at "Scheduling post-update task" — no further log output | Replace with `schtasks /create` native + minimal one-shot PS call for time calculation |
+| 2 | `Win32_LogonSession` for domain accounts | 80+ CIM queries all return `\` (empty username), taking 28 seconds total | Remove entirely; use `explorer.exe GetOwner` instead |
+| 3 | PS 5.1 variable state after heavy CIM queries | `Test-Path $VBS` returns False even though file was confirmed to exist 15 seconds earlier | Use single-quoted string literals for `Test-Path` |
+| 4 | UTF-8 without BOM (written by VS Code file tools) | PS 5.1 reads files as Windows-1252; em dash corrupts to garbage; script fails before first line | Rewrite via terminal with pure ASCII (no characters > 127) |
+| 5 | `-DeleteExpiredTaskAfter` in `New-ScheduledTaskSettingsSet` | `Register-ScheduledTask` fails: "task XML missing required element (47,4):EndBoundary:" | Remove the `-DeleteExpiredTaskAfter` parameter entirely |
+| 6 | SYSTEM `Stop-Process -Force` cross-session on Windows 11 | pythonw.exe not killed → new one spawns → duplicate tray icons | Task action runs `cmd.exe /c taskkill /F /IM pythonw.exe & wscript.exe VBS` inside user's session |
+
+**Key files:**
+
+| File | Purpose |
+|------|--------|
+| `opencue/uiw3d_installers/OpenCue_Deploy/UPDATE.bat` | Runs on client as SYSTEM; copies files, schedules PS1 via schtasks |
+| `opencue/uiw3d_installers/OpenCue_Deploy/post-update.ps1` | Restarts RQD + relaunches CueNimby in user session |
+| `scripts/publish-to-share.ps1` | Publishes deploy files from repo to share |
+| `scripts/opencue-deploy.js` | Submits maintenance frames to OpenCue targeting specific hosts |
+| `src/app/(dashboard)/admin/deploy/page.tsx` | Web UI deploy page |
+
+**Debug log location on clients**: `C:\OpenCue\logs\post-update-debug.log`
 
 ### ✅ Host Display ID from Tags (Apr 17, 2026)
 

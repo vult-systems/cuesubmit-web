@@ -149,25 +149,41 @@ if errorlevel 1 (
 echo.
 
 :: ----------------------------------------------------------------------------
-:: Schedule post-update task 30 seconds from now (runs as SYSTEM).
-:: Restarts OpenCueRQD AND relaunches CueNimby in the active user session.
-:: 30s is enough: DEPLOY-AS-ADMIN.bat exits immediately after launching the
-:: admin schtask, so the OpenCue frame reports Done well before this fires.
+:: Schedule post-update task ~40 seconds from now (runs as SYSTEM).
+:: Uses native schtasks /create to avoid the inline PowerShell hang that
+:: occurs when Register-ScheduledTask is run from a non-interactive SYSTEM
+:: session (the cmdlet blocks waiting for a desktop/window station).
 :: ----------------------------------------------------------------------------
-call :LOG "Scheduling post-update task in 30 seconds..."
+call :LOG "Scheduling post-update task in ~40 seconds..."
 
 schtasks /delete /tn "OpenCueRQDRestart" /f >nul 2>&1
 
-powershell.exe -NoProfile -Command " ^
-    $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-NoProfile -ExecutionPolicy Bypass -File ""C:\OpenCue\post-update.ps1""'; ^
-    $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddSeconds(30); ^
-    $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -RunLevel Highest; ^
-    $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 5); ^
-    Register-ScheduledTask -TaskName 'OpenCueRQDRestart' -Action $action -Trigger $trigger ^
-        -Principal $principal -Settings $settings -Force | Out-Null; ^
-    Write-Host '  Task registered OK'"
+:: Compute the target time (now+40s) via a simple non-interactive PS call.
+:: The result (HH:mm:ss) is written to a temp file then read back.
+powershell.exe -NoProfile -NonInteractive -Command "(Get-Date).AddSeconds(40).ToString('HH:mm:ss') | Set-Content 'C:\OpenCue\sched_time.tmp' -Encoding ASCII" >nul 2>&1
 
-call :LOG "RQD will restart (and CueNimby relaunch) at approximately %TIME% +30s."
+set "SCHED_TIME="
+for /f "usebackq tokens=*" %%T in ("C:\OpenCue\sched_time.tmp") do set "SCHED_TIME=%%T"
+del "C:\OpenCue\sched_time.tmp" >nul 2>&1
+
+if "!SCHED_TIME!"=="" (
+    call :LOG "  WARNING: Could not compute schedule time -- falling back to +2 min"
+    powershell.exe -NoProfile -NonInteractive -Command "(Get-Date).AddMinutes(2).ToString('HH:mm') | Set-Content 'C:\OpenCue\sched_time.tmp' -Encoding ASCII" >nul 2>&1
+    for /f "usebackq tokens=*" %%T in ("C:\OpenCue\sched_time.tmp") do set "SCHED_TIME=%%T"
+    del "C:\OpenCue\sched_time.tmp" >nul 2>&1
+)
+
+:: /tr has no spaces in the path so quotes around the path are not needed.
+:: /rl HIGHEST = equivalent to RunLevel Highest (elevated SYSTEM).
+schtasks /create /tn "OpenCueRQDRestart" /tr "powershell.exe -NoProfile -ExecutionPolicy Bypass -NonInteractive -File C:\OpenCue\post-update.ps1" /sc once /st "!SCHED_TIME!" /ru SYSTEM /rl HIGHEST /f >nul 2>&1
+
+if errorlevel 1 (
+    call :LOG "  WARNING: schtasks /create failed -- CueNimby relaunch may not occur"
+) else (
+    call :LOG "  Post-update task scheduled for !SCHED_TIME! (SYSTEM)"
+)
+
+call :LOG "RQD will restart (and CueNimby relaunch) at approximately !SCHED_TIME!."
 echo.
 call :LOG "========================================="
 call :LOG "UPDATE COMPLETE on %COMPUTERNAME%"
