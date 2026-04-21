@@ -74,13 +74,13 @@ class HostMonitor:
         self._init_cuebot()
 
     def _init_cuebot(self) -> None:
-        """Initialize connection to Cuebot."""
+        """Configure Cuebot connection. Connection errors are non-fatal here;
+        the monitor loop will retry on each poll cycle."""
         try:
             opencue.Cuebot.setHosts([f"{self.cuebot_host}:{self.cuebot_port}"])
             logger.info(f"Connected to Cuebot at {self.cuebot_host}:{self.cuebot_port}")
         except Exception as e:
-            logger.error(f"Failed to connect to Cuebot: {e}")
-            raise
+            logger.warning(f"Cuebot connection test failed at startup (will retry): {e}")
 
     def _get_host(self) -> Optional[Host]:
         """Get host object from Cuebot."""

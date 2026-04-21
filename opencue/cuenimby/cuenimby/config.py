@@ -33,6 +33,9 @@ class Config:
         "poll_interval": 5,  # seconds
         "show_notifications": True,
         "notification_duration": 5,  # seconds
+        "activity_detection_enabled": True,
+        "idle_threshold": 900,  # seconds of no input before unlocking for rendering
+        "activity_check_interval": 10,  # seconds between idle checks
         "scheduler_enabled": False,
         "schedule": {
             # Example: "monday": {"start": "09:00", "end": "18:00", "state": "disabled"}
@@ -112,6 +115,21 @@ class Config:
     def show_notifications(self) -> bool:
         """Check if notifications are enabled."""
         return self.config["show_notifications"]
+
+    @property
+    def activity_detection_enabled(self) -> bool:
+        """Check if activity detection is enabled."""
+        return self.config.get("activity_detection_enabled", True)
+
+    @property
+    def idle_threshold(self) -> int:
+        """Get idle threshold in seconds before unlocking host for rendering."""
+        return int(self.config.get("idle_threshold", 900))
+
+    @property
+    def activity_check_interval(self) -> int:
+        """Get interval in seconds between idle checks."""
+        return int(self.config.get("activity_check_interval", 10))
 
     @property
     def scheduler_enabled(self) -> bool:

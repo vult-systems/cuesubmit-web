@@ -108,7 +108,8 @@ RQD_DAEMON_UID = RQD_UID
 # Nimby behavior:
 # Number of seconds to wait before checking if the user has become idle.
 CHECK_INTERVAL_LOCKED = 60
-# Seconds of idle time required before nimby unlocks.
+# Seconds of idle time required before nimby unlocks the host for rendering.
+# Machines lock immediately on first user interaction, then unlock after this idle period.
 MINIMUM_IDLE = 900
 # Default display configuration in case the environment variable DISPLAY is not set
 DEFAULT_DISPLAY = ":0"

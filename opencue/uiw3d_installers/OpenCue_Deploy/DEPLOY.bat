@@ -9,7 +9,24 @@ color 0A
 :: - Lab-aware service account (csadmin###)
 :: - Machine-level lab tagging (UIW3D_LAB)
 :: - Perforce creds seeded for SYSTEM + service account
+::
+:: Usage:
+::   DEPLOY.bat                         Interactive (prompts for lab number)
+::   DEPLOY.bat /SILENT /LABNUM:404     Fully silent — no prompts, no pauses
 :: ============================================================================
+
+:: Parse arguments
+set "SILENT=0"
+set "ARG_LABNUM="
+for %%A in (%*) do (
+    if /i "%%A"=="/SILENT" set "SILENT=1"
+    if /i "%%A:~0,8"=="/LABNUM:" set "ARG_LABNUM=%%A:~8"
+)
+:: Re-parse /LABNUM: value properly (delayed expansion needed)
+for %%A in (%*) do (
+    set "_arg=%%A"
+    if /i "!_arg:~0,8!"=="/LABNUM:" set "ARG_LABNUM=!_arg:~8!"
+)
 
 echo.
 echo  ============================================
@@ -25,7 +42,7 @@ echo.
 net session >nul 2>&1 || (
     echo [ERROR] Run as Administrator
     echo         Right-click DEPLOY.bat ^> Run as administrator
-    pause
+    if "!SILENT!"=="0" pause
     exit /b 1
 )
 
@@ -47,6 +64,13 @@ set "DEFAULT_PASS=Adam12-angd"
 :: ============================================================================
 echo [Lab Setup]
 
+:: If /LABNUM was passed on the command line, use it directly
+if not "!ARG_LABNUM!"=="" (
+    set "LABNUM=!ARG_LABNUM!"
+    echo   Lab number from argument: !LABNUM!
+    goto :lab_detected
+)
+
 :: Try to auto-detect room number from current username (e.g., csadmin400 -> 400)
 set "LABNUM="
 set "CURRENT_USER=%USERNAME%"
@@ -57,11 +81,17 @@ for /f "tokens=* delims=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ" %%
 
 if "%LABNUM%"=="" (
     echo   Could not auto-detect room number from username.
+    if "!SILENT!"=="1" (
+        echo   [ERROR] /SILENT mode requires /LABNUM:NNN argument.
+        exit /b 1
+    )
     set /p "LABNUM=Enter room number (e.g., 400, 404, 405): "
     if "!LABNUM!"=="" set "LABNUM=400"
 ) else (
     echo   Auto-detected room: %LABNUM%
 )
+
+:lab_detected
 
 set "LAB_TAG=AD%LABNUM%"
 set "SERVICE_USER=.\csadmin%LABNUM%"
@@ -71,7 +101,7 @@ echo   Service user: %SERVICE_USER%
 echo   Lab tag: %LAB_TAG%
 echo   Password: [using default]
 echo.
-pause
+if "!SILENT!"=="0" pause
 
 :: --- Machine-level lab identity ---
 setx UIW3D_LAB "%LAB_TAG%" /M >nul
@@ -83,12 +113,12 @@ reg add "HKLM\SOFTWARE\UIW3D" /v Lab /t REG_SZ /d "%LAB_TAG%" /f >nul
 echo [1/10] Verifying deployment files...
 if not exist "%NSSM%" (
     echo   [ERROR] NSSM not found: %NSSM%
-    pause
+    if "!SILENT!"=="0" pause
     exit /b 1
 )
 if not exist "%UTILS_DIR%wheels\*.whl" (
     echo   [ERROR] Wheel packages missing in utils\wheels\
-    pause
+    if "!SILENT!"=="0" pause
     exit /b 1
 )
 echo   OK
@@ -281,5 +311,5 @@ echo  ============================================
 echo   Deployment complete
 echo  ============================================
 
-pause
+if "!SILENT!"=="0" pause
 endlocal

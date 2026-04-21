@@ -24,6 +24,7 @@ import pystray
 from PIL import Image, ImageDraw
 from pystray import MenuItem as Item
 
+from .activity import ActivityDetector
 from .config import Config
 from .monitor import HostMonitor, HostState
 from .notifier import Notifier
@@ -54,7 +55,10 @@ class CueNIMBYTray:
         self.monitor: Optional[HostMonitor] = None
         self.notifier: Optional[Notifier] = None
         self.scheduler: Optional[NimbyScheduler] = None
+        self.activity_detector: Optional[ActivityDetector] = None
         self.icon: Optional[pystray.Icon] = None
+        # True while the host is locked due to detected user activity (not manual)
+        self._activity_locked: bool = False
 
         self._init_components()
 
@@ -79,6 +83,15 @@ class CueNIMBYTray:
         # Initialize scheduler if enabled
         if self.config.scheduler_enabled and self.config.schedule:
             self.scheduler = NimbyScheduler(self.config.schedule)
+
+        # Initialize activity detection if enabled
+        if self.config.activity_detection_enabled:
+            self.activity_detector = ActivityDetector(
+                idle_threshold=self.config.idle_threshold,
+                check_interval=self.config.activity_check_interval
+            )
+            self.activity_detector.on_activity(self._on_user_activity)
+            self.activity_detector.on_idle(self._on_user_idle)
 
     def _create_icon_image(self, state: HostState) -> Image.Image:
         """Create icon image for given state.
@@ -162,12 +175,14 @@ class CueNIMBYTray:
 
         try:
             if current_state in (HostState.DISABLED, HostState.NIMBY_LOCKED):
-                # Enable host
+                # Enable host — clear auto-lock flag since user is overriding manually
                 if self.monitor.unlock_host():
+                    self._activity_locked = False
                     logger.info("Host enabled by user")
             else:
-                # Disable host
+                # Disable host — mark as manual lock (not activity-based)
                 if self.monitor.lock_host():
+                    self._activity_locked = False
                     logger.info("Host disabled by user")
         except RuntimeError as e:
             logger.error(f"Failed to toggle host state: {e}")
@@ -313,6 +328,10 @@ class CueNIMBYTray:
         # Start monitor
         self.monitor.start()
 
+        # Start activity detector if configured
+        if self.activity_detector:
+            self.activity_detector.start()
+
         # Start scheduler if enabled
         if self.scheduler:
             self.scheduler.start(self._on_scheduler_state_change)
@@ -331,8 +350,65 @@ class CueNIMBYTray:
 
     def stop(self) -> None:
         """Stop the tray application."""
+        if self.activity_detector:
+            self.activity_detector.stop()
         if self.monitor:
             self.monitor.stop()
         if self.scheduler:
             self.scheduler.stop()
         logger.info("CueNIMBY tray stopped")
+
+    def _on_user_activity(self) -> None:
+        """Called when user activity is detected after an idle period.
+
+        Locks the host immediately so renders stop being dispatched to this
+        machine while the student is working.
+        """
+        state = self.monitor.get_current_state()
+        if state in (HostState.AVAILABLE, HostState.WORKING):
+            logger.info("User activity detected — locking host for student use")
+            try:
+                self.monitor.lock_host()
+                self._activity_locked = True
+                if self.notifier:
+                    self.notifier.notify(
+                        "Rendering Paused",
+                        "Workstation locked for student use. "
+                        f"Rendering will resume after {self.config.idle_threshold // 60} "
+                        "minutes of inactivity."
+                    )
+            except RuntimeError as e:
+                logger.error("Failed to lock host on user activity: %s", e)
+        else:
+            logger.debug(
+                "User activity detected but host is already in state: %s", state.value)
+
+    def _on_user_idle(self) -> None:
+        """Called when no user input has been detected for idle_threshold seconds.
+
+        Unlocks the host so the render farm can resume using this machine.
+        Only unlocks if CueNIMBY was the one that locked it (not a manual lock).
+        """
+        if not self._activity_locked:
+            logger.debug("Idle threshold reached but host was not auto-locked — skipping unlock")
+            return
+        state = self.monitor.get_current_state()
+        if state == HostState.DISABLED:
+            logger.info(
+                "User idle for %s seconds — unlocking host for rendering",
+                self.config.idle_threshold)
+            try:
+                self.monitor.unlock_host()
+                self._activity_locked = False
+                if self.notifier:
+                    self.notifier.notify(
+                        "Rendering Resumed",
+                        "Workstation idle — now available for rendering."
+                    )
+            except RuntimeError as e:
+                logger.error("Failed to unlock host after idle: %s", e)
+        else:
+            self._activity_locked = False
+            logger.debug(
+                "Idle threshold reached but host is in state: %s — no unlock needed",
+                state.value)

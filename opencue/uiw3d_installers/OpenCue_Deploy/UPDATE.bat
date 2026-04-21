@@ -1,0 +1,166 @@
+@echo off
+setlocal EnableExtensions EnableDelayedExpansion
+title OpenCue Update - %COMPUTERNAME%
+color 0A
+
+:: ============================================================================
+:: OpenCue Incremental Update Script
+::
+:: IMPORTANT: Copy this file to C:\ before running. Do NOT run from a UNC path.
+::   copy \\10.40.14.25\RenderSourceRepository\Utility\OpenCue_Deploy\UPDATE.bat C:\UPDATE.bat
+::   C:\UPDATE.bat
+::
+:: Must be run as Administrator.
+::
+:: Copies updated Python source files from the UNC deploy share to the local
+:: Python installation, then schedules a service restart 2 minutes later.
+::
+:: Usage:
+::   UPDATE.bat [UNC_SHARE_PATH]
+::
+:: UNC share layout expected:
+::   <share>\source\rqd\*.py          -> RQD source files
+::   <share>\source\cuenimby\*.py     -> CueNIMBY source files
+::   <share>\source\config\cuenimby.json
+::   <share>\source\config\StartCueNimby.vbs
+:: ============================================================================
+
+set "UNC_BASE=%~1"
+if "!UNC_BASE!"=="" set "UNC_BASE=\\10.40.14.25\RenderSourceRepository\Utility\OpenCue_Deploy"
+
+set "PYTHON_SITE=C:\Program Files\Python39\Lib\site-packages"
+set "OPENCUE_CONFIG=C:\OpenCue\config"
+set "STARTUP_FOLDER=C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Startup"
+set "LOG=C:\OpenCue\logs\update.log"
+
+:: Ensure log directory exists
+mkdir "C:\OpenCue\logs" >nul 2>&1
+
+call :LOG "========================================="
+call :LOG "OpenCue update started"
+call :LOG "Source: !UNC_BASE!"
+call :LOG "Host:   %COMPUTERNAME%"
+echo.
+
+:: ----------------------------------------------------------------------------
+:: Admin check
+:: ----------------------------------------------------------------------------
+net session >nul 2>&1
+if errorlevel 1 (
+    call :LOG "ERROR: Not running as administrator. Re-run as admin."
+    echo.
+    pause
+    exit /b 1
+)
+
+:: ----------------------------------------------------------------------------
+:: Authenticate to the UNC deploy share
+:: ----------------------------------------------------------------------------
+call :LOG "Connecting to share..."
+net use "!UNC_BASE!" /user:perforce uiw3d >nul 2>&1
+
+if not exist "!UNC_BASE!\source\rqd\" (
+    call :LOG "ERROR: Cannot reach !UNC_BASE!\source\rqd\"
+    call :LOG "Run scripts/publish-to-share.ps1 on the admin machine first."
+    echo.
+    pause
+    exit /b 1
+)
+call :LOG "Share accessible."
+echo.
+
+:: ----------------------------------------------------------------------------
+:: Copy RQD source files
+:: ----------------------------------------------------------------------------
+call :LOG "Copying RQD sources..."
+xcopy /Y /I "!UNC_BASE!\source\rqd\*.py" "!PYTHON_SITE!\rqd\" 2>>"!LOG!"
+if errorlevel 1 (
+    call :LOG "ERROR: Failed to copy RQD files (xcopy error %ERRORLEVEL%)"
+    pause
+    exit /b 1
+)
+call :LOG "RQD sources OK."
+echo.
+
+:: ----------------------------------------------------------------------------
+:: Copy CueNIMBY source files (including new activity.py)
+:: ----------------------------------------------------------------------------
+call :LOG "Copying CueNIMBY sources..."
+xcopy /Y /I "!UNC_BASE!\source\cuenimby\*.py" "!PYTHON_SITE!\cuenimby\" 2>>"!LOG!"
+if errorlevel 1 (
+    call :LOG "ERROR: Failed to copy CueNIMBY files (xcopy error %ERRORLEVEL%)"
+    pause
+    exit /b 1
+)
+call :LOG "CueNIMBY sources OK."
+echo.
+
+:: Verify the critical new file landed
+if exist "!PYTHON_SITE!\cuenimby\activity.py" (
+    call :LOG "Verified: activity.py is now in site-packages."
+) else (
+    call :LOG "WARNING: activity.py missing from site-packages after copy!"
+)
+echo.
+
+:: ----------------------------------------------------------------------------
+:: Copy config files
+:: ----------------------------------------------------------------------------
+call :LOG "Copying config files..."
+if exist "!UNC_BASE!\source\config\cuenimby.json" (
+    xcopy /Y /I "!UNC_BASE!\source\config\cuenimby.json" "!OPENCUE_CONFIG!\" 2>>"!LOG!"
+    call :LOG "  cuenimby.json -> !OPENCUE_CONFIG!"
+)
+if exist "!UNC_BASE!\source\config\StartCueNimby.vbs" (
+    xcopy /Y /I "!UNC_BASE!\source\config\StartCueNimby.vbs" "!STARTUP_FOLDER!\" 2>>"!LOG!"
+    call :LOG "  StartCueNimby.vbs -> !STARTUP_FOLDER!"
+)
+
+:: Refresh opencue.yaml for any user profiles present
+for /f "tokens=*" %%u in ('dir /b C:\Users ^| findstr /v /i "Public Default"') do (
+    if exist "!UNC_BASE!\source\config\opencue.yaml" (
+        mkdir "C:\Users\%%u\.config\opencue" >nul 2>&1
+        xcopy /Y /I /Q "!UNC_BASE!\source\config\opencue.yaml" "C:\Users\%%u\.config\opencue\" >nul 2>&1
+    )
+)
+call :LOG "Config files OK."
+echo.
+
+:: ----------------------------------------------------------------------------
+:: Schedule RQD service restart 2 minutes from now via Task Scheduler.
+:: The delay lets OpenCue frame jobs report completion before RQD is killed.
+:: ----------------------------------------------------------------------------
+call :LOG "Scheduling RQD service restart in 2 minutes..."
+
+schtasks /delete /tn "OpenCueRQDRestart" /f >nul 2>&1
+
+powershell.exe -NoProfile -Command " ^
+    $action = New-ScheduledTaskAction -Execute 'cmd.exe' -Argument '/c net stop OpenCueRQD & net start OpenCueRQD'; ^
+    $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddSeconds(120); ^
+    $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -RunLevel Highest; ^
+    $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 5); ^
+    Register-ScheduledTask -TaskName 'OpenCueRQDRestart' -Action $action -Trigger $trigger ^
+        -Principal $principal -Settings $settings -Force | Out-Null; ^
+    Write-Host '  Task registered OK'"
+
+call :LOG "RQD will restart at approximately %TIME% +2min."
+echo.
+call :LOG "========================================="
+call :LOG "UPDATE COMPLETE on %COMPUTERNAME%"
+call :LOG "========================================="
+echo.
+echo  Next steps:
+echo    1. Wait ~2 minutes for RQD to restart
+echo    2. Launch CueNIMBY: run LaunchCueNimby.bat (as the user, not admin)
+echo    3. Or use DIAGNOSE.bat to verify everything is correct
+echo.
+pause
+exit /b 0
+
+:: ============================================================================
+:LOG
+:: Write message to both screen and log file
+echo [%DATE% %TIME%] %~1
+echo [%DATE% %TIME%] %~1 >> "!LOG!"
+exit /b 0
+exit /b 0

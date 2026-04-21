@@ -1,3 +1,4 @@
 cuebot.facility_default: local
-cuebot.hosts:
-  - REDACTED_IP:8443
+cuebot.facility:
+  local:
+    - 10.40.14.25:8443
