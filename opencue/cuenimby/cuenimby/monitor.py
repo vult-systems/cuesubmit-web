@@ -243,6 +243,15 @@ class HostMonitor:
             self._current_state = HostState.DISABLED
             logger.info("Host locked")
 
+            # Kill any frames currently running on this host so they requeue
+            try:
+                procs = self._host.getProcs()
+                for proc in procs:
+                    logger.info("Killing running proc: %s", proc.data.name)
+                    proc.unbook(kill=True)
+            except Exception as kill_err:
+                logger.warning("Could not kill running procs: %s", kill_err)
+
             # Trigger state change callbacks
             if old_state != self._current_state:
                 for callback in self._state_change_callbacks:
