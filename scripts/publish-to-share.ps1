@@ -30,7 +30,9 @@ $Files = @(
     @{ Src = "opencue\cuenimby\cuenimby\activity.py";                               Dst = "source\cuenimby\activity.py" }
     @{ Src = "opencue\cuenimby\cuenimby\config.py";                                 Dst = "source\cuenimby\config.py" }
     @{ Src = "opencue\cuenimby\cuenimby\monitor.py";                               Dst = "source\cuenimby\monitor.py" }
+    @{ Src = "opencue\cuenimby\cuenimby\notifier.py";                               Dst = "source\cuenimby\notifier.py" }
     @{ Src = "opencue\cuenimby\cuenimby\tray.py";                                   Dst = "source\cuenimby\tray.py" }
+    @{ Src = "opencue\cuenimby\cuenimby\__main__.py";                               Dst = "source\cuenimby\__main__.py" }
     @{ Src = "opencue\uiw3d_installers\OpenCue_Deploy\utils\config\cuenimby.json";  Dst = "source\config\cuenimby.json" }
     @{ Src = "opencue\uiw3d_installers\OpenCue_Deploy\utils\config\opencue.yaml";  Dst = "source\config\opencue.yaml" }
     @{ Src = "opencue\uiw3d_installers\OpenCue_Deploy\utils\config\StartCueNimby.vbs"; Dst = "source\config\StartCueNimby.vbs" }

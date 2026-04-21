@@ -42,6 +42,9 @@ def setup_logging(verbose: bool = False) -> None:
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
+    # Suppress noisy third-party loggers regardless of verbosity
+    logging.getLogger('PIL').setLevel(logging.WARNING)
+    logging.getLogger('pystray').setLevel(logging.WARNING)
 
 
 def main():

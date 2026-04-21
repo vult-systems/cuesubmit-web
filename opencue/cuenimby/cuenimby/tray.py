@@ -38,11 +38,20 @@ class CueNIMBYTray:
 
     # Icon colors for different states
     ICON_COLORS = {
-        HostState.AVAILABLE: "#00AA00",  # Green
-        HostState.WORKING: "#0066CC",    # Blue
-        HostState.DISABLED: "#CC0000",   # Red
-        HostState.NIMBY_LOCKED: "#FF9900", # Orange
-        HostState.UNKNOWN: "#888888",    # Gray
+        HostState.AVAILABLE: "#1DB954",    # Green
+        HostState.WORKING: "#0078D4",      # Blue
+        HostState.DISABLED: "#C42B1C",     # Red
+        HostState.NIMBY_LOCKED: "#D47800", # Amber
+        HostState.UNKNOWN: "#767676",      # Gray
+    }
+
+    # Human-readable state labels
+    STATE_LABELS = {
+        HostState.AVAILABLE: "Available for Renders",
+        HostState.WORKING: "Rendering",
+        HostState.DISABLED: "Paused \u2014 Not Rendering",
+        HostState.NIMBY_LOCKED: "Paused \u2014 User Active",
+        HostState.UNKNOWN: "Connecting...",
     }
 
     def __init__(self, config: Optional[Config] = None):
@@ -103,15 +112,35 @@ class CueNIMBYTray:
         Returns:
             PIL Image object.
         """
-        # Create a simple circular icon
-        width = 64
-        height = 64
-        image = Image.new('RGB', (width, height), color='white')
+        size = 64
+        image = Image.new('RGBA', (size, size), (0, 0, 0, 0))
         draw = ImageDraw.Draw(image)
 
-        # Draw circle with state color
-        color = self.ICON_COLORS.get(state, self.ICON_COLORS[HostState.UNKNOWN])
-        draw.ellipse([8, 8, 56, 56], fill=color, outline='black', width=2)
+        # Background circle
+        hex_color = self.ICON_COLORS.get(state, self.ICON_COLORS[HostState.UNKNOWN])
+        r, g, b = int(hex_color[1:3], 16), int(hex_color[3:5], 16), int(hex_color[5:7], 16)
+        draw.ellipse([3, 3, 61, 61], fill=(r, g, b, 255))
+
+        w = (255, 255, 255, 220)  # white overlay
+
+        if state == HostState.AVAILABLE:
+            # Play triangle
+            draw.polygon([(23, 18), (48, 32), (23, 46)], fill=w)
+        elif state == HostState.WORKING:
+            # Four-dot spinner (render indicator)
+            for x, y, alpha in [(32, 14), (50, 32), (32, 50), (14, 32)]:
+                a = 230 if x == 32 and y == 14 else 140
+                draw.ellipse([x - 5, y - 5, x + 5, y + 5], fill=(255, 255, 255, a))
+        elif state == HostState.DISABLED:
+            # Pause bars
+            draw.rectangle([17, 17, 27, 47], fill=w)
+            draw.rectangle([37, 17, 47, 47], fill=w)
+        elif state == HostState.NIMBY_LOCKED:
+            # Lightning bolt
+            draw.polygon([(37, 12), (20, 34), (30, 34), (26, 52), (44, 30), (34, 30)], fill=w)
+        else:  # UNKNOWN — exclamation mark
+            draw.rectangle([28, 13, 36, 37], fill=w)
+            draw.ellipse([28, 42, 36, 50], fill=w)
 
         return image
 
@@ -120,7 +149,8 @@ class CueNIMBYTray:
         if self.icon:
             state = self.monitor.get_current_state()
             self.icon.icon = self._create_icon_image(state)
-            self.icon.title = f"CueNIMBY - {state.value.title()}"
+            label = self.STATE_LABELS.get(state, state.value.title())
+            self.icon.title = f"CueNIMBY \u2014 {label}"
 
     def _on_state_change(self, old_state: HostState, new_state: HostState) -> None:
         """Handle state change.
@@ -303,24 +333,33 @@ class CueNIMBYTray:
             pystray.Menu object.
         """
         return pystray.Menu(
+            # Non-clickable status header
             Item(
-                "Available",
-                self._toggle_available,
-                checked=self._is_available
+                lambda item: "Status: " + self.STATE_LABELS.get(
+                    self.monitor.get_current_state(), "Unknown"),
+                None,
+                enabled=False
+            ),
+            pystray.Menu.SEPARATOR,
+            # Dynamic action label based on current state
+            Item(
+                lambda item: "Pause Renders" if self._is_available(item) else "Allow Renders",
+                self._toggle_available
+            ),
+            Item(
+                "Auto-Schedule",
+                self._toggle_scheduler,
+                checked=self._scheduler_enabled
             ),
             Item(
                 "Notifications",
                 self._toggle_notifications,
                 checked=self._notifications_enabled
             ),
-            Item(
-                "Scheduler",
-                self._toggle_scheduler,
-                checked=self._scheduler_enabled
-            ),
             pystray.Menu.SEPARATOR,
-            Item("Open Config File", self._open_config),
-            Item("About", self._show_about),
+            Item("Settings...", self._open_config),
+            Item("About CueNIMBY", self._show_about),
+            pystray.Menu.SEPARATOR,
             Item("Quit", self._quit)
         )
 
@@ -339,10 +378,11 @@ class CueNIMBYTray:
 
         # Create and run tray icon
         state = self.monitor.get_current_state()
+        label = self.STATE_LABELS.get(state, state.value.title())
         self.icon = pystray.Icon(
             "cuenimby",
             self._create_icon_image(state),
-            f"CueNIMBY - {state.value.title()}",
+            f"CueNIMBY \u2014 {label}",
             self._create_menu()
         )
 

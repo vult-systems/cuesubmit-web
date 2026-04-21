@@ -157,34 +157,34 @@ class Notifier:
             frame_name: Name of the frame.
         """
         self.notify(
-            "OpenCue - Frame Started",
-            f"Rendering: {job_name}/{frame_name}"
+            "Render Job Started",
+            f"This PC is now rendering: {job_name}"
         )
 
     def notify_nimby_locked(self) -> None:
         """Notify when NIMBY locks the host."""
         self.notify(
-            "OpenCue - NIMBY Locked",
-            "Host locked due to user activity. Rendering stopped."
+            "Rendering Paused",
+            "This PC is busy \u2014 renders are on hold."
         )
 
     def notify_nimby_unlocked(self) -> None:
         """Notify when NIMBY unlocks the host."""
         self.notify(
-            "OpenCue - NIMBY Unlocked",
-            "Host available for rendering."
+            "Rendering Resumed",
+            "PC is idle and available for the render farm."
         )
 
     def notify_manual_lock(self) -> None:
         """Notify when user manually locks the host."""
         self.notify(
-            "OpenCue - Host Disabled",
-            "Host manually disabled for rendering."
+            "Renders Paused",
+            "This PC has been excluded from rendering."
         )
 
     def notify_manual_unlock(self) -> None:
         """Notify when user manually unlocks the host."""
         self.notify(
-            "OpenCue - Host Enabled",
-            "Host enabled for rendering."
+            "Renders Allowed",
+            "This PC is now accepting render jobs."
         )
