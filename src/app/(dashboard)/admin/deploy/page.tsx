@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { RefreshCw, Rocket, Search, CheckSquare, Square, Clock, ChevronDown } from "lucide-react";
+import { RefreshCw, Rocket, Search, CheckSquare, Square, Clock, ChevronDown, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { GroupedSection } from "@/components/grouped-section";
@@ -56,27 +56,11 @@ const lockColors: Record<string, string> = {
   NIMBY_LOCKED: "bg-warning/15 dark:bg-warning/10 text-warning border-warning/30",
 };
 
-const jobStateColors: Record<string, string> = {
-  SUCCEEDED: "text-success",
-  DEAD: "text-danger",
-  RUNNING: "text-blue-500",
-  PENDING: "text-text-muted",
-  PAUSED: "text-warning",
-  EATEN: "text-text-muted",
-  DEPEND: "text-purple-500",
-};
-
 function formatDate(unix: number): string {
   if (!unix) return "—";
   const d = new Date(unix * 1000);
   return d.toLocaleDateString([], { month: "short", day: "numeric" }) + " " +
     d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
-
-/** Extract the host tag suffix from a job name, e.g. "maintenance-rqd-update-2025-01-02-10-30-AD404-05" → "AD404-05" */
-function jobHostLabel(name: string): string {
-  const m = name.match(/AD\d+-\d+$/);
-  return m ? m[0] : name;
 }
 
 /** Determine overall job status for display */
@@ -90,6 +74,31 @@ function jobDisplayState(job: DeployJob): string {
   return job.state || "UNKNOWN";
 }
 
+/** Extract the host tag (e.g. "AD404-05") from a deploy job name */
+function jobHostTag(name: string): string {
+  const m = name.match(/AD\d+-\w+$/);
+  return m ? m[0] : "";
+}
+
+/** Extract the batch timestamp prefix (e.g. "2026-04-21-14-35") from a deploy job name */
+function jobBatchId(name: string): string {
+  const prefix = "maintenance-rqd-update-";
+  if (!name.startsWith(prefix)) return name.slice(0, 16);
+  return name.slice(prefix.length, prefix.length + 16);
+}
+
+/** Format a batch ID for display (e.g. "2026-04-21-14-35" → "Apr 21, 2:35 PM") */
+function formatBatchId(batchId: string): string {
+  const parts = batchId.split("-");
+  if (parts.length < 5) return batchId;
+  const date = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]), Number(parts[3]), Number(parts[4]));
+  return (
+    date.toLocaleDateString([], { month: "short", day: "numeric" }) +
+    " " +
+    date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  );
+}
+
 export default function DeployPage() {
   const [hosts, setHosts] = useState<DeployHost[]>([]);
   const [jobs, setJobs] = useState<DeployJob[]>([]);
@@ -97,7 +106,8 @@ export default function DeployPage() {
   const [search, setSearch] = useState("");
   const [loadingHosts, setLoadingHosts] = useState(true);
   const [deploying, setDeploying] = useState(false);
-  const [showAllJobs, setShowAllJobs] = useState(false);
+  const [openBatches, setOpenBatches] = useState<Set<string>>(new Set());
+  const autoOpenedBids = useRef<Set<string>>(new Set());
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -160,6 +170,35 @@ export default function DeployPage() {
     };
   }, [jobs, fetchStatus]);
 
+  // Auto-open each new batch ID the first time it appears in the jobs list
+  useEffect(() => {
+    if (jobs.length === 0) return;
+    const latestBid = jobBatchId(jobs[0].name);
+    if (!latestBid || autoOpenedBids.current.has(latestBid)) return;
+    setOpenBatches((prev) => new Set([...prev, latestBid]));
+    autoOpenedBids.current.add(latestBid);
+  }, [jobs]);
+
+  // Build latest-deploy-per-host map (most recent job by startTime for each host tag)
+  const latestByTag: Record<string, DeployJob> = {};
+  for (const job of jobs) {
+    const tag = jobHostTag(job.name);
+    if (!tag) continue;
+    if (!latestByTag[tag] || job.startTime > latestByTag[tag].startTime) {
+      latestByTag[tag] = job;
+    }
+  }
+
+  // Group jobs into deployment batches (same timestamp prefix = same deploy action)
+  const batchMap: Record<string, DeployJob[]> = {};
+  for (const job of jobs) {
+    const bid = jobBatchId(job.name);
+    if (!bid) continue;
+    if (!batchMap[bid]) batchMap[bid] = [];
+    batchMap[bid].push(job);
+  }
+  const batches = Object.entries(batchMap).sort(([a], [b]) => b.localeCompare(a));
+
   // Filtered hosts
   const filteredHosts = hosts.filter((h) => {
     if (!search) return true;
@@ -200,6 +239,15 @@ export default function DeployPage() {
     });
   }
 
+  function toggleBatch(batchId: string) {
+    setOpenBatches((prev) => {
+      const next = new Set(prev);
+      if (next.has(batchId)) next.delete(batchId);
+      else next.add(batchId);
+      return next;
+    });
+  }
+
   async function handleDeploy() {
     if (selected.size === 0) return;
     setDeploying(true);
@@ -229,8 +277,6 @@ export default function DeployPage() {
       setDeploying(false);
     }
   }
-
-  const visibleJobs = showAllJobs ? jobs : jobs.slice(0, 10);
 
   return (
     <div className="space-y-8">
@@ -335,6 +381,7 @@ export default function DeployPage() {
                         <ResizableTableHead>IP</ResizableTableHead>
                         <ResizableTableHead>State</ResizableTableHead>
                         <ResizableTableHead>Lock</ResizableTableHead>
+                        <ResizableTableHead>Last Deploy</ResizableTableHead>
                       </ResizableTableRow>
                     </ResizableTableHeader>
                     <ResizableTableBody>
@@ -377,6 +424,22 @@ export default function DeployPage() {
                                 {host.lockState.replace("_", " ")}
                               </Badge>
                             )}
+                          </ResizableTableCell>
+                          <ResizableTableCell>
+                            {(() => {
+                              const lj = latestByTag[host.specificTag];
+                              if (!lj) return <span className="text-[11px] text-text-muted">—</span>;
+                              const ds = jobDisplayState(lj);
+                              return (
+                                <div className="flex items-center gap-1.5">
+                                  {ds === "SUCCEEDED" && <CheckCircle2 className="h-3.5 w-3.5 text-success" />}
+                                  {ds === "DEAD" && <XCircle className="h-3.5 w-3.5 text-danger" />}
+                                  {ds === "RUNNING" && <Loader2 className="h-3.5 w-3.5 text-blue-500 animate-spin" />}
+                                  {(ds === "PENDING" || ds === "PAUSED") && <Clock className="h-3.5 w-3.5 text-text-muted" />}
+                                  <span className="text-[11px] text-text-muted">{formatDate(lj.startTime)}</span>
+                                </div>
+                              );
+                            })()}
                           </ResizableTableCell>
                         </ResizableTableRow>
                       ))}
@@ -429,7 +492,7 @@ export default function DeployPage() {
           </div>
 
           <div className="rounded-xl border border-neutral-200/80 dark:border-white/6 bg-white/80 dark:bg-neutral-950/60 backdrop-blur-xl overflow-hidden divide-y divide-neutral-100 dark:divide-white/5">
-            {jobs.length === 0 ? (
+            {batches.length === 0 ? (
               <div className="p-6 text-center text-sm text-text-muted">
                 No recent deploy jobs found.
                 <br />
@@ -438,58 +501,87 @@ export default function DeployPage() {
                 </span>
               </div>
             ) : (
-              <>
-                {visibleJobs.map((job) => {
-                  const displayState = jobDisplayState(job);
-                  const stateColor = jobStateColors[displayState] ?? "text-text-muted";
-                  return (
-                    <div key={job.id} className="px-4 py-3 hover:bg-neutral-50 dark:hover:bg-white/3 transition-colors">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <span className="font-mono text-sm font-medium">
-                            {jobHostLabel(job.name)}
-                          </span>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <Clock className="h-3 w-3 text-text-muted" />
-                            <span className="text-[11px] text-text-muted">
-                              {formatDate(job.startTime)}
-                            </span>
-                          </div>
-                        </div>
-                        <span className={cn("text-xs font-medium shrink-0 mt-0.5", stateColor)}>
-                          {displayState}
+              batches.map(([batchId, batchJobs]) => {
+                const isOpen = openBatches.has(batchId);
+                const succeeded = batchJobs.filter((j) => jobDisplayState(j) === "SUCCEEDED").length;
+                const failed = batchJobs.filter((j) => ["DEAD", "PARTIAL"].includes(jobDisplayState(j))).length;
+                const running = batchJobs.filter((j) => jobDisplayState(j) === "RUNNING").length;
+                const pending = batchJobs.filter((j) => ["PENDING", "PAUSED"].includes(jobDisplayState(j))).length;
+                return (
+                  <div key={batchId}>
+                    <button
+                      onClick={() => toggleBatch(batchId)}
+                      className="w-full px-4 py-3 flex items-center justify-between hover:bg-neutral-50 dark:hover:bg-white/3 transition-colors text-left"
+                    >
+                      <div className="flex items-center gap-2">
+                        <ChevronDown
+                          className={cn(
+                            "h-3.5 w-3.5 text-text-muted transition-transform",
+                            isOpen && "rotate-180"
+                          )}
+                        />
+                        <span className="text-sm font-medium">{formatBatchId(batchId)}</span>
+                        <span className="text-xs text-text-muted">
+                          {batchJobs.length} host{batchJobs.length !== 1 ? "s" : ""}
                         </span>
                       </div>
-                      <div className="flex items-center gap-3 mt-2 text-[11px] text-text-muted">
-                        {job.succeededFrames > 0 && (
-                          <span className="text-success">✓ {job.succeededFrames}</span>
-                        )}
-                        {job.runningFrames > 0 && (
-                          <span className="text-blue-500">▶ {job.runningFrames}</span>
-                        )}
-                        {job.waitingFrames > 0 && (
-                          <span>⌛ {job.waitingFrames}</span>
-                        )}
-                        {job.deadFrames > 0 && (
-                          <span className="text-danger">✗ {job.deadFrames}</span>
-                        )}
-                        <span className="opacity-50">/ {job.totalFrames} frames</span>
+                      <div className="flex items-center gap-2 text-[11px] font-medium shrink-0">
+                        {succeeded > 0 && <span className="text-success">✓ {succeeded}</span>}
+                        {running > 0 && <span className="text-blue-500">▶ {running}</span>}
+                        {pending > 0 && <span className="text-text-muted">⌛ {pending}</span>}
+                        {failed > 0 && <span className="text-danger">✗ {failed}</span>}
                       </div>
-                    </div>
-                  );
-                })}
-                {jobs.length > 10 && (
-                  <button
-                    onClick={() => setShowAllJobs((v) => !v)}
-                    className="w-full flex items-center justify-center gap-1.5 py-2.5 text-xs text-text-muted hover:text-text-primary transition-colors"
-                  >
-                    <ChevronDown
-                      className={cn("h-3.5 w-3.5 transition-transform", showAllJobs && "rotate-180")}
-                    />
-                    {showAllJobs ? "Show fewer" : `Show ${jobs.length - 10} more`}
-                  </button>
-                )}
-              </>
+                    </button>
+                    {isOpen && (
+                      <div className="px-4 pb-3 divide-y divide-neutral-100 dark:divide-white/5">
+                        {[...batchJobs]
+                          .sort((a, b) => jobHostTag(a.name).localeCompare(jobHostTag(b.name)))
+                          .map((job) => {
+                            const tag = jobHostTag(job.name);
+                            const ds = jobDisplayState(job);
+                            return (
+                              <div key={job.id} className="flex items-center justify-between py-2">
+                                <span className="font-mono text-sm">{tag || job.name}</span>
+                                <span className="flex items-center gap-1.5 text-xs font-medium">
+                                  {ds === "SUCCEEDED" && (
+                                    <>
+                                      <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+                                      <span className="text-success">Done</span>
+                                    </>
+                                  )}
+                                  {ds === "DEAD" && (
+                                    <>
+                                      <XCircle className="h-3.5 w-3.5 text-danger" />
+                                      <span className="text-danger">Failed</span>
+                                    </>
+                                  )}
+                                  {ds === "PARTIAL" && (
+                                    <>
+                                      <XCircle className="h-3.5 w-3.5 text-warning" />
+                                      <span className="text-warning">Partial</span>
+                                    </>
+                                  )}
+                                  {ds === "RUNNING" && (
+                                    <>
+                                      <Loader2 className="h-3.5 w-3.5 text-blue-500 animate-spin" />
+                                      <span className="text-blue-500">Running</span>
+                                    </>
+                                  )}
+                                  {(ds === "PENDING" || ds === "PAUSED") && (
+                                    <>
+                                      <Clock className="h-3.5 w-3.5 text-text-muted" />
+                                      <span className="text-text-muted">Waiting</span>
+                                    </>
+                                  )}
+                                </span>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
             )}
           </div>
         </div>
