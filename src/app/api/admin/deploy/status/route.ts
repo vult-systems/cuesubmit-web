@@ -20,10 +20,13 @@ export async function GET() {
   }
 
   try {
-    const { jobs } = await getJobs({ show: DEPLOY_SHOW, includeFinished: true });
+    // Fetch all jobs (no show filter — the show filter in JobSearchCriteria is
+    // unreliable via the REST gateway). Filter client-side by job name prefix.
+    const { jobs } = await getJobs({ includeFinished: true });
 
+    const namePrefix = `${DEPLOY_SHOW}-${DEPLOY_SHOT}-`;
     const deployJobs = jobs
-      .filter((j) => !j.shot || j.shot === DEPLOY_SHOT)
+      .filter((j) => j.name?.toLowerCase().startsWith(namePrefix))
       .sort((a, b) => b.startTime - a.startTime)
       .slice(0, MAX_JOBS)
       .map((j) => ({

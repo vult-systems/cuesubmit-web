@@ -74,10 +74,11 @@ function jobDisplayState(job: DeployJob): string {
   return job.state || "UNKNOWN";
 }
 
-/** Extract the host tag (e.g. "AD404-05") from a deploy job name */
+/** Extract the host tag (e.g. "AD404-05") from a deploy job name.
+ * Case-insensitive since Cuebot lowercases job names (ad404-05 → AD404-05). */
 function jobHostTag(name: string): string {
-  const m = name.match(/AD\d+-\w+$/);
-  return m ? m[0] : "";
+  const m = name.match(/AD\d+-\w+$/i);
+  return m ? m[0].toUpperCase() : "";
 }
 
 /** Extract the batch timestamp prefix (e.g. "2026-04-21-14-35") from a deploy job name */
@@ -143,11 +144,14 @@ export default function DeployPage() {
   const fetchStatus = useCallback(async () => {
     try {
       const res = await fetch("/api/admin/deploy/status");
-      if (!res.ok) return;
+      if (!res.ok) {
+        console.error("[deploy] status fetch failed:", res.status, res.statusText);
+        return;
+      }
       const data = await res.json();
       setJobs(data.jobs ?? []);
-    } catch {
-      // silently ignore — just means status isn't refreshed
+    } catch (err) {
+      console.error("[deploy] status fetch error:", err);
     }
   }, []);
 
