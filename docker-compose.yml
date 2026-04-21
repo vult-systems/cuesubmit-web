@@ -21,10 +21,12 @@ services:
       - NEXT_PUBLIC_FILE_SERVER_IP=${NEXT_PUBLIC_FILE_SERVER_IP:-localhost}
       - RENDER_REPO_PATH=/mnt/RenderOutputRepo
       - RENDER_SOURCE_PATH=/mnt/RenderSourceRepository
+      - DEPLOY_SHARE_PATH=/mnt/DeployShare
     volumes:
       - cuesubmit-data:/app/data
       - /angd_server_pool/renderRepo:/mnt/RenderOutputRepo:ro
       - /opt/perforce/deadlineRenderSource:/mnt/RenderSourceRepository:ro
+      - /opt/perforce/deadlineRenderSource/Utility/OpenCue_Deploy:/mnt/DeployShare
 
 volumes:
   cuesubmit-data:

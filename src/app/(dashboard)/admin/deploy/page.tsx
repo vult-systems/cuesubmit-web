@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { RefreshCw, Rocket, Search, CheckSquare, Square, Clock, ChevronDown, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { RefreshCw, Rocket, Search, CheckSquare, Square, Clock, ChevronDown, CheckCircle2, XCircle, Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { GroupedSection } from "@/components/grouped-section";
@@ -99,6 +99,11 @@ function formatBatchId(batchId: string): string {
   );
 }
 
+interface ShareStatus {
+  accessible: boolean;
+  lastPublished: number | null;
+}
+
 export default function DeployPage() {
   const [hosts, setHosts] = useState<DeployHost[]>([]);
   const [jobs, setJobs] = useState<DeployJob[]>([]);
@@ -106,6 +111,8 @@ export default function DeployPage() {
   const [search, setSearch] = useState("");
   const [loadingHosts, setLoadingHosts] = useState(true);
   const [deploying, setDeploying] = useState(false);
+  const [shareStatus, setShareStatus] = useState<ShareStatus | null>(null);
+  const [publishing, setPublishing] = useState(false);
   const [openBatches, setOpenBatches] = useState<Set<string>>(new Set());
   const autoOpenedBids = useRef<Set<string>>(new Set());
 
@@ -144,10 +151,23 @@ export default function DeployPage() {
     }
   }, []);
 
+  // Fetch deploy share publish status
+  const fetchShareStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/deploy/publish");
+      if (!res.ok) return;
+      const data = await res.json();
+      setShareStatus(data);
+    } catch {
+      // silently ignore
+    }
+  }, []);
+
   useEffect(() => {
     fetchHosts();
     fetchStatus();
-  }, [fetchHosts, fetchStatus]);
+    fetchShareStatus();
+  }, [fetchHosts, fetchStatus, fetchShareStatus]);
 
   // Poll every 10s when any job is running
   useEffect(() => {
@@ -278,6 +298,29 @@ export default function DeployPage() {
     }
   }
 
+  async function handlePublish() {
+    setPublishing(true);
+    try {
+      const res = await fetch("/api/admin/deploy/publish", { method: "POST" });
+      const data = await res.json();
+      if (data.ok) {
+        toast.success(`Published ${data.published} files to deploy share`);
+        setShareStatus({ accessible: true, lastPublished: data.timestamp });
+      } else if (data.published > 0) {
+        toast.warning(`Published ${data.published} files, but ${data.failed} failed`);
+        setShareStatus({ accessible: true, lastPublished: data.timestamp });
+      } else {
+        const firstError = data.results?.find((r: { ok: boolean; error?: string }) => !r.ok)?.error ?? "Unknown error";
+        toast.error(`Publish failed: ${firstError}`);
+      }
+    } catch (err) {
+      toast.error("Publish failed — check console");
+      console.error(err);
+    } finally {
+      setPublishing(false);
+    }
+  }
+
   return (
     <div className="space-y-8">
       {/* Page header */}
@@ -290,7 +333,7 @@ export default function DeployPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => { fetchHosts(); fetchStatus(); }}
+            onClick={() => { fetchHosts(); fetchStatus(); fetchShareStatus(); }}
             className={getIconButtonClass("neutral", "md")}
             title="Refresh"
           >
@@ -309,6 +352,46 @@ export default function DeployPage() {
                 : "Deploy"}
           </Button>
         </div>
+      </div>
+
+      {/* ── Deploy Share status strip ── */}
+      <div className="rounded-xl border border-neutral-200/80 dark:border-white/6 bg-white/80 dark:bg-neutral-950/60 backdrop-blur-xl px-4 py-3 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center gap-2 shrink-0">
+            <div
+              className={cn(
+                "h-2 w-2 rounded-full",
+                shareStatus === null
+                  ? "bg-text-muted animate-pulse"
+                  : shareStatus.accessible
+                    ? "bg-success"
+                    : "bg-warning"
+              )}
+            />
+            <span className="text-sm font-medium text-text-primary">Deploy Share</span>
+          </div>
+          <span className="text-xs text-text-muted truncate">
+            {shareStatus === null
+              ? "Checking…"
+              : shareStatus.accessible
+                ? shareStatus.lastPublished
+                  ? `Last published ${formatDate(shareStatus.lastPublished)}`
+                  : "Accessible — not yet published"
+                : "Not accessible from this environment (local dev or share unreachable)"}
+          </span>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handlePublish}
+          disabled={publishing}
+          className="gap-2 shrink-0"
+        >
+          {publishing
+            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            : <Upload className="h-3.5 w-3.5" />}
+          {publishing ? "Publishing…" : "Publish to Share"}
+        </Button>
       </div>
 
       {/* Two-column layout: hosts + recent jobs */}
