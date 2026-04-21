@@ -27,12 +27,13 @@ interface HeaderProps {
   mode?: BackendMode;
 }
 
-const navItems = [
+const navItems: { href: string; label: string; roles?: string[] }[] = [
   { href: "/jobs", label: "Jobs" },
   { href: "/submit", label: "Submit" },
   { href: "/hosts", label: "Hosts" },
   { href: "/shows", label: "Shows" },
   { href: "/production", label: "Production" },
+  { href: "/admin/deploy", label: "Deploy", roles: ["admin", "manager"] },
 ];
 
 export function Header({ user, mode }: Readonly<HeaderProps>) {
@@ -93,7 +94,9 @@ export function Header({ user, mode }: Readonly<HeaderProps>) {
 
           {/* Center: Navigation - x.ai style */}
           <nav className="absolute left-1/2 -translate-x-1/2 flex items-center gap-8 animate-fade-in">
-            {navItems.map((item, index) => {
+            {navItems
+              .filter((item) => !item.roles || item.roles.includes(user.role))
+              .map((item, index) => {
               const isActive = pathname === item.href;
               return (
                 <Link
