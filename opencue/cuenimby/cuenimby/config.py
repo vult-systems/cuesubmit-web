@@ -30,6 +30,7 @@ class Config:
         "cuebot_host": os.getenv("CUEBOT_HOST", "localhost"),
         "cuebot_port": int(os.getenv("CUEBOT_PORT", "8443")),
         "hostname": None,  # Auto-detect if None
+        "use_ip_as_hostname": True,  # Match RQD default: register/find host by IP
         "poll_interval": 5,  # seconds
         "show_notifications": True,
         "notification_duration": 5,  # seconds
@@ -105,6 +106,11 @@ class Config:
     def hostname(self) -> Optional[str]:
         """Get hostname."""
         return self.config["hostname"]
+
+    @property
+    def use_ip_as_hostname(self) -> bool:
+        """Use IP address as hostname, matching RQD's RQD_USE_IP_AS_HOSTNAME default."""
+        return bool(self.config.get("use_ip_as_hostname", True))
 
     @property
     def poll_interval(self) -> int:

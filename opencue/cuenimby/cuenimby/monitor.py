@@ -45,6 +45,7 @@ class HostMonitor:
         cuebot_host: str,
         cuebot_port: int,
         hostname: Optional[str] = None,
+        use_ip_as_hostname: bool = True,
         poll_interval: int = 5
     ):
         """Initialize host monitor.
@@ -52,12 +53,22 @@ class HostMonitor:
         Args:
             cuebot_host: Cuebot server hostname.
             cuebot_port: Cuebot server port.
-            hostname: Host to monitor. If None, uses local hostname.
+            hostname: Host to monitor. Overrides use_ip_as_hostname when set.
+            use_ip_as_hostname: Resolve local IP via gethostbyname, matching RQD default.
             poll_interval: Polling interval in seconds.
         """
         self.cuebot_host = cuebot_host
         self.cuebot_port = cuebot_port
-        self.hostname = hostname or socket.gethostname()
+
+        # Derive hostname the same way RQD does (RQD_USE_IP_AS_HOSTNAME=True by default),
+        # so CueNimby looks up the same name Cuebot has in its host list.
+        if hostname:
+            self.hostname = hostname
+        elif use_ip_as_hostname:
+            self.hostname = socket.gethostbyname(socket.gethostname())
+            logger.info(f"Using IP (gethostbyname): {self.hostname}")
+        else:
+            self.hostname = socket.gethostname()
         self.poll_interval = poll_interval
 
         self._running = False

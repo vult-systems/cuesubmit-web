@@ -73,6 +73,7 @@ class CueNIMBYTray:
             cuebot_host=self.config.cuebot_host,
             cuebot_port=self.config.cuebot_port,
             hostname=self.config.hostname,
+            use_ip_as_hostname=self.config.use_ip_as_hostname,
             poll_interval=self.config.poll_interval
         )
 
