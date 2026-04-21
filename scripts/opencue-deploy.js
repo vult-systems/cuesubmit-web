@@ -76,44 +76,22 @@ const TARGET_HOST    = process.env.TARGET_HOST || null;
 // Each job is named "opencue-deploy-<hostname>", show "maintenance", show alloc.
 // This is how large-scale maintenance is typically done in OpenCue.
 
-function buildJobXml(hostname, uncShare) {
-  // The frame command runs UPDATE.bat from the UNC share.
-  // cmd.exe is used so that the service account can resolve UNC paths.
-  const cmd = `cmd.exe /c net use ${uncShare} /user:perforce uiw3d >nul 2>&1 && ${uncShare}\\UPDATE.bat ${uncShare}`;
+function buildJobXml(hostCount, uncShare) {
+  // One frame per host. RQD dispatches one frame to each available machine.
+  // UPDATE.bat is host-agnostic — it updates whichever machine runs it.
+  // Must use the flat spec format + DOCTYPE so Cuebot's JDOM parser accepts it
+  // RQD already has an SMB session to 10.40.14.25 for log output, so
+  // 'net use /user:perforce' would fail with "multiple connections" error.
+  // Call DEPLOY-AS-ADMIN.bat directly via UNC — the existing session covers it.
+  // Perforce auth is handled inside the scheduled task (fresh logon session).
+  const cmd = `cmd.exe /c ${uncShare}\\DEPLOY-AS-ADMIN.bat ${uncShare}`;
+  const timestamp = new Date().toISOString().slice(0, 16).replace(/[T:]/g, '-');
+  const jobName = `opencue-deploy-${timestamp}`;
 
-  // Safe job name (OpenCue: lowercase, alphanumeric + hyphen, max 255)
-  const safeName = `opencue-deploy-${hostname.toLowerCase().replace(/[^a-z0-9-]/g, '-')}`;
-
-  return `<?xml version="1.0"?>
-<spec>
-  <shows>
-    <show>
-      <name>maintenance</name>
-    </show>
-  </shows>
-  <jobs>
-    <job name="${safeName}" priority="99" paused="false">
-      <show>maintenance</show>
-      <shot>deploy</shot>
-      <user>sysadmin</user>
-      <facility>local</facility>
-      <layers>
-        <layer name="update" type="Render">
-          <cmd>${cmd.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</cmd>
-          <range>1-1</range>
-          <chunk>1</chunk>
-          <cores>1</cores>
-          <memory>512m</memory>
-          <tags>
-            <tag>${hostname.split('.')[0].toUpperCase()}</tag>
-          </tags>
-          <timeout>300</timeout>
-          <timeout_llu>300</timeout_llu>
-        </layer>
-      </layers>
-    </job>
-  </jobs>
-</spec>`;
+  // Must use the flat spec format + DOCTYPE so Cuebot's JDOM parser accepts it
+  // <tags> pins the job to hosts matching that OpenCue tag — remove for farm-wide rollout
+  const tagsXml = TARGET_HOST ? `<tags>AD400-03</tags>` : ``;
+  return `<?xml version="1.0"?><!DOCTYPE spec PUBLIC "SPI Cue Specification Language" "http://localhost:8080/spcue/dtd/cjsl-1.13.dtd"><spec><facility>local</facility><show>thesisii_s26</show><shot>default</shot><user>sysadmin</user><job name="${jobName}"><paused>false</paused><priority>99</priority><maxretries>1</maxretries><maxcores>100</maxcores><autoeat>false</autoeat><os>Windows</os><env></env><layers><layer name="update" type="Render"><cmd>${cmd}</cmd><range>1-${hostCount}</range><chunk>1</chunk><cores>1</cores><memory>1g</memory>${tagsXml}<services><service>maya</service></services></layer></layers></job></spec>`;
 }
 
 // ---------------------------------------------------------------------------
@@ -126,66 +104,43 @@ async function main() {
   if (TARGET_HOST) console.error(`Target    : ${TARGET_HOST} (single-host test mode)`);
   console.error('');
 
-  // Get all render hosts from OpenCue
-  let hosts;
+  // Get all render hosts from OpenCue to determine frame count
+  let hostCount;
   if (TARGET_HOST) {
-    hosts = [TARGET_HOST];
+    hostCount = 1;
+    console.error(`Target    : ${TARGET_HOST} (single-host test mode — 1 frame)`);
   } else {
     console.error('Fetching host list from OpenCue...');
     const result = await gatewayCall('host.HostInterface', 'GetHosts', { r: {} });
     const allHosts = result?.hosts?.hosts || [];
 
-    // Only target hosts that are OPEN or NIMBY_LOCKED (not manually LOCKED or DOWN)
-    hosts = allHosts
-      .filter(h => {
-        const lock = (h.lockState || '').toLowerCase();
-        const state = (h.state || '').toLowerCase();
-        return state !== 'down' && lock !== 'locked';
-      })
-      .map(h => h.name);
+    // Only target hosts that are UP (not DOWN)
+    const eligible = allHosts.filter(h => (h.state || '').toLowerCase() !== 'down');
+    hostCount = eligible.length;
 
-    console.error(`Found ${allHosts.length} total hosts, ${hosts.length} eligible for deploy`);
-    if (hosts.length === 0) {
+    console.error(`Found ${allHosts.length} total hosts, ${hostCount} eligible for deploy`);
+    if (hostCount === 0) {
       console.error('No eligible hosts found. Check that render hosts are registered in OpenCue.');
       process.exit(1);
     }
   }
 
-  console.error(`\nSubmitting deploy job to ${hosts.length} host(s):\n`);
+  const xml = buildJobXml(hostCount, UNC_SHARE);
 
-  const results = { submitted: 0, failed: 0, dryRun: 0 };
-
-  for (const hostname of hosts) {
-    const xml = buildJobXml(hostname, UNC_SHARE);
-
-    if (DRY_RUN) {
-      console.log(`\n--- Job XML for ${hostname} ---`);
-      console.log(xml);
-      results.dryRun++;
-      continue;
-    }
-
-    try {
-      const response = await gatewayCall('job.JobInterface', 'SubmitJob', {
-        spec: xml,
-      });
-      const jobId = response?.jobId || response?.job?.id || '(unknown)';
-      console.error(`  [OK] ${hostname.padEnd(40)} jobId=${jobId}`);
-      results.submitted++;
-    } catch (err) {
-      console.error(`  [!!] ${hostname.padEnd(40)} ${err.message}`);
-      results.failed++;
-    }
-
-    // Small delay to avoid hammering the gateway
-    await new Promise(r => setTimeout(r, 100));
+  if (DRY_RUN) {
+    console.log(xml);
+    console.error(`\nDry-run: would submit 1 job with ${hostCount} frame(s).`);
+    return;
   }
 
-  console.error('');
-  console.error(`Submitted : ${results.submitted}`);
-  if (DRY_RUN) console.error(`Dry-run   : ${results.dryRun}`);
-  if (results.failed > 0) {
-    console.error(`Failed    : ${results.failed}`);
+  console.error(`\nSubmitting 1 job with ${hostCount} frame(s)...\n`);
+
+  try {
+    const response = await gatewayCall('job.JobInterface', 'LaunchSpec', { spec: xml });
+    const jobId = response?.jobId || response?.job?.id || response?.jobs?.[0]?.id || '(unknown)';
+    console.error(`  [OK] jobId=${jobId}`);
+  } catch (err) {
+    console.error(`  [!!] ${err.message}`);
     process.exit(1);
   }
 

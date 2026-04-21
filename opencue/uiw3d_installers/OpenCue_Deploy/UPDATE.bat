@@ -28,6 +28,9 @@ color 0A
 set "UNC_BASE=%~1"
 if "!UNC_BASE!"=="" set "UNC_BASE=\\10.40.14.25\RenderSourceRepository\Utility\OpenCue_Deploy"
 
+:: /SILENT as second arg skips all pause calls (used when launched from a scheduled task)
+set "SILENT=%~2"
+
 set "PYTHON_SITE=C:\Program Files\Python39\Lib\site-packages"
 set "OPENCUE_CONFIG=C:\OpenCue\config"
 set "STARTUP_FOLDER=C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Startup"
@@ -49,7 +52,7 @@ net session >nul 2>&1
 if errorlevel 1 (
     call :LOG "ERROR: Not running as administrator. Re-run as admin."
     echo.
-    pause
+    if not "!SILENT!"=="/SILENT" pause
     exit /b 1
 )
 
@@ -63,7 +66,7 @@ if not exist "!UNC_BASE!\source\rqd\" (
     call :LOG "ERROR: Cannot reach !UNC_BASE!\source\rqd\"
     call :LOG "Run scripts/publish-to-share.ps1 on the admin machine first."
     echo.
-    pause
+    if not "!SILENT!"=="/SILENT" pause
     exit /b 1
 )
 call :LOG "Share accessible."
@@ -76,7 +79,7 @@ call :LOG "Copying RQD sources..."
 xcopy /Y /I "!UNC_BASE!\source\rqd\*.py" "!PYTHON_SITE!\rqd\" 2>>"!LOG!"
 if errorlevel 1 (
     call :LOG "ERROR: Failed to copy RQD files (xcopy error %ERRORLEVEL%)"
-    pause
+    if not "!SILENT!"=="/SILENT" pause
     exit /b 1
 )
 call :LOG "RQD sources OK."
@@ -89,7 +92,7 @@ call :LOG "Copying CueNIMBY sources..."
 xcopy /Y /I "!UNC_BASE!\source\cuenimby\*.py" "!PYTHON_SITE!\cuenimby\" 2>>"!LOG!"
 if errorlevel 1 (
     call :LOG "ERROR: Failed to copy CueNIMBY files (xcopy error %ERRORLEVEL%)"
-    pause
+    if not "!SILENT!"=="/SILENT" pause
     exit /b 1
 )
 call :LOG "CueNIMBY sources OK."
@@ -154,7 +157,7 @@ echo    1. Wait ~2 minutes for RQD to restart
 echo    2. Launch CueNIMBY: run LaunchCueNimby.bat (as the user, not admin)
 echo    3. Or use DIAGNOSE.bat to verify everything is correct
 echo.
-pause
+if not "!SILENT!"=="/SILENT" pause
 exit /b 0
 
 :: ============================================================================
