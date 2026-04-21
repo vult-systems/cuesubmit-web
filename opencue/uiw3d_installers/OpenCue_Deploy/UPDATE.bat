@@ -106,6 +106,13 @@ if exist "!PYTHON_SITE!\cuenimby\activity.py" (
 )
 echo.
 
+:: Kill the running CueNimby process so it picks up new code on restart.
+:: post-update.ps1 (SYSTEM) will relaunch it in the user session 30s from now.
+call :LOG "Stopping CueNimby (old code will be replaced on relaunch)..."
+taskkill /F /IM pythonw.exe /T >nul 2>&1
+call :LOG "  pythonw.exe stopped."
+echo.
+
 :: ----------------------------------------------------------------------------
 :: Copy config files
 :: ----------------------------------------------------------------------------
@@ -130,32 +137,44 @@ call :LOG "Config files OK."
 echo.
 
 :: ----------------------------------------------------------------------------
-:: Schedule RQD service restart 2 minutes from now via Task Scheduler.
-:: The delay lets OpenCue frame jobs report completion before RQD is killed.
+:: Stage the post-update script (runs as SYSTEM when the task fires)
 :: ----------------------------------------------------------------------------
-call :LOG "Scheduling RQD service restart in 2 minutes..."
+call :LOG "Staging post-update.ps1 to C:\OpenCue\..."
+xcopy /Y /I "!UNC_BASE!\post-update.ps1" "C:\OpenCue\" 2>>"!LOG!"
+if errorlevel 1 (
+    call :LOG "WARNING: Could not copy post-update.ps1 -- CueNimby auto-relaunch may not work"
+) else (
+    call :LOG "  post-update.ps1 staged OK."
+)
+echo.
+
+:: ----------------------------------------------------------------------------
+:: Schedule post-update task 30 seconds from now (runs as SYSTEM).
+:: Restarts OpenCueRQD AND relaunches CueNimby in the active user session.
+:: 30s is enough: DEPLOY-AS-ADMIN.bat exits immediately after launching the
+:: admin schtask, so the OpenCue frame reports Done well before this fires.
+:: ----------------------------------------------------------------------------
+call :LOG "Scheduling post-update task in 30 seconds..."
 
 schtasks /delete /tn "OpenCueRQDRestart" /f >nul 2>&1
 
 powershell.exe -NoProfile -Command " ^
-    $action = New-ScheduledTaskAction -Execute 'cmd.exe' -Argument '/c net stop OpenCueRQD & net start OpenCueRQD'; ^
-    $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddSeconds(120); ^
+    $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-NoProfile -ExecutionPolicy Bypass -File ""C:\OpenCue\post-update.ps1""'; ^
+    $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddSeconds(30); ^
     $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -RunLevel Highest; ^
     $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 5); ^
     Register-ScheduledTask -TaskName 'OpenCueRQDRestart' -Action $action -Trigger $trigger ^
         -Principal $principal -Settings $settings -Force | Out-Null; ^
     Write-Host '  Task registered OK'"
 
-call :LOG "RQD will restart at approximately %TIME% +2min."
+call :LOG "RQD will restart (and CueNimby relaunch) at approximately %TIME% +30s."
 echo.
 call :LOG "========================================="
 call :LOG "UPDATE COMPLETE on %COMPUTERNAME%"
 call :LOG "========================================="
 echo.
-echo  Next steps:
-echo    1. Wait ~2 minutes for RQD to restart
-echo    2. Launch CueNIMBY: run LaunchCueNimby.bat (as the user, not admin)
-echo    3. Or use DIAGNOSE.bat to verify everything is correct
+echo  RQD restarts in ~30 seconds. CueNimby will relaunch automatically.
+echo  If CueNimby does not appear, run LaunchCueNimby.bat as the logged-in user.
 echo.
 if not "!SILENT!"=="/SILENT" pause
 exit /b 0
