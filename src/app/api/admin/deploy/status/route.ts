@@ -25,6 +25,18 @@ export async function GET() {
     const nameSubstr = `${DEPLOY_SHOW}-${DEPLOY_SHOT}`;
     const { jobs } = await getJobs({ substr: nameSubstr, includeFinished: true });
 
+    console.log(`[deploy/status] substr="${nameSubstr}" includeFinished=true → ${jobs.length} jobs`);
+    if (jobs.length > 0) {
+      console.log(`[deploy/status] first job: name="${jobs[0].name}" state=${jobs[0].state} show=${jobs[0].show}`);
+    } else {
+      // Fallback: try without any filter to see how many total jobs OpenCue returns
+      const { jobs: allJobs } = await getJobs({ includeFinished: true });
+      console.log(`[deploy/status] fallback all-jobs count: ${allJobs.length}, first:`, allJobs[0]?.name);
+      // Try show filter as backup
+      const { jobs: showJobs } = await getJobs({ show: DEPLOY_SHOW, includeFinished: true });
+      console.log(`[deploy/status] show-filter count: ${showJobs.length}, first:`, showJobs[0]?.name);
+    }
+
     const namePrefix = `${DEPLOY_SHOW}-${DEPLOY_SHOT}-`;
     const deployJobs = jobs
       .filter((j) => j.name?.toLowerCase().startsWith(namePrefix))
