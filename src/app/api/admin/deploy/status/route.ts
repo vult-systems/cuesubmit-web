@@ -20,9 +20,10 @@ export async function GET() {
   }
 
   try {
-    // Fetch all jobs (no show filter — the show filter in JobSearchCriteria is
-    // unreliable via the REST gateway). Filter client-side by job name prefix.
-    const { jobs } = await getJobs({ includeFinished: true });
+    // Use substr filter to find maintenance-rqd-update jobs by name.
+    // This works with include_finished and is more reliable than the shows filter.
+    const nameSubstr = `${DEPLOY_SHOW}-${DEPLOY_SHOT}`;
+    const { jobs } = await getJobs({ substr: nameSubstr, includeFinished: true });
 
     const namePrefix = `${DEPLOY_SHOW}-${DEPLOY_SHOT}-`;
     const deployJobs = jobs

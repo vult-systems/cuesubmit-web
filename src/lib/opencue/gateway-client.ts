@@ -248,6 +248,7 @@ export async function getJobs(opts?: {
   show?: string;
   user?: string;
   includeFinished?: boolean;
+  substr?: string;
 }): Promise<{ jobs: Job[] }> {
   const request: Record<string, unknown> = { r: {} };
 
@@ -259,6 +260,9 @@ export async function getJobs(opts?: {
   }
   if (opts?.includeFinished) {
     (request.r as Record<string, unknown>).include_finished = true;
+  }
+  if (opts?.substr) {
+    (request.r as Record<string, unknown>).substr = [opts.substr];
   }
 
   const response = await gatewayCall<GetJobsRawResponse>('job.JobInterface', 'GetJobs', request);
