@@ -15,9 +15,6 @@
 """System tray application for CueNIMBY."""
 
 import logging
-import os
-import subprocess
-import sys
 from typing import Optional
 
 import pystray
@@ -151,6 +148,21 @@ class CueNIMBYTray:
             self.icon.icon = self._create_icon_image(state)
             label = self.STATE_LABELS.get(state, state.value.title())
             self.icon.title = f"CueNIMBY \u2014 {label}"
+            self.icon.update_menu()
+
+    def _notify(self, title: str, message: str) -> None:
+        """Show a notification via pystray balloon tip (most reliable on Windows)."""
+        try:
+            if self.icon:
+                self.icon.notify(message, title)
+                return
+        except Exception:
+            pass
+        # Fallback for platforms where pystray notify is unavailable
+        if self.notifier:
+            self.notifier.notify(title, message)
+        else:
+            logger.info("Notification: %s \u2014 %s", title, message)
 
     def _on_state_change(self, old_state: HostState, new_state: HostState) -> None:
         """Handle state change.
@@ -162,16 +174,14 @@ class CueNIMBYTray:
         logger.info(f"State changed: {old_state.value} -> {new_state.value}")
         self._update_icon()
 
-        # Send notifications
-        if self.notifier:
-            if new_state == HostState.NIMBY_LOCKED:
-                self.notifier.notify_nimby_locked()
-            elif old_state == HostState.NIMBY_LOCKED and new_state == HostState.AVAILABLE:
-                self.notifier.notify_nimby_unlocked()
-            elif new_state == HostState.DISABLED and old_state != HostState.NIMBY_LOCKED:
-                self.notifier.notify_manual_lock()
-            elif new_state == HostState.AVAILABLE and old_state == HostState.DISABLED:
-                self.notifier.notify_manual_unlock()
+        if new_state == HostState.NIMBY_LOCKED:
+            self._notify("Rendering Paused", "This PC is busy \u2014 renders are on hold.")
+        elif old_state == HostState.NIMBY_LOCKED and new_state == HostState.AVAILABLE:
+            self._notify("Rendering Resumed", "PC is idle and available for the render farm.")
+        elif new_state == HostState.DISABLED and old_state != HostState.NIMBY_LOCKED:
+            self._notify("Renders Paused", "This PC has been excluded from rendering.")
+        elif new_state == HostState.AVAILABLE and old_state == HostState.DISABLED:
+            self._notify("Renders Allowed", "This PC is now accepting render jobs.")
 
     def _on_frame_started(self, job_name: str, frame_name: str) -> None:
         """Handle frame start.
@@ -181,8 +191,7 @@ class CueNIMBYTray:
             frame_name: Frame name.
         """
         logger.info(f"Frame started: {job_name}/{frame_name}")
-        if self.notifier:
-            self.notifier.notify_job_started(job_name, frame_name)
+        self._notify("Render Job Started", f"This PC is now rendering: {job_name}")
 
     def _on_scheduler_state_change(self, desired_state: str) -> None:
         """Handle scheduler state change.
@@ -197,8 +206,7 @@ class CueNIMBYTray:
                 self.monitor.unlock_host()
         except RuntimeError as e:
             logger.error(f"Scheduler failed to change host state: {e}")
-            if self.notifier:
-                self.notifier.notify("Scheduler Error", str(e))
+            self._notify("Scheduler Error", str(e))
 
     def _toggle_available(self, icon, item) -> None:
         """Toggle host availability."""
@@ -217,108 +225,12 @@ class CueNIMBYTray:
                     logger.info("Host disabled by user")
         except RuntimeError as e:
             logger.error(f"Failed to toggle host state: {e}")
-            if self.notifier:
-                self.notifier.notify("Error", str(e))
+            self._notify("CueNIMBY Error", str(e))
 
     def _is_available(self, item) -> bool:
         """Check if host is available (for menu checkbox)."""
         state = self.monitor.get_current_state()
         return state in (HostState.AVAILABLE, HostState.WORKING)
-
-    def _toggle_notifications(self, icon, item) -> None:
-        """Toggle notifications on/off."""
-        enabled = not self.config.show_notifications
-        self.config.set("show_notifications", enabled)
-
-        if enabled:
-            self.notifier = Notifier()
-        else:
-            self.notifier = None
-
-        logger.info(f"Notifications {'enabled' if enabled else 'disabled'}")
-
-    def _notifications_enabled(self, item) -> bool:
-        """Check if notifications are enabled (for menu checkbox)."""
-        return self.config.show_notifications
-
-    def _toggle_scheduler(self, icon, item) -> None:
-        """Toggle scheduler on/off."""
-        enabled = not self.config.scheduler_enabled
-        self.config.set("scheduler_enabled", enabled)
-
-        if enabled and self.config.schedule:
-            self.scheduler = NimbyScheduler(self.config.schedule)
-            self.scheduler.start(self._on_scheduler_state_change)
-        elif self.scheduler:
-            self.scheduler.stop()
-            self.scheduler = None
-
-        logger.info(f"Scheduler {'enabled' if enabled else 'disabled'}")
-
-    def _scheduler_enabled(self, item) -> bool:
-        """Check if scheduler is enabled (for menu checkbox)."""
-        return self.config.scheduler_enabled
-
-    def _show_about(self, icon, item) -> None:
-        """Show about dialog using native platform dialogs."""
-        from . import __version__
-
-        # Always use native dialogs for About (more reliable than notifications)
-        try:
-            if sys.platform == "darwin":  # macOS
-                # For AppleScript, use return for newlines
-                about_message = f"CueNIMBY v{__version__}\n\nOpenCue NIMBY Control\n\nHost: {self.monitor.hostname}"
-                # Escape quotes and replace newlines with 'return' for AppleScript
-                escaped_message = about_message.replace('"', '\\"').replace('\n', '" & return & "')
-                script = f'display dialog "{escaped_message}" with title "About CueNIMBY" buttons {{"OK"}} default button "OK"'
-                subprocess.run(["osascript", "-e", script], check=False)
-                logger.info(f"About CueNIMBY: {about_message}")
-            elif sys.platform == "win32":  # Windows
-                about_message = f"CueNIMBY v{__version__}\n\nOpenCue NIMBY Control\n\nHost: {self.monitor.hostname}"
-                import ctypes
-                ctypes.windll.user32.MessageBoxW(0, about_message, "About CueNIMBY", 0)
-                logger.info(f"About CueNIMBY: {about_message}")
-            else:  # Linux
-                about_message = f"CueNIMBY v{__version__}\n\nOpenCue NIMBY Control\n\nHost: {self.monitor.hostname}"
-                # Try zenity or kdialog
-                try:
-                    subprocess.run(["zenity", "--info", "--title=About CueNIMBY", f"--text={about_message}"], check=False)
-                    logger.info(f"About CueNIMBY: {about_message}")
-                except FileNotFoundError:
-                    try:
-                        subprocess.run(["kdialog", "--msgbox", about_message, "--title", "About CueNIMBY"], check=False)
-                        logger.info(f"About CueNIMBY: {about_message}")
-                    except FileNotFoundError:
-                        # Fallback: use notification if available, otherwise log
-                        if self.notifier:
-                            self.notifier.notify("About CueNIMBY", about_message)
-                        else:
-                            logger.warning(f"No dialog system available. About CueNIMBY: {about_message}")
-        except Exception as e:
-            logger.error(f"Failed to show about dialog: {e}")
-            # Fallback to console output
-            from . import __version__
-            about_message = f"CueNIMBY v{__version__}\n\nOpenCue NIMBY Control\n\nHost: {self.monitor.hostname}"
-            print(f"\nAbout CueNIMBY\n{about_message}\n")
-
-    def _open_config(self, icon, item) -> None:
-        """Open config file in default editor."""
-        config_path = str(self.config.config_path)
-        try:
-            if sys.platform == "darwin":  # macOS
-                subprocess.run(["open", config_path], check=True)
-            elif sys.platform == "win32":  # Windows
-                os.startfile(config_path)
-            else:  # Linux and others
-                subprocess.run(["xdg-open", config_path], check=True)
-            logger.info(f"Opened config file: {config_path}")
-        except Exception as e:
-            logger.error(f"Failed to open config file: {e}")
-            if self.notifier:
-                self.notifier.notify(
-                    "Error",
-                    f"Failed to open config file: {e}"
-                )
 
     def _quit(self, icon, item) -> None:
         """Quit application."""
@@ -333,7 +245,6 @@ class CueNIMBYTray:
             pystray.Menu object.
         """
         return pystray.Menu(
-            # Non-clickable status header
             Item(
                 lambda item: "Status: " + self.STATE_LABELS.get(
                     self.monitor.get_current_state(), "Unknown"),
@@ -341,24 +252,10 @@ class CueNIMBYTray:
                 enabled=False
             ),
             pystray.Menu.SEPARATOR,
-            # Dynamic action label based on current state
             Item(
                 lambda item: "Pause Renders" if self._is_available(item) else "Allow Renders",
                 self._toggle_available
             ),
-            Item(
-                "Auto-Schedule",
-                self._toggle_scheduler,
-                checked=self._scheduler_enabled
-            ),
-            Item(
-                "Notifications",
-                self._toggle_notifications,
-                checked=self._notifications_enabled
-            ),
-            pystray.Menu.SEPARATOR,
-            Item("Settings...", self._open_config),
-            Item("About CueNIMBY", self._show_about),
             pystray.Menu.SEPARATOR,
             Item("Quit", self._quit)
         )
@@ -411,13 +308,11 @@ class CueNIMBYTray:
             try:
                 self.monitor.lock_host()
                 self._activity_locked = True
-                if self.notifier:
-                    self.notifier.notify(
-                        "Rendering Paused",
-                        "Workstation locked for student use. "
-                        f"Rendering will resume after {self.config.idle_threshold // 60} "
-                        "minutes of inactivity."
-                    )
+                mins = max(1, self.config.idle_threshold // 60)
+                self._notify(
+                    "Rendering Paused",
+                    f"Workstation in use \u2014 renders resume after {mins} min of inactivity."
+                )
             except RuntimeError as e:
                 logger.error("Failed to lock host on user activity: %s", e)
         else:
@@ -441,11 +336,7 @@ class CueNIMBYTray:
             try:
                 self.monitor.unlock_host()
                 self._activity_locked = False
-                if self.notifier:
-                    self.notifier.notify(
-                        "Rendering Resumed",
-                        "Workstation idle — now available for rendering."
-                    )
+                self._notify("Rendering Resumed", "Workstation idle \u2014 now available for rendering.")
             except RuntimeError as e:
                 logger.error("Failed to unlock host after idle: %s", e)
         else:
