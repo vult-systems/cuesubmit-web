@@ -31,6 +31,7 @@ export async function GET() {
 
     // Match jobs whose name starts with maintenance-rqd_update- (OpenCue normalizes shot name)
     const namePrefix = `${DEPLOY_SHOW}-${DEPLOY_SHOT.replace('-', '_')}-`;
+    console.log(`[deploy/status] filtering by namePrefix="${namePrefix}"`);
     const deployJobs = jobs
       .filter((j) => j.name?.toLowerCase().startsWith(namePrefix))
       .sort((a, b) => b.startTime - a.startTime)
@@ -48,6 +49,9 @@ export async function GET() {
         totalFrames: j.totalFrames,
         isPaused: j.isPaused,
       }));
+
+    console.log(`[deploy/status] deployJobs after filter: ${deployJobs.length}`);
+    if (deployJobs.length > 0) console.log(`[deploy/status] first deploy job: "${deployJobs[0].name}"`);
 
     return NextResponse.json({ jobs: deployJobs });
   } catch (err) {
