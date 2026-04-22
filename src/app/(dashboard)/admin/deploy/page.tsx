@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { RefreshCw, Rocket, Search, CheckSquare, Square, Clock, ChevronDown, CheckCircle2, XCircle, Loader2, Upload } from "lucide-react";
+import { RefreshCw, Rocket, Search, CheckSquare, Square, Clock, ChevronDown, CheckCircle2, XCircle, Loader2, Upload, Circle } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { GroupedSection } from "@/components/grouped-section";
@@ -122,6 +122,7 @@ export default function DeployPage() {
   const [shareStatus, setShareStatus] = useState<ShareStatus | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [openBatches, setOpenBatches] = useState<Set<string>>(new Set());
+  const [verified, setVerified] = useState<Set<string>>(new Set());
   const autoOpenedBids = useRef<Set<string>>(new Set());
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -275,6 +276,16 @@ export default function DeployPage() {
       const next = new Set(prev);
       if (next.has(batchId)) next.delete(batchId);
       else next.add(batchId);
+      return next;
+    });
+  }
+
+  function toggleVerified(ip: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    setVerified((prev) => {
+      const next = new Set(prev);
+      if (next.has(ip)) next.delete(ip);
+      else next.add(ip);
       return next;
     });
   }
@@ -437,12 +448,14 @@ export default function DeployPage() {
               const roomHosts = filteredHosts.filter((h) => h.room === room);
               const colors = accentColorList[roomIdx % accentColorList.length];
               const roomSelected = roomHosts.filter((h) => selected.has(h.name)).length;
+              const roomVerified = roomHosts.filter((h) => verified.has(h.name)).length;
+              const roomStats = [roomSelected > 0 ? `${roomSelected} selected` : null, roomVerified > 0 ? `${roomVerified}/${roomHosts.length} tray checked` : null].filter(Boolean).join(" · ") || undefined;
               return (
                 <GroupedSection
                   key={room}
                   title={room}
                   badge={String(roomHosts.length)}
-                  stats={roomSelected > 0 ? `${roomSelected} selected` : undefined}
+                  stats={roomStats}
                   accentColors={colors}
                   defaultOpen
                 >
@@ -476,6 +489,7 @@ export default function DeployPage() {
                         <ResizableTableHead>State</ResizableTableHead>
                         <ResizableTableHead>Lock</ResizableTableHead>
                         <ResizableTableHead>Last Deploy</ResizableTableHead>
+                        <ResizableTableHead className="w-20" title="Click to mark system tray visually confirmed">Tray Check</ResizableTableHead>
                       </ResizableTableRow>
                     </ResizableTableHeader>
                     <ResizableTableBody>
@@ -534,6 +548,25 @@ export default function DeployPage() {
                                 </div>
                               );
                             })()}
+                          </ResizableTableCell>
+                          <ResizableTableCell>
+                            <button
+                              onClick={(e) => toggleVerified(host.name, e)}
+                              title={verified.has(host.name) ? "Tray confirmed — click to unmark" : "Click to confirm system tray version"}
+                              className="flex items-center gap-1 text-[11px] transition-colors"
+                            >
+                              {verified.has(host.name) ? (
+                                <>
+                                  <CheckCircle2 className="h-4 w-4 text-success" />
+                                  <span className="text-success font-medium">Checked</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Circle className="h-4 w-4 text-text-muted/40" />
+                                  <span className="text-text-muted/50">Check</span>
+                                </>
+                              )}
+                            </button>
                           </ResizableTableCell>
                         </ResizableTableRow>
                       ))}
