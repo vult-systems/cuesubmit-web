@@ -55,9 +55,16 @@ export async function GET() {
   try {
     const sentinelPath = path.join(SHARE_PATH, "UPDATE.bat");
     const stat = await fs.stat(sentinelPath);
+    let version: string | undefined;
+    try {
+      const raw = await fs.readFile(path.join(SHARE_PATH, "version.json"), "utf-8");
+      const parsed = JSON.parse(raw) as { version?: string };
+      version = parsed.version;
+    } catch { /* version.json may not exist yet */ }
     return NextResponse.json({
       accessible: true,
       lastPublished: Math.floor(stat.mtimeMs / 1000),
+      version,
     });
   } catch {
     return NextResponse.json({ accessible: false, lastPublished: null });
@@ -99,6 +106,19 @@ export async function POST() {
 
   const failed = results.filter((r) => !r.ok);
   const succeeded = results.filter((r) => r.ok);
+  const timestamp = Math.floor(Date.now() / 1000);
+
+  // Write version.json to share — hosts can read this to know what build is deployed
+  const d = new Date(timestamp * 1000);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const version = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
+  try {
+    await fs.writeFile(
+      path.join(SHARE_PATH, "version.json"),
+      JSON.stringify({ version, publishedAt: timestamp, publishedBy: user.username }),
+      "utf-8"
+    );
+  } catch { /* non-fatal: version tracking is best-effort */ }
 
   return NextResponse.json(
     {
@@ -106,7 +126,8 @@ export async function POST() {
       published: succeeded.length,
       failed: failed.length,
       results,
-      timestamp: Math.floor(Date.now() / 1000),
+      timestamp,
+      version,
     },
     { status: failed.length > 0 && succeeded.length === 0 ? 500 : 200 }
   );
