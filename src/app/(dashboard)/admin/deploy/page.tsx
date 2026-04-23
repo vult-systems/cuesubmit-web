@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { RefreshCw, Rocket, Search, CheckSquare, Square, Clock, ChevronDown, CheckCircle2, XCircle, Loader2, Upload, Circle, Tag } from "lucide-react";
+import { RefreshCw, Rocket, Search, CheckSquare, Square, Clock, ChevronDown, CheckCircle2, XCircle, Loader2, Upload, Circle, Tag, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { GroupedSection } from "@/components/grouped-section";
@@ -125,6 +125,7 @@ export default function DeployPage() {
   const [openBatches, setOpenBatches] = useState<Set<string>>(new Set());
   const [statusFilter, setStatusFilter] = useState<"all" | "succeeded" | "failed" | "running" | "never">("all");
   const [verifiedJobs, setVerifiedJobs] = useState<Set<string>>(new Set());
+  const [showHistory, setShowHistory] = useState(false);
   const autoOpenedBids = useRef<Set<string>>(new Set());
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -232,6 +233,10 @@ export default function DeployPage() {
     batchMap[bid].push(job);
   }
   const batches = Object.entries(batchMap).sort(([a], [b]) => b.localeCompare(a));
+  const latestBatch = batches[0];
+  const latestBatchFailed = latestBatch
+    ? latestBatch[1].filter((j) => ["DEAD", "PARTIAL"].includes(jobDisplayState(j)))
+    : [];
 
   // Status chip counts — computed from full host list, unaffected by search
   const chipCounts = {
@@ -307,6 +312,28 @@ export default function DeployPage() {
     });
   }
 
+  function quickSelectByStatus(status: "failed" | "never") {
+    const ips = hosts
+      .filter((h) => {
+        const lj = latestByTag[h.specificTag];
+        if (status === "never") return !lj;
+        return !!lj && ["DEAD", "PARTIAL"].includes(jobDisplayState(lj));
+      })
+      .map((h) => h.name);
+    setSelected((prev) => new Set([...prev, ...ips]));
+    toast.success(`Added ${ips.length} host${ips.length !== 1 ? "s" : ""} to selection`);
+  }
+
+  function selectLatestFailedBatch() {
+    const failedTags = latestBatchFailed.map((j) => jobHostTag(j.name));
+    const ips = hosts
+      .filter((h) => failedTags.includes(h.specificTag))
+      .map((h) => h.name);
+    setSelected(new Set(ips));
+    setStatusFilter("all");
+    toast.success(`Selected ${ips.length} failed host${ips.length !== 1 ? "s" : ""} for re-deploy`);
+  }
+
   async function handleDeploy() {
     if (selected.size === 0) return;
     setDeploying(true);
@@ -361,7 +388,7 @@ export default function DeployPage() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-5">
       {/* Page header */}
       <div className="flex items-start justify-between">
         <div>
@@ -379,288 +406,350 @@ export default function DeployPage() {
         </button>
       </div>
 
-      {/* ── Step 1: Publish to Share ── */}
-      <div className="space-y-2">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-white shrink-0">1</div>
-          <h2 className="text-sm font-semibold text-text-primary">Publish to Share</h2>
-          {shareStatus?.accessible && shareStatus?.lastPublished && (
-            <Badge variant="outline" className="text-[10px] py-0 h-5 text-success border-success/30 bg-success/10 flex items-center gap-1">
-              <CheckCircle2 className="h-3 w-3" />Ready
+      {/* Action bar: publish status + deploy button — always visible */}
+      <div className="rounded-xl border border-neutral-200/80 dark:border-white/6 bg-white/80 dark:bg-neutral-950/60 backdrop-blur-xl px-4 py-3 flex items-center gap-4">
+        {/* Publish status (left, fills available space) */}
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          <div className={cn("h-2 w-2 rounded-full shrink-0", shareStatus === null ? "bg-neutral-400 animate-pulse" : shareStatus.accessible ? "bg-success" : "bg-warning")} />
+          <span className="text-sm font-medium text-text-primary shrink-0">Deploy Share</span>
+          {shareStatus?.version && (
+            <Badge variant="outline" className="text-[10px] py-0 h-5 font-mono flex items-center gap-0.5 shrink-0">
+              <Tag className="h-2.5 w-2.5 mr-0.5" />{shareStatus.version}
             </Badge>
           )}
+          <span className="text-xs text-text-muted truncate">
+            {shareStatus === null
+              ? "Checking…"
+              : shareStatus.accessible
+                ? shareStatus.lastPublished
+                  ? `Last published ${formatDate(shareStatus.lastPublished)}`
+                  : "Accessible — not yet published"
+                : "Not accessible from this environment"}
+          </span>
         </div>
-        <div className="rounded-xl border border-neutral-200/80 dark:border-white/6 bg-white/80 dark:bg-neutral-950/60 backdrop-blur-xl px-4 py-3 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-4 min-w-0">
-            <div className="flex items-center gap-2 shrink-0">
-              <div className={cn("h-2 w-2 rounded-full", shareStatus === null ? "bg-text-muted animate-pulse" : shareStatus.accessible ? "bg-success" : "bg-warning")} />
-              <span className="text-sm font-medium text-text-primary">Deploy Share</span>
-            </div>
-            {shareStatus?.version && (
-              <div className="flex items-center gap-1 text-xs text-text-muted shrink-0">
-                <Tag className="h-3 w-3" />
-                <span className="font-mono">{shareStatus.version}</span>
-              </div>
-            )}
-            <span className="text-xs text-text-muted truncate">
-              {shareStatus === null
-                ? "Checking…"
-                : shareStatus.accessible
-                  ? shareStatus.lastPublished
-                    ? `Last published ${formatDate(shareStatus.lastPublished)}`
-                    : "Accessible — not yet published"
-                  : "Not accessible from this environment (local dev or share unreachable)"}
-            </span>
-          </div>
-          <Button variant="outline" size="sm" onClick={handlePublish} disabled={publishing} className="gap-2 shrink-0">
+        {/* Actions (right) */}
+        <div className="flex items-center gap-2 shrink-0">
+          <Button variant="outline" size="sm" onClick={handlePublish} disabled={publishing} className="gap-1.5">
             {publishing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-            {publishing ? "Publishing…" : "Publish to Share"}
+            {publishing ? "Publishing…" : "Publish"}
+          </Button>
+          <div className="w-px h-5 bg-neutral-200 dark:bg-white/10" />
+          <Button onClick={handleDeploy} disabled={selected.size === 0 || deploying} size="sm" className="gap-1.5">
+            <Rocket className="h-3.5 w-3.5" />
+            {deploying
+              ? "Submitting…"
+              : selected.size > 0
+                ? `Deploy ${selected.size} host${selected.size !== 1 ? "s" : ""}`
+                : "Deploy"}
           </Button>
         </div>
       </div>
 
-      {/* Two-column layout: steps 2 + 3 */}
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_400px] gap-6">
-        {/* ── Step 2: Select Hosts ── */}
-        <div className="space-y-3">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-white shrink-0">2</div>
-            <h2 className="text-sm font-semibold text-text-primary">Select Hosts</h2>
-            {selected.size > 0 && (
-              <Badge variant="outline" className="text-[10px] py-0 h-5">{selected.size} selected</Badge>
-            )}
-          </div>
-          {/* Status filter chips */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {(["all", "succeeded", "failed", "running", "never"] as const).map((f) => {
-              const labels: Record<string, string> = { all: "All", succeeded: "Done", failed: "Failed", running: "Running", never: "Never" };
-              const count = chipCounts[f];
-              if (f !== "all" && count === 0) return null;
-              return (
-                <button
-                  key={f}
-                  onClick={() => setStatusFilter(f)}
-                  className={cn(
-                    "px-2.5 py-0.5 rounded-full text-xs font-medium border transition-colors",
-                    statusFilter === f
-                      ? "bg-primary text-white border-primary"
-                      : "bg-transparent text-text-muted border-neutral-200 dark:border-white/10 hover:border-neutral-300 dark:hover:border-white/20 hover:text-text-primary"
-                  )}
-                >
-                  {labels[f]}{" "}
-                  <span className={statusFilter === f ? "opacity-80" : "opacity-60"}>{count}</span>
-                </button>
-              );
-            })}
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="relative flex-1 max-w-xs">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted" />
-              <Input
-                placeholder="Search hosts…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9 h-9 text-sm"
-              />
-            </div>
-            <span className="text-xs text-text-muted">
-              {selected.size > 0 ? `${selected.size} selected` : `${filteredHosts.length} hosts`}
+      {/* Re-deploy banner — only when latest batch has failures */}
+      {latestBatchFailed.length > 0 && (
+        <div className="rounded-lg border border-danger/20 bg-danger/5 px-4 py-2.5 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <XCircle className="h-4 w-4 text-danger shrink-0" />
+            <span className="text-sm">
+              <span className="font-medium text-text-primary">{latestBatchFailed.length} host{latestBatchFailed.length !== 1 ? "s" : ""}</span>
+              <span className="text-text-muted"> failed in the last deploy batch.</span>
             </span>
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={selectLatestFailedBatch}
+            className="gap-1.5 border-danger/30 text-danger hover:bg-danger/5 shrink-0"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            Re-deploy failed
+          </Button>
+        </div>
+      )}
 
-          {loadingHosts ? (
-            <div className="rounded-xl border border-neutral-200/80 dark:border-white/6 bg-white/80 dark:bg-neutral-950/60 p-8 text-center text-sm text-text-muted">
-              Loading hosts…
-            </div>
-          ) : filteredHosts.length === 0 ? (
-            <div className="rounded-xl border border-neutral-200/80 dark:border-white/6 bg-white/80 dark:bg-neutral-950/60 p-8 text-center text-sm text-text-muted">
-              {search ? "No hosts match your filter." : "No render farm hosts found."}
-            </div>
-          ) : (
-            rooms.map((room, roomIdx) => {
-              const roomHosts = filteredHosts.filter((h) => h.room === room);
-              const colors = accentColorList[roomIdx % accentColorList.length];
-              const roomSelected = roomHosts.filter((h) => selected.has(h.name)).length;
-              const roomStats = roomSelected > 0 ? `${roomSelected} selected` : undefined;
-              return (
-                <GroupedSection
-                  key={room}
-                  title={room}
-                  badge={String(roomHosts.length)}
-                  stats={roomStats}
-                  accentColors={colors}
-                  defaultOpen
-                >
-                  <ResizableTable>
-                    <ResizableTableHeader>
-                      <ResizableTableRow>
-                        <ResizableTableHead className="w-10">
-                          <button
-                            onClick={() => {
-                              const roomIps = roomHosts.map((h) => h.name);
-                              const allRoomSelected = roomIps.every((ip) => selected.has(ip));
-                              setSelected((prev) => {
-                                const next = new Set(prev);
-                                if (allRoomSelected) roomIps.forEach((ip) => next.delete(ip));
-                                else roomIps.forEach((ip) => next.add(ip));
-                                return next;
-                              });
-                            }}
-                            className="text-text-muted hover:text-text-primary transition-colors"
-                            title="Select all in room"
-                          >
-                            {roomHosts.every((h) => selected.has(h.name)) ? (
-                              <CheckSquare className="h-4 w-4" />
-                            ) : (
-                              <Square className="h-4 w-4" />
-                            )}
-                          </button>
-                        </ResizableTableHead>
-                        <ResizableTableHead>Host</ResizableTableHead>
-                        <ResizableTableHead>IP</ResizableTableHead>
-                        <ResizableTableHead>State</ResizableTableHead>
-                        <ResizableTableHead>Lock</ResizableTableHead>
-                        <ResizableTableHead>Last Deploy</ResizableTableHead>
-                      </ResizableTableRow>
-                    </ResizableTableHeader>
-                    <ResizableTableBody>
-                      {roomHosts.map((host) => (
-                        <ResizableTableRow
-                          key={host.id}
-                          className={cn(
-                            "cursor-pointer",
-                            selected.has(host.name)
-                              ? "bg-primary/5 dark:bg-primary/10"
-                              : (() => {
-                                  const lj = latestByTag[host.specificTag];
-                                  if (!lj) return "";
-                                  const ds = jobDisplayState(lj);
-                                  if (ds === "SUCCEEDED") return "bg-success/4 dark:bg-success/6";
-                                  if (ds === "DEAD" || ds === "PARTIAL") return "bg-danger/4 dark:bg-danger/6";
-                                  return "";
-                                })()
+      {/* Filter chips + quick-select shortcuts */}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {(["all", "succeeded", "failed", "running", "never"] as const).map((f) => {
+          const labels: Record<string, string> = { all: "All", succeeded: "Done", failed: "Failed", running: "Running", never: "Never" };
+          const count = chipCounts[f];
+          if (f !== "all" && count === 0) return null;
+          return (
+            <button
+              key={f}
+              onClick={() => setStatusFilter(f)}
+              className={cn(
+                "px-2.5 py-0.5 rounded-full text-xs font-medium border transition-colors",
+                statusFilter === f
+                  ? "bg-blue-600 text-white border-blue-600"
+                  : "bg-transparent text-text-muted border-neutral-200 dark:border-white/10 hover:border-neutral-300 dark:hover:border-white/20 hover:text-text-primary"
+              )}
+            >
+              {labels[f]} <span className={statusFilter === f ? "opacity-80" : "opacity-60"}>{count}</span>
+            </button>
+          );
+        })}
+        {chipCounts.failed > 0 && (
+          <button
+            onClick={() => quickSelectByStatus("failed")}
+            className="ml-1 text-xs text-danger/70 hover:text-danger transition-colors hover:underline underline-offset-2"
+          >
+            Select {chipCounts.failed} failed
+          </button>
+        )}
+        {chipCounts.never > 0 && (
+          <button
+            onClick={() => quickSelectByStatus("never")}
+            className="text-xs text-text-muted/70 hover:text-text-primary transition-colors hover:underline underline-offset-2"
+          >
+            Select {chipCounts.never} never deployed
+          </button>
+        )}
+      </div>
+
+      {/* Search + count */}
+      <div className="flex items-center gap-3">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted" />
+          <Input
+            placeholder="Search hosts…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9 h-9 text-sm"
+          />
+        </div>
+        <span className="text-xs text-text-muted">
+          {selected.size > 0 ? `${selected.size} selected` : `${filteredHosts.length} hosts`}
+        </span>
+      </div>
+
+      {/* Hosts table — full width */}
+      {loadingHosts ? (
+        <div className="rounded-xl border border-neutral-200/80 dark:border-white/6 bg-white/80 dark:bg-neutral-950/60 p-8 text-center text-sm text-text-muted">
+          Loading hosts…
+        </div>
+      ) : filteredHosts.length === 0 ? (
+        <div className="rounded-xl border border-neutral-200/80 dark:border-white/6 bg-white/80 dark:bg-neutral-950/60 p-8 text-center text-sm text-text-muted">
+          {search ? "No hosts match your filter." : "No render farm hosts found."}
+        </div>
+      ) : (
+        rooms.map((room, roomIdx) => {
+          const roomHosts = filteredHosts.filter((h) => h.room === room);
+          const colors = accentColorList[roomIdx % accentColorList.length];
+          const roomSelected = roomHosts.filter((h) => selected.has(h.name)).length;
+          const roomStats = roomSelected > 0 ? `${roomSelected} selected` : undefined;
+          return (
+            <GroupedSection
+              key={room}
+              title={room}
+              badge={String(roomHosts.length)}
+              stats={roomStats}
+              accentColors={colors}
+              defaultOpen
+            >
+              <ResizableTable>
+                <ResizableTableHeader>
+                  <ResizableTableRow>
+                    <ResizableTableHead className="w-10">
+                      <button
+                        onClick={() => {
+                          const roomIps = roomHosts.map((h) => h.name);
+                          const allRoomSelected = roomIps.every((ip) => selected.has(ip));
+                          setSelected((prev) => {
+                            const next = new Set(prev);
+                            if (allRoomSelected) roomIps.forEach((ip) => next.delete(ip));
+                            else roomIps.forEach((ip) => next.add(ip));
+                            return next;
+                          });
+                        }}
+                        className="text-text-muted hover:text-text-primary transition-colors"
+                        title="Select all in room"
+                      >
+                        {roomHosts.every((h) => selected.has(h.name)) ? (
+                          <CheckSquare className="h-4 w-4" />
+                        ) : (
+                          <Square className="h-4 w-4" />
+                        )}
+                      </button>
+                    </ResizableTableHead>
+                    <ResizableTableHead>Host</ResizableTableHead>
+                    <ResizableTableHead>IP</ResizableTableHead>
+                    <ResizableTableHead>State</ResizableTableHead>
+                    <ResizableTableHead>Lock</ResizableTableHead>
+                    <ResizableTableHead>Last Deploy</ResizableTableHead>
+                    <ResizableTableHead className="text-center w-16">Tray</ResizableTableHead>
+                  </ResizableTableRow>
+                </ResizableTableHeader>
+                <ResizableTableBody>
+                  {roomHosts.map((host) => {
+                    const lj = latestByTag[host.specificTag];
+                    const isVerified = lj ? verifiedJobs.has(lj.id) : false;
+                    return (
+                      <ResizableTableRow
+                        key={host.id}
+                        className={cn(
+                          "cursor-pointer",
+                          selected.has(host.name)
+                            ? "bg-primary/5 dark:bg-primary/10"
+                            : (() => {
+                                if (!lj) return "";
+                                const ds = jobDisplayState(lj);
+                                if (ds === "SUCCEEDED") return "bg-success/4 dark:bg-success/6";
+                                if (ds === "DEAD" || ds === "PARTIAL") return "bg-danger/4 dark:bg-danger/6";
+                                return "";
+                              })()
+                        )}
+                        onClick={() => toggleHost(host.name)}
+                      >
+                        <ResizableTableCell>
+                          {selected.has(host.name) ? (
+                            <CheckSquare className="h-4 w-4 text-primary" />
+                          ) : (
+                            <Square className="h-4 w-4 text-text-muted" />
                           )}
-                          onClick={() => toggleHost(host.name)}
-                        >
-                          <ResizableTableCell>
-                            {selected.has(host.name) ? (
-                              <CheckSquare className="h-4 w-4 text-primary" />
-                            ) : (
-                              <Square className="h-4 w-4 text-text-muted" />
-                            )}
-                          </ResizableTableCell>
-                          <ResizableTableCell className="font-mono text-sm font-medium">
-                            {host.specificTag}
-                          </ResizableTableCell>
-                          <ResizableTableCell className="font-mono text-xs text-text-muted">
-                            {host.name}
-                          </ResizableTableCell>
-                          <ResizableTableCell>
+                        </ResizableTableCell>
+                        <ResizableTableCell className="font-mono text-sm font-medium">
+                          {host.specificTag}
+                        </ResizableTableCell>
+                        <ResizableTableCell className="font-mono text-xs text-text-muted">
+                          {host.name}
+                        </ResizableTableCell>
+                        <ResizableTableCell>
+                          <Badge
+                            variant="outline"
+                            className={cn("text-[10px] py-0 h-5", stateColors[host.state] ?? stateColors.UNKNOWN)}
+                          >
+                            {host.state}
+                          </Badge>
+                        </ResizableTableCell>
+                        <ResizableTableCell>
+                          {host.lockState !== "OPEN" && (
                             <Badge
                               variant="outline"
-                              className={cn("text-[10px] py-0 h-5", stateColors[host.state] ?? stateColors.UNKNOWN)}
+                              className={cn("text-[10px] py-0 h-5", lockColors[host.lockState] ?? "")}
                             >
-                              {host.state}
+                              {host.lockState.replace("_", " ")}
                             </Badge>
-                          </ResizableTableCell>
-                          <ResizableTableCell>
-                            {host.lockState !== "OPEN" && (
-                              <Badge
-                                variant="outline"
-                                className={cn("text-[10px] py-0 h-5", lockColors[host.lockState] ?? "")}
-                              >
-                                {host.lockState.replace("_", " ")}
-                              </Badge>
-                            )}
-                          </ResizableTableCell>
-                          <ResizableTableCell>
-                            {(() => {
-                              const lj = latestByTag[host.specificTag];
-                              if (!lj) return <span className="text-[11px] text-text-muted">—</span>;
-                              const ds = jobDisplayState(lj);
-                              return (
-                                <div className="flex items-center gap-1.5">
-                                  {ds === "SUCCEEDED" && <CheckCircle2 className="h-3.5 w-3.5 text-success" />}
-                                  {ds === "DEAD" && <XCircle className="h-3.5 w-3.5 text-danger" />}
-                                  {ds === "RUNNING" && <Loader2 className="h-3.5 w-3.5 text-blue-500 animate-spin" />}
-                                  {(ds === "PENDING" || ds === "PAUSED") && <Clock className="h-3.5 w-3.5 text-text-muted" />}
-                                  <span className="text-[11px] text-text-muted">{formatDate(lj.startTime)}</span>
-                                </div>
-                              );
-                            })()}
-                          </ResizableTableCell>
-                        </ResizableTableRow>
-                      ))}
-                    </ResizableTableBody>
-                  </ResizableTable>
-                </GroupedSection>
-              );
-            })
-          )}
+                          )}
+                        </ResizableTableCell>
+                        <ResizableTableCell>
+                          {!lj ? (
+                            <span className="text-[11px] text-text-muted">—</span>
+                          ) : (
+                            <div className="flex items-center gap-1.5">
+                              {(() => {
+                                const ds = jobDisplayState(lj);
+                                if (ds === "SUCCEEDED") return <CheckCircle2 className="h-3.5 w-3.5 text-success" />;
+                                if (ds === "DEAD") return <XCircle className="h-3.5 w-3.5 text-danger" />;
+                                if (ds === "RUNNING") return <Loader2 className="h-3.5 w-3.5 text-blue-500 animate-spin" />;
+                                return <Clock className="h-3.5 w-3.5 text-text-muted" />;
+                              })()}
+                              <span className="text-[11px] text-text-muted">{formatDate(lj.startTime)}</span>
+                            </div>
+                          )}
+                        </ResizableTableCell>
+                        <ResizableTableCell className="text-center">
+                          {lj ? (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); toggleVerifiedJob(lj.id); }}
+                              title={isVerified ? "Tray confirmed — click to unmark" : "Click to confirm system tray version"}
+                              className={cn(
+                                "transition-colors mx-auto block",
+                                isVerified ? "text-success" : "text-text-muted/30 hover:text-text-muted"
+                              )}
+                            >
+                              {isVerified ? <CheckCircle2 className="h-4 w-4" /> : <Circle className="h-4 w-4" />}
+                            </button>
+                          ) : (
+                            <span className="text-text-muted/20 text-xs">—</span>
+                          )}
+                        </ResizableTableCell>
+                      </ResizableTableRow>
+                    );
+                  })}
+                </ResizableTableBody>
+              </ResizableTable>
+            </GroupedSection>
+          );
+        })
+      )}
 
-          {/* Select-all / clear bar */}
-          {filteredHosts.length > 0 && (
-            <div className="flex items-center gap-3 pt-1">
-              <button
-                onClick={toggleSelectAll}
-                className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text-primary transition-colors"
-              >
-                {allSelected ? (
-                  <CheckSquare className="h-3.5 w-3.5" />
-                ) : someSelected ? (
-                  <CheckSquare className="h-3.5 w-3.5 opacity-50" />
-                ) : (
-                  <Square className="h-3.5 w-3.5" />
-                )}
-                {allSelected ? "Deselect all" : "Select all visible"}
-              </button>
-              {selected.size > 0 && (
-                <button
-                  onClick={() => setSelected(new Set())}
-                  className="text-xs text-text-muted hover:text-danger transition-colors"
-                >
-                  Clear selection
-                </button>
-              )}
-            </div>
+      {/* Select-all / clear bar */}
+      {filteredHosts.length > 0 && (
+        <div className="flex items-center gap-3 pt-1">
+          <button
+            onClick={toggleSelectAll}
+            className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text-primary transition-colors"
+          >
+            {allSelected ? (
+              <CheckSquare className="h-3.5 w-3.5" />
+            ) : someSelected ? (
+              <CheckSquare className="h-3.5 w-3.5 opacity-50" />
+            ) : (
+              <Square className="h-3.5 w-3.5" />
+            )}
+            {allSelected ? "Deselect all" : "Select all visible"}
+          </button>
+          {selected.size > 0 && (
+            <button
+              onClick={() => setSelected(new Set())}
+              className="text-xs text-text-muted hover:text-danger transition-colors"
+            >
+              Clear selection
+            </button>
           )}
         </div>
+      )}
 
-        {/* ── Step 3: Deploy & Confirm ── */}
-        <div className="space-y-3">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-white shrink-0">3</div>
-            <h2 className="text-sm font-semibold text-text-primary">Deploy &amp; Confirm</h2>
-            <button
-              onClick={fetchStatus}
-              className={cn(getIconButtonClass("neutral", "sm"), "ml-auto")}
-              title="Refresh deployments"
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-            </button>
-          </div>
-
-          <Button
-            onClick={handleDeploy}
-            disabled={selected.size === 0 || deploying}
-            className="w-full gap-2"
+      {/* Deploy history — collapsible, closed by default */}
+      <div className="space-y-2">
+        <button
+          onClick={() => setShowHistory((prev) => !prev)}
+          className="flex items-center gap-2 text-sm font-medium text-text-primary hover:opacity-80 transition-opacity w-full text-left"
+        >
+          <ChevronDown className={cn("h-4 w-4 text-text-muted transition-transform shrink-0", showHistory && "rotate-180")} />
+          <span>Deploy History</span>
+          {batches.length > 0 && (
+            <span className="text-xs text-text-muted font-normal">({batches.length} batch{batches.length !== 1 ? "es" : ""})</span>
+          )}
+          {latestBatch && (
+            <div className="flex items-center gap-0.5 ml-2" title="Latest batch">
+              {[...latestBatch[1]]
+                .sort((a, b) => jobHostTag(a.name).localeCompare(jobHostTag(b.name)))
+                .map((job) => {
+                  const ds = jobDisplayState(job);
+                  return (
+                    <div
+                      key={job.id}
+                      title={`${jobHostTag(job.name)}: ${ds}`}
+                      className={cn(
+                        "h-2 w-2 rounded-sm shrink-0",
+                        ds === "SUCCEEDED" ? "bg-success" :
+                        ds === "RUNNING"   ? "bg-blue-500 animate-pulse" :
+                        ds === "DEAD"      ? "bg-danger" :
+                        ds === "PARTIAL"   ? "bg-warning" :
+                        "bg-neutral-300 dark:bg-neutral-600"
+                      )}
+                    />
+                  );
+                })}
+            </div>
+          )}
+          <button
+            onClick={(e) => { e.stopPropagation(); fetchStatus(); }}
+            className={cn(getIconButtonClass("neutral", "sm"), "ml-auto shrink-0")}
+            title="Refresh deployments"
           >
-            <Rocket className="h-4 w-4" />
-            {deploying
-              ? "Submitting…"
-              : selected.size > 0
-                ? `Deploy to ${selected.size} host${selected.size !== 1 ? "s" : ""}`
-                : "Select hosts above to deploy"}
-          </Button>
+            <RefreshCw className="h-3.5 w-3.5" />
+          </button>
+        </button>
 
+        {showHistory && (
           <div className="rounded-xl border border-neutral-200/80 dark:border-white/6 bg-white/80 dark:bg-neutral-950/60 backdrop-blur-xl overflow-hidden divide-y divide-neutral-100 dark:divide-white/5">
             {batches.length === 0 ? (
               <div className="p-6 text-center text-sm text-text-muted">
                 No recent deploy jobs found.
                 <br />
-                <span className="text-xs opacity-70">
-                  Jobs appear here after you submit a deployment.
-                </span>
+                <span className="text-xs opacity-70">Jobs appear here after you submit a deployment.</span>
               </div>
             ) : (
               batches.map(([batchId, batchJobs]) => {
@@ -686,7 +775,6 @@ export default function DeployPage() {
                             <span className="text-[10px] text-success font-medium">{batchVerified}/{batchJobs.length} tray ✓</span>
                           )}
                         </div>
-                        {/* Dot grid: one coloured square per host, hover tooltip shows tag + state */}
                         <div className="flex items-center gap-0.5 mt-1.5 flex-wrap">
                           {sortedJobs.map((job) => {
                             const ds = jobDisplayState(job);
@@ -719,7 +807,7 @@ export default function DeployPage() {
                         {sortedJobs.map((job) => {
                           const tag = jobHostTag(job.name);
                           const ds = jobDisplayState(job);
-                          const isVerified = verifiedJobs.has(job.id);
+                          const isJobVerified = verifiedJobs.has(job.id);
                           return (
                             <div key={job.id} className="flex items-center justify-between py-2 gap-3">
                               <span className="font-mono text-sm flex-1">{tag || job.name}</span>
@@ -732,14 +820,14 @@ export default function DeployPage() {
                               </span>
                               <button
                                 onClick={() => toggleVerifiedJob(job.id)}
-                                title={isVerified ? "Tray confirmed — click to unmark" : "Click to mark system tray verified"}
+                                title={isJobVerified ? "Tray confirmed — click to unmark" : "Click to mark system tray verified"}
                                 className={cn(
                                   "flex items-center gap-1 text-[11px] transition-colors shrink-0 select-none",
-                                  isVerified ? "text-success" : "text-text-muted/40 hover:text-text-muted"
+                                  isJobVerified ? "text-success" : "text-text-muted/40 hover:text-text-muted"
                                 )}
                               >
-                                {isVerified ? <CheckCircle2 className="h-4 w-4" /> : <Circle className="h-4 w-4" />}
-                                <span className={isVerified ? "font-medium" : ""}>{isVerified ? "Tray ✓" : "Tray"}</span>
+                                {isJobVerified ? <CheckCircle2 className="h-4 w-4" /> : <Circle className="h-4 w-4" />}
+                                <span className={isJobVerified ? "font-medium" : ""}>{isJobVerified ? "Tray ✓" : "Tray"}</span>
                               </button>
                             </div>
                           );
@@ -751,7 +839,7 @@ export default function DeployPage() {
               })
             )}
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
