@@ -27,7 +27,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
-import { RefreshCw, Lock, Unlock, Search, Power, Settings, Tag, X, Plus, Trash2, Loader2 } from "lucide-react";
+import { RefreshCw, Lock, Unlock, Search, Power, Settings, Tag, X, Plus, Trash2, Loader2, User } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { iconButton } from "@/lib/icon-button-styles";
@@ -185,7 +185,7 @@ export default function HostsPage() {
   const [deleting, setDeleting] = useState(false);
 
   // Status filter and per-room unlock state
-  const [stateFilter, setStateFilter] = useState<"all" | "up" | "down" | "locked">("all");
+  const [stateFilter, setStateFilter] = useState<"all" | "up" | "down" | "locked" | "nimby">("all");
   const [unlockingRooms, setUnlockingRooms] = useState<Set<string>>(new Set());
   const [autoUnlocking, setAutoUnlocking] = useState(false);
 
@@ -417,7 +417,8 @@ export default function HostsPage() {
       // State filter
       if (stateFilter === "up") return h.state === "UP";
       if (stateFilter === "down") return h.state !== "UP";
-      if (stateFilter === "locked") return h.lockState === "LOCKED" || h.lockState === "NIMBY_LOCKED";
+      if (stateFilter === "locked") return h.lockState === "LOCKED";
+      if (stateFilter === "nimby") return h.lockState === "NIMBY_LOCKED";
       return true;
     });
 
@@ -460,6 +461,8 @@ export default function HostsPage() {
   const totalCores = hosts.reduce((sum, h) => sum + h.cores, 0);
   const usedCores = hosts.reduce((sum, h) => sum + (h.cores - h.idleCores), 0);
   const lockedCount = hosts.filter((h) => h.lockState === "LOCKED" || h.lockState === "NIMBY_LOCKED").length;
+  const nimbyLockedCount = hosts.filter((h) => h.lockState === "NIMBY_LOCKED").length;
+  const manualLockedCount = hosts.filter((h) => h.lockState === "LOCKED").length;
   const downCount = hosts.filter((h) => h.state !== "UP").length;
 
   return (
@@ -477,8 +480,11 @@ export default function HostsPage() {
             {renderingHosts > 0 && ` • ${upHosts - renderingHosts} idle`}
             {" • "}
             <span className={usedCores > 0 ? "text-text-primary font-medium" : ""}>{usedCores}/{totalCores} cores</span>
-            {lockedCount > 0 && (
-              <> • <span className="text-amber-500 font-medium">{lockedCount} locked</span></>
+            {nimbyLockedCount > 0 && (
+              <> • <span className="text-amber-500 font-medium">{nimbyLockedCount} in use</span></>
+            )}
+            {manualLockedCount > 0 && (
+              <> • <span className="text-orange-500 font-medium">{manualLockedCount} locked</span></>
             )}
             {downCount > 0 && (
               <> • <span className="text-danger">{downCount} down</span></>
@@ -530,9 +536,14 @@ export default function HostsPage() {
 
       {/* Status filter chips */}
       <div className="flex items-center gap-1.5 flex-wrap">
-        {(["all", "up", "locked", "down"] as const).map((f) => {
-          const labels: Record<string, string> = { all: "All", up: "UP", locked: "Locked", down: "Down" };
-          const count = f === "all" ? hosts.length : f === "up" ? upHosts : f === "locked" ? lockedCount : downCount;
+        {(["all", "up", "nimby", "locked", "down"] as const).map((f) => {
+          const labels: Record<string, string> = { all: "All", up: "UP", nimby: "In Use", locked: "Locked", down: "Down" };
+          const count =
+            f === "all" ? hosts.length :
+            f === "up" ? upHosts :
+            f === "nimby" ? nimbyLockedCount :
+            f === "locked" ? manualLockedCount :
+            downCount;
           if (f !== "all" && count === 0) return null;
           return (
             <button
@@ -541,11 +552,13 @@ export default function HostsPage() {
               className={cn(
                 "px-2.5 py-0.5 rounded-full text-xs font-medium border transition-colors",
                 stateFilter === f
-                  ? f === "locked"
+                  ? f === "nimby"
                     ? "bg-amber-500 text-white border-amber-500"
-                    : f === "down"
-                      ? "bg-danger text-white border-danger"
-                      : "bg-blue-600 text-white border-blue-600"
+                    : f === "locked"
+                      ? "bg-orange-500 text-white border-orange-500"
+                      : f === "down"
+                        ? "bg-danger text-white border-danger"
+                        : "bg-blue-600 text-white border-blue-600"
                   : "bg-transparent text-text-muted border-neutral-200 dark:border-white/10 hover:border-neutral-300 dark:hover:border-white/20 hover:text-text-primary"
               )}
             >
@@ -657,7 +670,9 @@ export default function HostsPage() {
                           key={host.id}
                           className={cn(
                             "hover:bg-neutral-50 dark:hover:bg-white/3 transition-colors duration-150 group",
-                            isRendering && "bg-emerald-50/50 dark:bg-emerald-500/5"
+                            isRendering && !isNimbyLocked && !isLocked && "bg-emerald-50/50 dark:bg-emerald-500/5",
+                            isNimbyLocked && "bg-amber-50/40 dark:bg-amber-500/4",
+                            isLocked && "bg-orange-50/40 dark:bg-orange-500/4"
                           )}
                         >
                           {/* ID */}
@@ -680,24 +695,35 @@ export default function HostsPage() {
 
                           {/* Status - Combined state info */}
                           <ResizableTableCell columnId="status">
-                            <div className="flex items-center gap-1.5">
-                              {isUp && isRendering && (
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {/* Lock-state badge takes precedence */}
+                              {isNimbyLocked && (
+                                <Badge variant="outline" className="text-[10px] gap-1 bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30">
+                                  <User className="h-2.5 w-2.5" />
+                                  In Use
+                                </Badge>
+                              )}
+                              {isLocked && (
+                                <Badge variant="outline" className="text-[10px] gap-1 bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/30">
+                                  <Lock className="h-2.5 w-2.5" />
+                                  Locked
+                                </Badge>
+                              )}
+                              {/* Activity badge — only when OPEN */}
+                              {!isLocked && !isNimbyLocked && isUp && isRendering && (
                                 <Badge variant="outline" className="text-[10px] bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
                                   Rendering
                                 </Badge>
                               )}
-                              {isUp && !isRendering && (
-                                <Badge variant="outline" className="text-[10px] bg-neutral-100 dark:bg-neutral-800 text-text-muted border-neutral-200 dark:border-neutral-700">
-                                  Idle
+                              {!isLocked && !isNimbyLocked && isUp && !isRendering && (
+                                <Badge variant="outline" className="text-[10px] bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/30">
+                                  Available
                                 </Badge>
                               )}
                               {!isUp && (
                                 <Badge variant="outline" className={cn(stateColors[host.state], "text-[10px]")}>
                                   {host.state}
                                 </Badge>
-                              )}
-                              {(isLocked || isNimbyLocked) && (
-                                <Lock className="h-3 w-3 text-amber-500 shrink-0" />
                               )}
                             </div>
                           </ResizableTableCell>
@@ -777,7 +803,9 @@ export default function HostsPage() {
                                   <TooltipContent side="top">
                                     {(() => {
                                       if (!isUp) return "Host must be UP to lock/unlock";
-                                      return isLocked || isNimbyLocked ? "Unlock Host" : "Lock Host";
+                                      if (isNimbyLocked) return "Unlock (CueNimby — student in use)";
+                                      if (isLocked) return "Unlock (manually locked)";
+                                      return "Lock Host";
                                     })()}
                                   </TooltipContent>
                                 </Tooltip>
