@@ -27,7 +27,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
-import { RefreshCw, Lock, Unlock, Search, Power, Settings, Tag, X, Plus, Trash2, Loader2, User } from "lucide-react";
+import { RefreshCw, Lock, Unlock, Search, Settings, Tag, X, Plus, Trash2, Loader2, User } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { iconButton } from "@/lib/icon-button-styles";
@@ -718,9 +718,10 @@ export default function HostsPage() {
                           key={host.id}
                           className={cn(
                             "hover:bg-neutral-50 dark:hover:bg-white/3 transition-colors duration-150 group",
-                            isRendering && !isNimbyLocked && !isLocked && "bg-emerald-50/50 dark:bg-emerald-500/5",
-                            isNimbyLocked && "bg-amber-50/40 dark:bg-amber-500/4",
-                            isLocked && "bg-orange-50/40 dark:bg-orange-500/4"
+                            !isUp && "bg-red-50/40 dark:bg-red-500/4",
+                            isUp && isRendering && !isNimbyLocked && !isLocked && "bg-emerald-50/50 dark:bg-emerald-500/5",
+                            isUp && isNimbyLocked && "bg-amber-50/40 dark:bg-amber-500/4",
+                            isUp && isLocked && "bg-orange-50/40 dark:bg-orange-500/4"
                           )}
                         >
                           {/* ID */}
@@ -744,34 +745,36 @@ export default function HostsPage() {
                           {/* Status - Combined state info */}
                           <ResizableTableCell columnId="status">
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              {/* Lock-state badge takes precedence */}
-                              {isNimbyLocked && (
-                                <Badge variant="outline" className="text-[10px] gap-1 bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30">
-                                  <User className="h-2.5 w-2.5" />
-                                  In Use
-                                </Badge>
-                              )}
-                              {isLocked && (
-                                <Badge variant="outline" className="text-[10px] gap-1 bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/30">
-                                  <Lock className="h-2.5 w-2.5" />
-                                  Locked
-                                </Badge>
-                              )}
-                              {/* Activity badge — only when OPEN */}
-                              {!isLocked && !isNimbyLocked && isUp && isRendering && (
-                                <Badge variant="outline" className="text-[10px] bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
-                                  Rendering
-                                </Badge>
-                              )}
-                              {!isLocked && !isNimbyLocked && isUp && !isRendering && (
-                                <Badge variant="outline" className="text-[10px] bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/30">
-                                  Available
-                                </Badge>
-                              )}
-                              {!isUp && (
+                              {/* DOWN/REPAIR takes full precedence — skip lock badges */}
+                              {!isUp ? (
                                 <Badge variant="outline" className={cn(stateColors[host.state], "text-[10px]")}>
                                   {host.state}
                                 </Badge>
+                              ) : (
+                                <>
+                                  {isNimbyLocked && (
+                                    <Badge variant="outline" className="text-[10px] gap-1 bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30">
+                                      <User className="h-2.5 w-2.5" />
+                                      In Use
+                                    </Badge>
+                                  )}
+                                  {isLocked && (
+                                    <Badge variant="outline" className="text-[10px] gap-1 bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/30">
+                                      <Lock className="h-2.5 w-2.5" />
+                                      Locked
+                                    </Badge>
+                                  )}
+                                  {!isLocked && !isNimbyLocked && isRendering && (
+                                    <Badge variant="outline" className="text-[10px] bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
+                                      Rendering
+                                    </Badge>
+                                  )}
+                                  {!isLocked && !isNimbyLocked && !isRendering && (
+                                    <Badge variant="outline" className="text-[10px] bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/30">
+                                      Available
+                                    </Badge>
+                                  )}
+                                </>
                               )}
                             </div>
                           </ResizableTableCell>
@@ -857,21 +860,7 @@ export default function HostsPage() {
                                     })()}
                                   </TooltipContent>
                                 </Tooltip>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="text-neutral-400 dark:text-white/20 cursor-not-allowed hover:bg-transparent hover:text-neutral-400 dark:hover:text-white/20"
-                                      disabled
-                                    >
-                                      <Power className="h-4 w-4" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="top">
-                                    Reboot (coming soon)
-                                  </TooltipContent>
-                                </Tooltip>
+
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <Button
