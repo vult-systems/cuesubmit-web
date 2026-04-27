@@ -142,6 +142,68 @@ When editing `post-update.ps1`, keep these in mind:
 
 ---
 
+## Host Management
+
+### Unlock Idle NIMBY Hosts
+
+When students walk away, CueNimby leaves hosts in `NIMBY_LOCKED` state. Several options to clear them:
+
+**Automatic** — The Hosts page auto-unlocks idle NIMBY hosts every 5 minutes (only hosts that are UP + NIMBY_LOCKED + all cores idle). Open `/hosts` and leave the tab open.
+
+**Per-room** — On the Hosts page, each room section header shows an amber *"Unlock room"* button when any host in that room is locked. Click it to bulk-unlock all locked hosts in that room.
+
+**Manual API call** — Unlock all eligible NIMBY hosts server-side in one shot:
+```bash
+curl -s -X POST http://YOUR_SERVER_IP:3000/api/admin/hosts/auto-unlock \
+  -H "Cookie: session=<your-admin-session-cookie>"
+```
+
+Preview which hosts would be unlocked (without acting):
+```bash
+curl -s http://YOUR_SERVER_IP:3000/api/admin/hosts/auto-unlock \
+  -H "Cookie: session=<your-admin-session-cookie>"
+```
+
+Response:
+```json
+{ "unlocked": [{"id": "...", "name": "10.40.14.x"}], "count": 3, "errors": [] }
+```
+
+> **Only NIMBY_LOCKED** hosts are auto-unlocked. Admin-set `LOCKED` hosts require the per-room button or individual toggle.
+
+### Filter and Remove Dead Hosts
+
+Hosts that are permanently gone (decommissioned machines, WiFi dropouts that never reconnected) show as `DOWN` and accumulate over time.
+
+1. On the Hosts page, click the **Down** filter chip to isolate dead machines.
+2. Review each — confirm the machine is truly gone (ping it, check if it shows a last-seen date months ago).
+3. Click the trash icon → confirm deletion.
+
+Active hosts re-register automatically with Cuebot when RQD pings in, so it's safe to delete anything that's been down for weeks.
+
+Typical permanently dead hosts (as of Apr 2026):
+
+| IP | Notes |
+|----|-------|
+| `10.40.14.180` | DOWN since Dec 10, 2025 — decommissioned |
+| `10.40.14.39` | DOWN since Dec 12, 2025 — decommissioned |
+| `172.18.218.228` | Docker bridge subnet IP — registered accidentally from a container, not a real host |
+
+### Diagnose a Single DOWN Host
+
+If a host went DOWN recently (e.g., after a deploy):
+```bash
+# Ping it
+ping 10.40.14.238
+
+# Check if RQD Windows service is running (from the server — adjust path if needed)
+# The host needs to be reachable and have WMI enabled
+```
+
+A host that went DOWN on the same day as an RQD deploy likely failed to restart. Walk to the machine and check Services → `OpenCueRQD`.
+
+---
+
 ## Environment Variables
 
 ### Production (docker-compose.yml)

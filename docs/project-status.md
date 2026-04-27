@@ -1,6 +1,6 @@
 # CueSubmit Web - Project Status
 
-**Last Updated:** April 21, 2026
+**Last Updated:** April 27, 2026
 
 ## Current State: ✅ Production Ready
 
@@ -16,7 +16,7 @@ The web-based job submission and monitoring interface for OpenCue is fully funct
 - ✅ **Frame preview** — Right-side 480px panel showing rendered frame images (PNG/JPG/EXR/TIFF/HDR/DPX), scans output dir + subdirectories, server-side ffmpeg conversion for non-browser formats
 - ✅ **Archived job previews** — Output directory extracted from RQD log files for completed/archived jobs
 - ✅ **P4 Sync** — One-click Perforce depot sync from submit page header, with loading/success/error visual feedback
-- ✅ **Host management** — Lab grouping by tag-derived display ID (e.g., `AD415-05`), uppercase hostname display, host deletion via UI
+- ✅ **Host management** — Lab grouping by tag-derived display ID (e.g., `AD415-05`), uppercase hostname display, host deletion via UI, per-room unlock button, auto-unlock idle NIMBY hosts, status filter chips
 - ✅ **User permissions** — Role-based (admin/instructor/student). Students: submit, kill, pause, retry, eat, view own jobs
 - ✅ **Render logs** — UNC-to-Linux path conversion, Docker + Windows dev support
 - ✅ **Scene/output file browsers** — Browse render source and output repos from submit form
@@ -120,6 +120,36 @@ Consider:
 - `SESSION_SECRET not set in production` warnings during build (cosmetic only)
 
 ## Completed Items
+
+### ✅ Host Auto-Unlock + Per-Room Unlock Button (Apr 27, 2026)
+
+**Problem**: When students walk away from lab machines, CueNimby's idle detection sets the host to `NIMBY_LOCKED`. This persists even after the student leaves entirely, preventing the machine from picking up overnight render jobs. Overnight batch renders were getting far fewer machines than expected because rooms were stuck locked.
+
+**Solution:**
+
+1. **Auto-unlock (backend)** — New `POST /api/admin/hosts/auto-unlock` endpoint. Queries all hosts, filters for `state=UP` + `lockState=NIMBY_LOCKED` + `idleCores >= cores` (fully idle, no frames assigned), then bulk-unlocks them via the REST gateway. A `GET` version returns the eligible list without acting (preview).
+
+2. **Auto-unlock (frontend)** — The Hosts page triggers auto-unlock automatically: 30 seconds after the page loads (grace period so the page settles), then every 5 minutes. Silent when nothing to unlock; shows a toast like *"Auto-unlocked 3 idle hosts"* and refreshes the table when hosts were actually cleared.
+
+3. **Per-room unlock button** — When a room (`GroupedSection`) contains any locked or NIMBY_LOCKED hosts, an amber *"Unlock room"* button appears in the section header. Clicking it bulk-unlocks all locked hosts in that room in parallel (shown with a loading spinner), then shows a summary toast (`"Unlocked 12 hosts in AD404"`). If any hosts fail (e.g., host is DOWN), a warning toast shows the count. Clicking the button does not collapse/expand the room section.
+
+4. **Status filter chips** — `All / UP / Locked / Down` filter chips added above the host table. `Locked` and `Down` chips only appear when at least one host is in that state. Clicking `Down` is the fastest way to isolate dead machines for deletion. The page subtitle also surfaces locked count (amber) and down count (red) at a glance.
+
+**Key files:**
+
+| File | Purpose |
+|------|--------|
+| `src/app/api/admin/hosts/auto-unlock/route.ts` | POST: bulk-unlock idle NIMBY hosts; GET: preview eligible hosts |
+| `src/app/(dashboard)/hosts/page.tsx` | Auto-unlock timer, per-room unlock button, filter chips, locked/down counts |
+
+**Behavior details:**
+
+- Only `NIMBY_LOCKED` hosts are auto-unlocked automatically (student walked away). `LOCKED` hosts (admin-set) are intentionally excluded from auto-unlock — they require explicit action via the per-room button or individual toggle.
+- The per-room button unlocks **both** `LOCKED` and `NIMBY_LOCKED` hosts.
+- Unlock calls go through the REST gateway's `host.HostInterface/Unlock` — same code path as the individual toggle button.
+- If a host is DOWN when unlock is attempted, the gateway returns an RQD communication error. The per-room unlock shows a warning toast with the partial count rather than failing silently.
+
+---
 
 ### ✅ OpenCue Client Auto-Deploy with CueNimby Relaunch (Apr 21, 2026)
 
