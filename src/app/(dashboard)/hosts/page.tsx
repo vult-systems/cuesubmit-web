@@ -529,26 +529,7 @@ export default function HostsPage() {
               className="pl-8 w-48 h-8 text-xs bg-white dark:bg-white/3 border-neutral-200 dark:border-white/8 focus:border-neutral-400 dark:focus:border-white/20 focus:bg-neutral-50 dark:focus:bg-white/5 rounded-lg transition-all duration-300"
             />
           </div>
-          {/* Unlock idle hosts: releases NIMBY + idle-manual locks */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleUnlockAllIdle}
-            disabled={autoUnlocking || lockedCount === 0}
-            className={cn(
-              "h-8 gap-1.5 text-xs",
-              lockedCount > 0 && !autoUnlocking
-                ? "border-amber-400 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10"
-                : ""
-            )}
-            title={lockedCount === 0 ? "No locked hosts" : `Unlock all ${lockedCount} locked idle hosts`}
-          >
-            {autoUnlocking
-              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              : <Unlock className="h-3.5 w-3.5" />}
-            {autoUnlocking ? "Unlocking…" : `Unlock idle${lockedCount > 0 ? ` (${lockedCount})` : ""}`}
-          </Button>
-          {/* Force unlock: clears ALL locks on UP hosts, including manual, regardless of frames */}
+          {/* Unlock all: clears all locks on UP hosts */}
           <Button
             variant="outline"
             size="sm"
@@ -557,13 +538,15 @@ export default function HostsPage() {
             className={cn(
               "h-8 gap-1.5 text-xs",
               lockedCount > 0 && !autoUnlocking
-                ? "border-red-400 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10"
+                ? "border-amber-400 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10"
                 : ""
             )}
-            title={lockedCount === 0 ? "No locked hosts" : `Force-unlock ALL ${lockedCount} locked hosts (ignores idle check)`}
+            title={lockedCount === 0 ? "No locked hosts" : `Unlock all ${lockedCount} locked hosts`}
           >
-            <Unlock className="h-3.5 w-3.5" />
-            Force unlock all
+            {autoUnlocking
+              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              : <Unlock className="h-3.5 w-3.5" />}
+            {autoUnlocking ? "Unlocking…" : `Unlock all${lockedCount > 0 ? ` (${lockedCount})` : ""}`}
           </Button>
           {/* Refresh: re-fetch host list from OpenCue */}
           <Button
@@ -801,21 +784,17 @@ export default function HostsPage() {
                           {/* Tags */}
                           <ResizableTableCell columnId="tags">
                             <div className="flex flex-wrap gap-1 min-w-0">
-                              {displayTags.slice(0, 2).map((tag) => (
+                              {displayTags.length === 0 ? (
+                                <span className="text-xs text-text-muted">-</span>
+                              ) : displayTags.map((tag) => (
                                 <Badge
                                   key={tag}
                                   variant="outline"
-                                  className="text-[10px] px-1.5 py-0 bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20 truncate max-w-20"
+                                  className="text-[10px] px-1.5 py-0 bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20"
                                 >
                                   {tag}
                                 </Badge>
                               ))}
-                              {displayTags.length > 2 && (
-                                <span className="text-[10px] text-text-muted">+{displayTags.length - 2}</span>
-                              )}
-                              {displayTags.length === 0 && (
-                                <span className="text-xs text-text-muted">-</span>
-                              )}
                             </div>
                           </ResizableTableCell>
                           <ResizableTableCell columnId="actions">
