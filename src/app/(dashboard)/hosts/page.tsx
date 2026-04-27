@@ -185,7 +185,7 @@ export default function HostsPage() {
   const [deleting, setDeleting] = useState(false);
 
   // Status filter and per-room unlock state
-  const [stateFilter, setStateFilter] = useState<"all" | "up" | "down" | "locked" | "nimby">("all");
+  const [stateFilter, setStateFilter] = useState<"all" | "available" | "up" | "down" | "locked" | "nimby">("all");
   const [unlockingRooms, setUnlockingRooms] = useState<Set<string>>(new Set());
   const [autoUnlocking, setAutoUnlocking] = useState(false);
 
@@ -415,6 +415,7 @@ export default function HostsPage() {
         ) return false;
       }
       // State filter
+      if (stateFilter === "available") return h.state === "UP" && h.lockState !== "LOCKED" && h.lockState !== "NIMBY_LOCKED";
       if (stateFilter === "up") return h.state === "UP";
       if (stateFilter === "down") return h.state !== "UP";
       if (stateFilter === "locked") return h.lockState === "LOCKED";
@@ -457,6 +458,7 @@ export default function HostsPage() {
 
   // Summary stats
   const upHosts = hosts.filter((h) => h.state === "UP").length;
+  const availableHosts = hosts.filter((h) => h.state === "UP" && h.lockState !== "LOCKED" && h.lockState !== "NIMBY_LOCKED").length;
   const renderingHosts = hosts.filter((h) => h.state === "UP" && h.cores > h.idleCores).length;
   const totalCores = hosts.reduce((sum, h) => sum + h.cores, 0);
   const usedCores = hosts.reduce((sum, h) => sum + (h.cores - h.idleCores), 0);
@@ -536,10 +538,11 @@ export default function HostsPage() {
 
       {/* Status filter chips */}
       <div className="flex items-center gap-1.5 flex-wrap">
-        {(["all", "up", "nimby", "locked", "down"] as const).map((f) => {
-          const labels: Record<string, string> = { all: "All", up: "UP", nimby: "In Use", locked: "Locked", down: "Down" };
+        {(["all", "available", "up", "nimby", "locked", "down"] as const).map((f) => {
+          const labels: Record<string, string> = { all: "All", available: "Available", up: "UP", nimby: "In Use", locked: "Locked", down: "Down" };
           const count =
             f === "all" ? hosts.length :
+            f === "available" ? availableHosts :
             f === "up" ? upHosts :
             f === "nimby" ? nimbyLockedCount :
             f === "locked" ? manualLockedCount :
@@ -552,13 +555,15 @@ export default function HostsPage() {
               className={cn(
                 "px-2.5 py-0.5 rounded-full text-xs font-medium border transition-colors",
                 stateFilter === f
-                  ? f === "nimby"
-                    ? "bg-amber-500 text-white border-amber-500"
-                    : f === "locked"
-                      ? "bg-orange-500 text-white border-orange-500"
-                      : f === "down"
-                        ? "bg-danger text-white border-danger"
-                        : "bg-blue-600 text-white border-blue-600"
+                  ? f === "available"
+                    ? "bg-sky-600 text-white border-sky-600"
+                    : f === "nimby"
+                      ? "bg-amber-500 text-white border-amber-500"
+                      : f === "locked"
+                        ? "bg-orange-500 text-white border-orange-500"
+                        : f === "down"
+                          ? "bg-danger text-white border-danger"
+                          : "bg-blue-600 text-white border-blue-600"
                   : "bg-transparent text-text-muted border-neutral-200 dark:border-white/10 hover:border-neutral-300 dark:hover:border-white/20 hover:text-text-primary"
               )}
             >
