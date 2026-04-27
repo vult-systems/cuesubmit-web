@@ -8,6 +8,18 @@ const LOCK_STATE_LOCKED = 1;  // LOCKED (CueNimby or manual)
 const LOCK_STATE_NIMBY  = 2;  // NIMBY_LOCKED
 const HOST_STATE_UP = 0;      // UP
 
+// The REST gateway may return lockState/state as either a numeric enum OR a string.
+// e.g. lockState: "LOCKED" or lockState: 1, state: "UP" or state: 0
+function isLockStateLocked(v: number | string | undefined): boolean {
+  return v === LOCK_STATE_LOCKED || v === "LOCKED";
+}
+function isLockStateNimby(v: number | string | undefined): boolean {
+  return v === LOCK_STATE_NIMBY || v === "NIMBY_LOCKED";
+}
+function isStateUp(v: number | string | undefined): boolean {
+  return v === HOST_STATE_UP || v === "UP";
+}
+
 interface RawHost {
   id?: string;
   name?: string;
@@ -42,13 +54,13 @@ function extractRawHosts(data: unknown): RawHost[] {
 /**
  * POST /api/admin/hosts/auto-unlock
  *
- * Finds all UP + locked (LOCKED or NIMBY_LOCKED) hosts that are fully idle
- * (idleCores >= cores) and unlocks them. Clears CueNimby locks left behind
- * when students walk away, as well as any stale manual locks on idle machines.
+ * Finds UP + locked hosts and unlocks them.
+ * - NIMBY_LOCKED: always unlocked (stale CueNimby lock)
+ * - LOCKED: only when fully idle, unless ?force=true which unlocks all regardless
  *
  * Returns { unlocked: [{id, name}], count: number, errors: [{id, name, error}] }
  */
-export async function POST() {
+export async function POST(request: Request) {
   try {
     const user = await getCurrentUser();
     if (!user) {
@@ -61,22 +73,16 @@ export async function POST() {
     const result = await getHosts();
     const rawHosts = extractRawHosts(result);
 
-    // Two unlock strategies:
-    // - NIMBY_LOCKED: unlock whenever UP — CueNimby sets this when a user logs in and
-    //   should clear it on logout, but crashes/stale locks mean it often stays. Safe to
-    //   force-clear because: (a) existing frames keep running, (b) the lock only prevents
-    //   NEW frames from being dispatched, (c) if the student is actually still there,
-    //   CueNimby will re-lock within seconds of the next nimby check interval.
-    // - LOCKED (manual): only clear if fully idle — an admin may have locked this machine
-    //   intentionally (maintenance, hardware issue) and running frames should not be disturbed.
+    const url = new URL(request.url);
+    const force = url.searchParams.get("force") === "true";
+
     const eligible = rawHosts.filter((h) => {
-      const state = toNum(h.state);
-      const lockState = toNum(h.lock_state ?? h.lockState);
+      const lockState = h.lock_state ?? h.lockState;
       const cores = toNum(h.cores);
       const idleCores = toNum(h.idleCores ?? h.idle_cores);
-      if (state !== HOST_STATE_UP || cores === 0) return false;
-      if (lockState === LOCK_STATE_NIMBY) return true; // always clear stale CueNimby locks
-      if (lockState === LOCK_STATE_LOCKED) return idleCores >= cores; // only clear manual locks when idle
+      if (!isStateUp(h.state) || cores === 0) return false;
+      if (isLockStateNimby(lockState)) return true; // always clear stale CueNimby locks
+      if (isLockStateLocked(lockState)) return force || idleCores >= cores; // force ignores idle check
       return false;
     });
 
@@ -134,13 +140,12 @@ export async function GET() {
     const rawHosts = extractRawHosts(result);
 
     const eligible = rawHosts.filter((h) => {
-      const state = toNum(h.state);
-      const lockState = toNum(h.lock_state ?? h.lockState);
+      const lockState = h.lock_state ?? h.lockState;
       const cores = toNum(h.cores);
       const idleCores = toNum(h.idleCores ?? h.idle_cores);
-      if (state !== HOST_STATE_UP || cores === 0) return false;
-      if (lockState === LOCK_STATE_NIMBY) return true;
-      if (lockState === LOCK_STATE_LOCKED) return idleCores >= cores;
+      if (!isStateUp(h.state) || cores === 0) return false;
+      if (isLockStateNimby(lockState)) return true;
+      if (isLockStateLocked(lockState)) return idleCores >= cores;
       return false;
     });
 

@@ -355,6 +355,32 @@ export default function HostsPage() {
     }
   }, [fetchHosts]);
 
+  // Force-unlock ALL locked hosts (NIMBY + manual), regardless of whether frames are running
+  const handleForceUnlockAll = useCallback(async () => {
+    setAutoUnlocking(true);
+    try {
+      const res = await fetch("/api/admin/hosts/auto-unlock?force=true", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Force unlock failed");
+        return;
+      }
+      if (data.count === 0) {
+        toast.info("No locked hosts found");
+      } else {
+        const errMsg = data.errors?.length > 0
+          ? ` (${data.errors.length} failed)`
+          : "";
+        toast.success(`Force-unlocked ${data.count} host${data.count !== 1 ? "s" : ""}${errMsg}`);
+      }
+      fetchHosts();
+    } catch {
+      toast.error("Force unlock request failed");
+    } finally {
+      setAutoUnlocking(false);
+    }
+  }, [fetchHosts]);
+
   // Bulk-unlock all locked hosts in a room (no per-host toast — shows summary)
   const handleUnlockRoom = useCallback(async (group: string, groupHosts: Host[]) => {
     const locked = groupHosts.filter(
@@ -503,7 +529,7 @@ export default function HostsPage() {
               className="pl-8 w-48 h-8 text-xs bg-white dark:bg-white/3 border-neutral-200 dark:border-white/8 focus:border-neutral-400 dark:focus:border-white/20 focus:bg-neutral-50 dark:focus:bg-white/5 rounded-lg transition-all duration-300"
             />
           </div>
-          {/* Unlock idle hosts: releases all locked+idle UP hosts in one click */}
+          {/* Unlock idle hosts: releases NIMBY + idle-manual locks */}
           <Button
             variant="outline"
             size="sm"
@@ -521,6 +547,23 @@ export default function HostsPage() {
               ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
               : <Unlock className="h-3.5 w-3.5" />}
             {autoUnlocking ? "Unlocking…" : `Unlock idle${lockedCount > 0 ? ` (${lockedCount})` : ""}`}
+          </Button>
+          {/* Force unlock: clears ALL locks on UP hosts, including manual, regardless of frames */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleForceUnlockAll}
+            disabled={autoUnlocking || lockedCount === 0}
+            className={cn(
+              "h-8 gap-1.5 text-xs",
+              lockedCount > 0 && !autoUnlocking
+                ? "border-red-400 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10"
+                : ""
+            )}
+            title={lockedCount === 0 ? "No locked hosts" : `Force-unlock ALL ${lockedCount} locked hosts (ignores idle check)`}
+          >
+            <Unlock className="h-3.5 w-3.5" />
+            Force unlock all
           </Button>
           {/* Refresh: re-fetch host list from OpenCue */}
           <Button
