@@ -4,8 +4,9 @@ import { hasPermission } from "@/lib/auth/permissions";
 import { getHosts, unlockHost } from "@/lib/opencue/gateway-client";
 
 // Numeric enum values from OpenCue protobuf
-const LOCK_STATE_NIMBY = 2; // NIMBY_LOCKED
-const HOST_STATE_UP = 0;    // UP
+const LOCK_STATE_LOCKED = 1;  // LOCKED (CueNimby or manual)
+const LOCK_STATE_NIMBY  = 2;  // NIMBY_LOCKED
+const HOST_STATE_UP = 0;      // UP
 
 interface RawHost {
   id?: string;
@@ -41,9 +42,9 @@ function extractRawHosts(data: unknown): RawHost[] {
 /**
  * POST /api/admin/hosts/auto-unlock
  *
- * Finds all UP+NIMBY_LOCKED hosts that are fully idle (idleCores >= cores)
- * and unlocks them. Intended to be called automatically every few minutes
- * to clear NIMBY locks left behind when students walk away from their machines.
+ * Finds all UP + locked (LOCKED or NIMBY_LOCKED) hosts that are fully idle
+ * (idleCores >= cores) and unlocks them. Clears CueNimby locks left behind
+ * when students walk away, as well as any stale manual locks on idle machines.
  *
  * Returns { unlocked: [{id, name}], count: number, errors: [{id, name, error}] }
  */
@@ -60,7 +61,7 @@ export async function POST() {
     const result = await getHosts();
     const rawHosts = extractRawHosts(result);
 
-    // Identify UP + NIMBY_LOCKED + fully idle hosts
+    // Identify UP + any locked state (LOCKED or NIMBY_LOCKED) + fully idle hosts
     const eligible = rawHosts.filter((h) => {
       const state = toNum(h.state);
       const lockState = toNum(h.lock_state ?? h.lockState);
@@ -68,7 +69,7 @@ export async function POST() {
       const idleCores = toNum(h.idleCores ?? h.idle_cores);
       return (
         state === HOST_STATE_UP &&
-        lockState === LOCK_STATE_NIMBY &&
+        (lockState === LOCK_STATE_LOCKED || lockState === LOCK_STATE_NIMBY) &&
         cores > 0 &&
         idleCores >= cores // fully idle — no rendering tasks assigned
       );
@@ -134,7 +135,7 @@ export async function GET() {
       const idleCores = toNum(h.idleCores ?? h.idle_cores);
       return (
         state === HOST_STATE_UP &&
-        lockState === LOCK_STATE_NIMBY &&
+        (lockState === LOCK_STATE_LOCKED || lockState === LOCK_STATE_NIMBY) &&
         cores > 0 &&
         idleCores >= cores
       );

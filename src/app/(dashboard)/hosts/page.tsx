@@ -187,6 +187,7 @@ export default function HostsPage() {
   // Status filter and per-room unlock state
   const [stateFilter, setStateFilter] = useState<"all" | "up" | "down" | "locked">("all");
   const [unlockingRooms, setUnlockingRooms] = useState<Set<string>>(new Set());
+  const [autoUnlocking, setAutoUnlocking] = useState(false);
 
   const fetchHosts = useCallback(async () => {
     try {
@@ -211,7 +212,7 @@ export default function HostsPage() {
     return () => clearInterval(interval);
   }, [fetchHosts]);
 
-  // Auto-unlock: clear NIMBY_LOCKED idle hosts every 5 minutes
+// Auto-unlock: clear locked idle hosts every 5 minutes
   useEffect(() => {
     const runAutoUnlock = async () => {
       try {
@@ -226,8 +227,8 @@ export default function HostsPage() {
         // silently ignore
       }
     };
-    // Grace period: 30s after page load, then every 5 min
-    const initial = setTimeout(runAutoUnlock, 30_000);
+    // Run quickly after page load, then every 5 min
+    const initial = setTimeout(runAutoUnlock, 3_000);
     const interval = setInterval(runAutoUnlock, 5 * 60 * 1000);
     return () => {
       clearTimeout(initial);
@@ -327,6 +328,32 @@ export default function HostsPage() {
     }
     setDeleting(false);
   };
+
+  // Manually unlock all idle locked hosts and refresh
+  const handleUnlockAllIdle = useCallback(async () => {
+    setAutoUnlocking(true);
+    try {
+      const res = await fetch("/api/admin/hosts/auto-unlock", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Unlock failed");
+        return;
+      }
+      if (data.count === 0) {
+        toast.info("No idle locked hosts found");
+      } else {
+        const errMsg = data.errors?.length > 0
+          ? ` (${data.errors.length} failed — host may be down)`
+          : "";
+        toast.success(`Released ${data.count} idle host${data.count !== 1 ? "s" : ""}${errMsg}`);
+      }
+      fetchHosts();
+    } catch {
+      toast.error("Unlock request failed");
+    } finally {
+      setAutoUnlocking(false);
+    }
+  }, [fetchHosts]);
 
   // Bulk-unlock all locked hosts in a room (no per-host toast — shows summary)
   const handleUnlockRoom = useCallback(async (group: string, groupHosts: Host[]) => {
@@ -465,20 +492,38 @@ export default function HostsPage() {
               placeholder="Search hosts..."
               value={globalFilter}
               onChange={(e) => setGlobalFilter(e.target.value)}
-              className="pl-8 w-64 h-8 text-xs bg-white dark:bg-white/3 border-neutral-200 dark:border-white/8 focus:border-neutral-400 dark:focus:border-white/20 focus:bg-neutral-50 dark:focus:bg-white/5 rounded-lg transition-all duration-300"
+              className="pl-8 w-48 h-8 text-xs bg-white dark:bg-white/3 border-neutral-200 dark:border-white/8 focus:border-neutral-400 dark:focus:border-white/20 focus:bg-neutral-50 dark:focus:bg-white/5 rounded-lg transition-all duration-300"
             />
           </div>
+          {/* Unlock idle hosts: releases all locked+idle UP hosts in one click */}
           <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => {
-              setLoading(true);
-              fetchHosts();
-            }}
+            variant="outline"
+            size="sm"
+            onClick={handleUnlockAllIdle}
+            disabled={autoUnlocking || lockedCount === 0}
+            className={cn(
+              "h-8 gap-1.5 text-xs",
+              lockedCount > 0 && !autoUnlocking
+                ? "border-amber-400 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10"
+                : ""
+            )}
+            title={lockedCount === 0 ? "No locked hosts" : `Unlock all ${lockedCount} locked idle hosts`}
+          >
+            {autoUnlocking
+              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              : <Unlock className="h-3.5 w-3.5" />}
+            {autoUnlocking ? "Unlocking…" : `Unlock idle${lockedCount > 0 ? ` (${lockedCount})` : ""}`}
+          </Button>
+          {/* Refresh: re-fetch host list from OpenCue */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => { setLoading(true); fetchHosts(); }}
             disabled={loading}
-            className="h-8 w-8 rounded-lg border border-neutral-200 dark:border-white/8 hover:bg-neutral-100 dark:hover:bg-white/5 hover:border-neutral-300 dark:hover:border-white/12 transition-all duration-300"
+            className="h-8 gap-1.5 text-xs"
           >
             <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+            Refresh
           </Button>
         </div>
       </div>
