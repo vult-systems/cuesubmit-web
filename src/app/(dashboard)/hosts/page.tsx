@@ -27,7 +27,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
-import { RefreshCw, Lock, Unlock, Search, Power, Settings, Tag, X, Plus, Trash2 } from "lucide-react";
+import { RefreshCw, Lock, Unlock, Search, Power, Settings, Tag, X, Plus, Trash2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { iconButton } from "@/lib/icon-button-styles";
@@ -184,6 +184,10 @@ export default function HostsPage() {
   const [hostToDelete, setHostToDelete] = useState<Host | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Status filter and per-room unlock state
+  const [stateFilter, setStateFilter] = useState<"all" | "up" | "down" | "locked">("all");
+  const [unlockingRooms, setUnlockingRooms] = useState<Set<string>>(new Set());
+
   const fetchHosts = useCallback(async () => {
     try {
       const response = await fetch("/api/hosts");
@@ -205,6 +209,30 @@ export default function HostsPage() {
     fetchHosts();
     const interval = setInterval(fetchHosts, 15000); // Auto-refresh every 15s
     return () => clearInterval(interval);
+  }, [fetchHosts]);
+
+  // Auto-unlock: clear NIMBY_LOCKED idle hosts every 5 minutes
+  useEffect(() => {
+    const runAutoUnlock = async () => {
+      try {
+        const res = await fetch("/api/admin/hosts/auto-unlock", { method: "POST" });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.count > 0) {
+          toast.success(`Auto-unlocked ${data.count} idle host${data.count !== 1 ? "s" : ""}`);
+          fetchHosts();
+        }
+      } catch {
+        // silently ignore
+      }
+    };
+    // Grace period: 30s after page load, then every 5 min
+    const initial = setTimeout(runAutoUnlock, 30_000);
+    const interval = setInterval(runAutoUnlock, 5 * 60 * 1000);
+    return () => {
+      clearTimeout(initial);
+      clearInterval(interval);
+    };
   }, [fetchHosts]);
 
   const handleHostAction = async (hostId: string, action: string, extraData?: Record<string, unknown>) => {
@@ -300,6 +328,38 @@ export default function HostsPage() {
     setDeleting(false);
   };
 
+  // Bulk-unlock all locked hosts in a room (no per-host toast — shows summary)
+  const handleUnlockRoom = useCallback(async (group: string, groupHosts: Host[]) => {
+    const locked = groupHosts.filter(
+      (h) => h.lockState === "LOCKED" || h.lockState === "NIMBY_LOCKED"
+    );
+    if (locked.length === 0) return;
+
+    setUnlockingRooms((prev) => new Set([...prev, group]));
+    const results = await Promise.allSettled(
+      locked.map((h) =>
+        fetch(`/api/hosts/${h.id}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "unlock", hostName: h.name }),
+        }).then((r) => { if (!r.ok) throw new Error(`${r.status}`); })
+      )
+    );
+    const succeeded = results.filter((r) => r.status === "fulfilled").length;
+    const failed = results.length - succeeded;
+    setUnlockingRooms((prev) => {
+      const next = new Set(prev);
+      next.delete(group);
+      return next;
+    });
+    if (failed === 0) {
+      toast.success(`Unlocked ${succeeded} host${succeeded !== 1 ? "s" : ""} in ${group}`);
+    } else {
+      toast.warning(`Unlocked ${succeeded}/${locked.length} — ${failed} failed (host may be down)`);
+    }
+    fetchHosts();
+  }, [fetchHosts]);
+
   // Extract display ID from tags for a host
   const getDisplayIdForHost = useCallback((host: Host) => {
     return getDisplayIdFromTags(host.tags || []);
@@ -315,18 +375,24 @@ export default function HostsPage() {
 
   // Group hosts by ID prefix (e.g., AD400, AD404)
   const hostsByGroup = useMemo(() => {
-    const filtered = globalFilter
-      ? hosts.filter(h => {
-          const displayId = getDisplayIdForHost(h);
-          const searchLower = globalFilter.toLowerCase();
-          return (
-            h.name.toLowerCase().includes(searchLower) ||
-            h.hostname?.toLowerCase().includes(searchLower) ||
-            h.alloc?.toLowerCase().includes(searchLower) ||
-            displayId?.toLowerCase().includes(searchLower)
-          );
-        })
-      : hosts;
+    const filtered = hosts.filter((h) => {
+      // Text search filter
+      if (globalFilter) {
+        const displayId = getDisplayIdForHost(h);
+        const q = globalFilter.toLowerCase();
+        if (
+          !h.name.toLowerCase().includes(q) &&
+          !h.hostname?.toLowerCase().includes(q) &&
+          !h.alloc?.toLowerCase().includes(q) &&
+          !displayId?.toLowerCase().includes(q)
+        ) return false;
+      }
+      // State filter
+      if (stateFilter === "up") return h.state === "UP";
+      if (stateFilter === "down") return h.state !== "UP";
+      if (stateFilter === "locked") return h.lockState === "LOCKED" || h.lockState === "NIMBY_LOCKED";
+      return true;
+    });
 
     const grouped = filtered.reduce((acc, host) => {
       const group = getGroupFromHost(host);
@@ -350,7 +416,7 @@ export default function HostsPage() {
       if (b === "Unassigned") return -1;
       return a.localeCompare(b);
     });
-  }, [hosts, globalFilter, getDisplayIdForHost, getGroupFromHost]);
+  }, [hosts, globalFilter, stateFilter, getDisplayIdForHost, getGroupFromHost]);
 
   // Group color mapping
   const groupColorMap = useMemo(() => {
@@ -366,6 +432,8 @@ export default function HostsPage() {
   const renderingHosts = hosts.filter((h) => h.state === "UP" && h.cores > h.idleCores).length;
   const totalCores = hosts.reduce((sum, h) => sum + h.cores, 0);
   const usedCores = hosts.reduce((sum, h) => sum + (h.cores - h.idleCores), 0);
+  const lockedCount = hosts.filter((h) => h.lockState === "LOCKED" || h.lockState === "NIMBY_LOCKED").length;
+  const downCount = hosts.filter((h) => h.state !== "UP").length;
 
   return (
     <div className="space-y-6">
@@ -382,6 +450,12 @@ export default function HostsPage() {
             {renderingHosts > 0 && ` • ${upHosts - renderingHosts} idle`}
             {" • "}
             <span className={usedCores > 0 ? "text-text-primary font-medium" : ""}>{usedCores}/{totalCores} cores</span>
+            {lockedCount > 0 && (
+              <> • <span className="text-amber-500 font-medium">{lockedCount} locked</span></>
+            )}
+            {downCount > 0 && (
+              <> • <span className="text-danger">{downCount} down</span></>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -409,6 +483,33 @@ export default function HostsPage() {
         </div>
       </div>
 
+      {/* Status filter chips */}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {(["all", "up", "locked", "down"] as const).map((f) => {
+          const labels: Record<string, string> = { all: "All", up: "UP", locked: "Locked", down: "Down" };
+          const count = f === "all" ? hosts.length : f === "up" ? upHosts : f === "locked" ? lockedCount : downCount;
+          if (f !== "all" && count === 0) return null;
+          return (
+            <button
+              key={f}
+              onClick={() => setStateFilter(f)}
+              className={cn(
+                "px-2.5 py-0.5 rounded-full text-xs font-medium border transition-colors",
+                stateFilter === f
+                  ? f === "locked"
+                    ? "bg-amber-500 text-white border-amber-500"
+                    : f === "down"
+                      ? "bg-danger text-white border-danger"
+                      : "bg-blue-600 text-white border-blue-600"
+                  : "bg-transparent text-text-muted border-neutral-200 dark:border-white/10 hover:border-neutral-300 dark:hover:border-white/20 hover:text-text-primary"
+              )}
+            >
+              {labels[f]} <span className={stateFilter === f ? "opacity-80" : "opacity-60"}>{count}</span>
+            </button>
+          );
+        })}
+      </div>
+
       {/* Grouped by ID prefix */}
       {loading && (
         <div className="rounded-xl border border-neutral-200/80 dark:border-white/6 bg-white/80 dark:bg-neutral-950/60 backdrop-blur-xl p-8">
@@ -434,14 +535,45 @@ export default function HostsPage() {
             const groupUpHosts = groupHosts.filter(h => h.state === "UP").length;
             const groupTotalCores = groupHosts.reduce((sum, h) => sum + h.cores, 0);
             const groupUsedCores = groupHosts.reduce((sum, h) => sum + (h.cores - h.idleCores), 0);
+            const groupLockedHosts = groupHosts.filter(
+              (h) => h.lockState === "LOCKED" || h.lockState === "NIMBY_LOCKED"
+            );
+            const isUnlockingRoom = unlockingRooms.has(group);
 
             return (
               <GroupedSection
                 key={group}
                 title={group}
                 badge={`${groupHosts.length} hosts`}
-                stats={`${groupUpHosts} up • ${groupUsedCores}/${groupTotalCores} cores`}
+                stats={[
+                  `${groupUpHosts} up`,
+                  `${groupUsedCores}/${groupTotalCores} cores`,
+                  groupLockedHosts.length > 0 ? `${groupLockedHosts.length} locked` : null,
+                ].filter(Boolean).join(" • ")}
                 accentColors={colors}
+                rightContent={
+                  groupLockedHosts.length > 0 ? (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleUnlockRoom(group, groupHosts);
+                      }}
+                      disabled={isUnlockingRoom}
+                      title={`Unlock all ${groupLockedHosts.length} locked host${groupLockedHosts.length !== 1 ? "s" : ""} in ${group}`}
+                      className={cn(
+                        "flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-md transition-colors",
+                        isUnlockingRoom
+                          ? "text-text-muted cursor-wait"
+                          : "text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10"
+                      )}
+                    >
+                      {isUnlockingRoom
+                        ? <Loader2 className="h-3 w-3 animate-spin" />
+                        : <Unlock className="h-3 w-3" />}
+                      Unlock room
+                    </button>
+                  ) : null
+                }
               >
                 <ResizableTable storageKey={`hosts-${group}`}>
                   <ResizableTableHeader>
