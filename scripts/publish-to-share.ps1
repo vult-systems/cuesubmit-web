@@ -44,7 +44,6 @@ $Files = @(
     @{ Src = "opencue\uiw3d_installers\OpenCue_Deploy\README.txt";                 Dst = "README.txt" }
     @{ Src = "opencue\uiw3d_installers\OpenCue_Deploy\LaunchCueNimby.bat";         Dst = "LaunchCueNimby.bat" }
     @{ Src = "opencue\uiw3d_installers\OpenCue_Deploy\post-update.ps1";             Dst = "post-update.ps1" }
-    @{ Src = "opencue\uiw3d_installers\OpenCue_Deploy\TEST-CUEBOT.py";             Dst = "TEST-CUEBOT.py" }
 )
 
 $ok = 0; $failed = 0
