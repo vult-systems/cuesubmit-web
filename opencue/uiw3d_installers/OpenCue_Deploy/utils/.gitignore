@@ -1,5 +1,0 @@
-# Binary installers and packages — stored on the deploy share, not in git.
-# INSTALL.bat reads these from the share at runtime.
-*.exe
-*.whl
-nssm-2.24/
