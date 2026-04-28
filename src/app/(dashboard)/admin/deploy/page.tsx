@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { RefreshCw, Rocket, Search, CheckSquare, Square, Clock, ChevronDown, CheckCircle2, XCircle, Loader2, Upload, Circle, Tag, RotateCcw } from "lucide-react";
+import { RefreshCw, Rocket, Search, CheckSquare, Square, Clock, ChevronDown, CheckCircle2, XCircle, Loader2, Upload, Circle, Tag, RotateCcw, Activity } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { GroupedSection } from "@/components/grouped-section";
@@ -74,6 +74,11 @@ function jobDisplayState(job: DeployJob): string {
   return job.state || "UNKNOWN";
 }
 
+/** Returns "diagnose" if the job is a diagnostic run, otherwise "deploy" */
+function jobType(name: string): "deploy" | "diagnose" {
+  return name?.toLowerCase().includes("rqd_diagnose") ? "diagnose" : "deploy";
+}
+
 /**
  * OpenCue rewrites job names to lowercase with underscores in a composite format:
  *   {show}-{shot_normalized}-{user}_{show}_{shot_normalized}_{yyyy}_{mm}_{dd}_{hh}_{mm}_{tag_normalized}
@@ -120,6 +125,7 @@ export default function DeployPage() {
   const [search, setSearch] = useState("");
   const [loadingHosts, setLoadingHosts] = useState(true);
   const [deploying, setDeploying] = useState(false);
+  const [diagnosing, setDiagnosing] = useState(false);
   const [shareStatus, setShareStatus] = useState<ShareStatus | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [openBatches, setOpenBatches] = useState<Set<string>>(new Set());
@@ -364,6 +370,36 @@ export default function DeployPage() {
     }
   }
 
+  async function handleDiagnose() {
+    if (selected.size === 0) return;
+    setDiagnosing(true);
+    try {
+      const res = await fetch("/api/admin/deploy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targets: [...selected], mode: "diagnose" }),
+      });
+      const data = await res.json();
+      if (data.submitted?.length > 0) {
+        const labels = data.submitted.map((s: { label: string }) => s.label).join(", ");
+        toast.success(`Diagnose jobs submitted: ${labels}`);
+        setSelected(new Set());
+        setShowHistory(true);
+        setTimeout(fetchStatus, 1500);
+      }
+      if (data.errors?.length > 0) {
+        for (const e of data.errors) {
+          toast.error(`${e.label}: ${e.error}`);
+        }
+      }
+    } catch (err) {
+      toast.error("Diagnose failed — check console");
+      console.error(err);
+    } finally {
+      setDiagnosing(false);
+    }
+  }
+
   async function handlePublish() {
     setPublishing(true);
     try {
@@ -434,7 +470,21 @@ export default function DeployPage() {
             {publishing ? "Publishing…" : "Publish"}
           </Button>
           <div className="w-px h-5 bg-neutral-200 dark:bg-white/10" />
-          <Button onClick={handleDeploy} disabled={selected.size === 0 || deploying} size="sm" className="gap-1.5">
+          <Button
+            variant="outline"
+            onClick={handleDiagnose}
+            disabled={selected.size === 0 || diagnosing || deploying}
+            size="sm"
+            className="gap-1.5"
+          >
+            {diagnosing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Activity className="h-3.5 w-3.5" />}
+            {diagnosing
+              ? "Submitting…"
+              : selected.size > 0
+                ? `Diagnose ${selected.size}`
+                : "Diagnose"}
+          </Button>
+          <Button onClick={handleDeploy} disabled={selected.size === 0 || deploying || diagnosing} size="sm" className="gap-1.5">
             <Rocket className="h-3.5 w-3.5" />
             {deploying
               ? "Submitting…"
@@ -638,10 +688,18 @@ export default function DeployPage() {
                             <div className="flex items-center gap-1.5">
                               {(() => {
                                 const ds = jobDisplayState(lj);
-                                if (ds === "SUCCEEDED") return <CheckCircle2 className="h-3.5 w-3.5 text-success" />;
-                                if (ds === "DEAD") return <XCircle className="h-3.5 w-3.5 text-danger" />;
-                                if (ds === "RUNNING") return <Loader2 className="h-3.5 w-3.5 text-blue-500 animate-spin" />;
-                                return <Clock className="h-3.5 w-3.5 text-text-muted" />;
+                                const type = jobType(lj.name);
+                                return (
+                                  <>
+                                    {ds === "SUCCEEDED" ? <CheckCircle2 className="h-3.5 w-3.5 text-success" /> :
+                                     ds === "DEAD" ? <XCircle className="h-3.5 w-3.5 text-danger" /> :
+                                     ds === "RUNNING" ? <Loader2 className="h-3.5 w-3.5 text-blue-500 animate-spin" /> :
+                                     <Clock className="h-3.5 w-3.5 text-text-muted" />}
+                                    {type === "diagnose" && (
+                                      <span className="text-[9px] font-medium uppercase tracking-wide text-violet-500 border border-violet-400/40 bg-violet-500/10 rounded px-1 py-0 leading-4">DIAG</span>
+                                    )}
+                                  </>
+                                );
                               })()}
                               <span className="text-[11px] text-text-muted">{formatDate(lj.startTime)}</span>
                             </div>
@@ -707,7 +765,7 @@ export default function DeployPage() {
           className="flex items-center gap-2 text-sm font-medium text-text-primary hover:opacity-80 transition-opacity w-full text-left"
         >
           <ChevronDown className={cn("h-4 w-4 text-text-muted transition-transform shrink-0", showHistory && "rotate-180")} />
-          <span>Deploy History</span>
+          <span>Job History</span>
           {batches.length > 0 && (
             <span className="text-xs text-text-muted font-normal">({batches.length} batch{batches.length !== 1 ? "es" : ""})</span>
           )}

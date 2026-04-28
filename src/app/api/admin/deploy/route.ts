@@ -6,6 +6,7 @@ import { getHosts, launchSpec } from "@/lib/opencue/gateway-client";
 const UNC_SHARE = "\\\\10.40.14.25\\RenderSourceRepository\\Utility\\OpenCue_Deploy";
 const SHOW = "maintenance";
 const SHOT = "rqd-update";
+const SHOT_DIAGNOSE = "rqd-diagnose";
 const AD_TAG_RE = /^AD\d+-\d+$/;
 
 const HOST_STATES: Record<number, string> = { 0: "UP", 1: "DOWN", 2: "REPAIR", 3: "UNKNOWN" };
@@ -27,14 +28,17 @@ function toLockState(v?: string | number): string {
  * Build a single-frame job XML pinned to the given host tag.
  * One job per host so each host is explicitly targeted and trackable.
  */
-function buildJobXml(tag: string): string {
-  const cmd = `cmd.exe /c ${UNC_SHARE}\\DEPLOY-AS-ADMIN.bat ${UNC_SHARE}`;
+function buildJobXml(tag: string, mode: "deploy" | "diagnose" = "deploy"): string {
+  const shot = mode === "diagnose" ? SHOT_DIAGNOSE : SHOT;
+  const cmd = mode === "diagnose"
+    ? `cmd.exe /c ${UNC_SHARE}\\DIAGNOSE.bat`
+    : `cmd.exe /c ${UNC_SHARE}\\DEPLOY-AS-ADMIN.bat ${UNC_SHARE}`;
   const timestamp = new Date().toISOString().slice(0, 16).replace(/[T:]/g, "-");
-  const jobName = `${SHOW}-${SHOT}-${timestamp}-${tag}`;
+  const jobName = `${SHOW}-${shot}-${timestamp}-${tag}`;
   return (
     `<?xml version="1.0"?>` +
     `<!DOCTYPE spec PUBLIC "SPI Cue Specification Language" "http://localhost:8080/spcue/dtd/cjsl-1.13.dtd">` +
-    `<spec><facility>local</facility><show>${SHOW}</show><shot>${SHOT}</shot>` +
+    `<spec><facility>local</facility><show>${SHOW}</show><shot>${shot}</shot>` +
     `<user>sysadmin</user><job name="${jobName}">` +
     `<paused>false</paused><priority>99</priority><maxretries>1</maxretries>` +
     `<maxcores>100</maxcores><autoeat>false</autoeat><os>Windows</os><env></env>` +
@@ -126,7 +130,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  let body: { targets?: string[] };
+  let body: { targets?: string[]; mode?: string };
   try {
     body = await req.json();
   } catch {
@@ -137,6 +141,8 @@ export async function POST(req: NextRequest) {
   if (!Array.isArray(targets) || targets.length === 0) {
     return NextResponse.json({ error: "targets must be a non-empty array of IPs" }, { status: 400 });
   }
+
+  const mode: "deploy" | "diagnose" = body?.mode === "diagnose" ? "diagnose" : "deploy";
 
   // Fetch all hosts to build IP → tag map
   const ipToTag: Record<string, string> = {};
@@ -163,7 +169,7 @@ export async function POST(req: NextRequest) {
       continue;
     }
 
-    const xml = buildJobXml(tag);
+    const xml = buildJobXml(tag, mode);
     try {
       const result = await launchSpec(xml);
       submitted.push({ label: tag, names: result?.names ?? [] });

@@ -5,7 +5,8 @@ import { getJobs } from "@/lib/opencue/gateway-client";
 
 const DEPLOY_SHOW = "maintenance";
 const DEPLOY_SHOT = "rqd-update";
-const MAX_JOBS = 30;
+const DIAGNOSE_SHOT = "rqd-diagnose";
+const MAX_JOBS = 50;
 
 /**
  * GET /api/admin/deploy/status
@@ -29,11 +30,15 @@ export async function GET() {
     console.log(`[deploy/status] show=${DEPLOY_SHOW} includeFinished=true → ${jobs.length} jobs`);
     if (jobs.length > 0) console.log(`[deploy/status] first job name: "${jobs[0].name}"`);
 
-    // Match jobs whose name starts with maintenance-rqd_update- (OpenCue normalizes shot name)
-    const namePrefix = `${DEPLOY_SHOW}-${DEPLOY_SHOT.replace('-', '_')}-`;
-    console.log(`[deploy/status] filtering by namePrefix="${namePrefix}"`);
+    // Match both deploy (rqd-update) and diagnose (rqd-diagnose) jobs
+    const namePrefixDeploy = `${DEPLOY_SHOW}-${DEPLOY_SHOT.replace('-', '_')}-`;
+    const namePrefixDiagnose = `${DEPLOY_SHOW}-${DIAGNOSE_SHOT.replace('-', '_')}-`;
+    console.log(`[deploy/status] filtering by prefixes "${namePrefixDeploy}" or "${namePrefixDiagnose}"`);
     const deployJobs = jobs
-      .filter((j) => j.name?.toLowerCase().startsWith(namePrefix))
+      .filter((j) => {
+        const lower = j.name?.toLowerCase() ?? "";
+        return lower.startsWith(namePrefixDeploy) || lower.startsWith(namePrefixDiagnose);
+      })
       .sort((a, b) => b.startTime - a.startTime)
       .slice(0, MAX_JOBS)
       .map((j) => ({
