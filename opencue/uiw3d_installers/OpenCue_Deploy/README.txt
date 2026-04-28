@@ -33,12 +33,10 @@ FILES ON THIS SHARE
                       - Run via the web admin "Diagnose" button, or manually
                         as Administrator to troubleshoot a specific machine
 
-  post-update.ps1     Post-update hook called by UPDATE.bat
+  POST-UPDATE.ps1     Post-update hook called by UPDATE.bat
                       - Restarts RQD service after the source update
 
-  LaunchCueNimby.bat  Starts CueNimby manually (used for testing/debugging)
-
-  TEST-CUEBOT.py      Quick connectivity test — verifies CueBot is reachable
+  LAUNCH-CUENIMBY.bat Starts CueNimby manually (used for testing/debugging)
 
 
 DIRECTORIES

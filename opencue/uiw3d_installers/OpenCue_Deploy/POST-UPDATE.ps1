@@ -1,16 +1,16 @@
 <#
 .SYNOPSIS
-    Post-update script run by Task Scheduler AS SYSTEM after an OpenCue update.
+    POST-UPDATE script run by Task Scheduler AS SYSTEM after an OpenCue update.
     1. Restarts the OpenCueRQD Windows service.
     2. Kills any lingering CueNimby (pythonw.exe) processes.
     3. Relaunches CueNimby in every active interactive user session via a
        per-user scheduled task with LogonType=Interactive.
-    4. Writes a detailed diagnostic log to C:\OpenCue\logs\post-update-debug.log
+    4. Writes a detailed diagnostic log to C:\OpenCue\logs\POST-UPDATE-debug.log
     Called ~40s after UPDATE.bat completes (via the OpenCueRQDRestart schtask).
 #>
 
 $LOG       = "C:\OpenCue\logs\update.log"
-$DEBUG_LOG = "C:\OpenCue\logs\post-update-debug.log"
+$DEBUG_LOG = "C:\OpenCue\logs\POST-UPDATE-debug.log"
 $PYTHON    = "C:\Program Files\Python39\pythonw.exe"
 $CONFIG    = "C:\OpenCue\config\cuenimby.json"
 $VBS       = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Startup\StartCueNimby.vbs"
@@ -28,7 +28,7 @@ function Write-Dbg([string]$Msg) {
     Add-Content -Path $DEBUG_LOG -Value $line -ErrorAction SilentlyContinue
 }
 
-Write-Log "--- post-update START ---"
+Write-Log "--- POST-UPDATE START ---"
 
 # ============================================================
 # DIAGNOSTIC DUMP
@@ -111,7 +111,7 @@ Write-Dbg "Get-InteractiveUsers: $(if($interactiveUsers.Count){'['+($interactive
 
 if ($interactiveUsers.Count -eq 0) {
     Write-Log "INFO: No interactive users found -- CueNimby will start at next logon."
-    Write-Log "--- post-update END ---"
+    Write-Log "--- POST-UPDATE END ---"
     exit 0
 }
 
@@ -138,7 +138,7 @@ if (Test-Path $litVBS) {
     Write-Log "VBS not found -- launching pythonw.exe directly via cmd"
 } else {
     Write-Log "ERROR: Neither StartCueNimby.vbs nor pythonw.exe found. Cannot relaunch CueNimby."
-    Write-Log "--- post-update END ---"
+    Write-Log "--- POST-UPDATE END ---"
     exit 1
 }
 
@@ -179,4 +179,4 @@ foreach ($user in $interactiveUsers) {
     }
 }
 
-Write-Log "--- post-update END ---"
+Write-Log "--- POST-UPDATE END ---"

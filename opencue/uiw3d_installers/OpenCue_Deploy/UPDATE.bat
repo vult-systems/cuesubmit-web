@@ -108,7 +108,7 @@ if exist "!PYTHON_SITE!\cuenimby\activity.py" (
 echo.
 
 :: Kill the running CueNimby process so it picks up new code on restart.
-:: post-update.ps1 (SYSTEM) will relaunch it in the user session 30s from now.
+:: POST-UPDATE.ps1 (SYSTEM) will relaunch it in the user session 30s from now.
 call :LOG "Stopping CueNimby (old code will be replaced on relaunch)..."
 taskkill /F /IM pythonw.exe /T >nul 2>&1
 call :LOG "  pythonw.exe stopped."
@@ -140,12 +140,12 @@ echo.
 :: ----------------------------------------------------------------------------
 :: Stage the post-update script (runs as SYSTEM when the task fires)
 :: ----------------------------------------------------------------------------
-call :LOG "Staging post-update.ps1 to C:\OpenCue\..."
-xcopy /Y /I "!UNC_BASE!\post-update.ps1" "C:\OpenCue\" 2>>"!LOG!"
+call :LOG "Staging POST-UPDATE.ps1 to C:\OpenCue\..."
+xcopy /Y /I "!UNC_BASE!\POST-UPDATE.ps1" "C:\OpenCue\" 2>>"!LOG!"
 if errorlevel 1 (
-    call :LOG "WARNING: Could not copy post-update.ps1 -- CueNimby auto-relaunch may not work"
+    call :LOG "WARNING: Could not copy POST-UPDATE.ps1 -- CueNimby auto-relaunch may not work"
 ) else (
-    call :LOG "  post-update.ps1 staged OK."
+    call :LOG "  POST-UPDATE.ps1 staged OK."
 )
 echo.
 
@@ -176,7 +176,7 @@ if "!SCHED_TIME!"=="" (
 
 :: /tr has no spaces in the path so quotes around the path are not needed.
 :: /rl HIGHEST = equivalent to RunLevel Highest (elevated SYSTEM).
-schtasks /create /tn "OpenCueRQDRestart" /tr "powershell.exe -NoProfile -ExecutionPolicy Bypass -NonInteractive -File C:\OpenCue\post-update.ps1" /sc once /st "!SCHED_TIME!" /ru SYSTEM /rl HIGHEST /f >nul 2>&1
+schtasks /create /tn "OpenCueRQDRestart" /tr "powershell.exe -NoProfile -ExecutionPolicy Bypass -NonInteractive -File C:\OpenCue\POST-UPDATE.ps1" /sc once /st "!SCHED_TIME!" /ru SYSTEM /rl HIGHEST /f >nul 2>&1
 
 if errorlevel 1 (
     call :LOG "  WARNING: schtasks /create failed -- CueNimby relaunch may not occur"
@@ -191,7 +191,7 @@ call :LOG "UPDATE COMPLETE on %COMPUTERNAME%"
 call :LOG "========================================="
 echo.
 echo  RQD restarts in ~30 seconds. CueNimby will relaunch automatically.
-echo  If CueNimby does not appear, run LaunchCueNimby.bat as the logged-in user.
+echo  If CueNimby does not appear, run LAUNCH-CUENIMBY.bat as the logged-in user.
 echo.
 if not "!SILENT!"=="/SILENT" pause
 exit /b 0
