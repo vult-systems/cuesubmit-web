@@ -84,21 +84,7 @@ for /f "tokens=2 delims=: " %%h in ('findstr /i "cuebot_host" "C:\OpenCue\config
 if defined CBHOST (
     echo   Cuebot host from config: !CBHOST!
     echo   Testing TCP port 8443...
-    powershell -Command "
-        try {
-            $t = New-Object Net.Sockets.TcpClient
-            $t.Connect('!CBHOST!', 8443)
-            if ($t.Connected) { Write-Host '  OK - port 8443 is reachable'; $t.Close() }
-        } catch {
-            Write-Host '  ERROR - port 8443 is NOT reachable'
-            Write-Host "  Detail: $_"
-            Write-Host ''
-            Write-Host '  Possible causes:'
-            Write-Host '    1. Windows Firewall on this machine blocking outbound 8443'
-            Write-Host '    2. Server firewall blocking this machine specifically'
-            Write-Host '    3. Docker/Cuebot container not running on the server'
-        }
-    "
+    powershell -Command "try { $t = New-Object Net.Sockets.TcpClient; $t.Connect('!CBHOST!', 8443); if ($t.Connected) { Write-Host '  OK - port 8443 is reachable'; $t.Close() } } catch { Write-Host '  ERROR - port 8443 is NOT reachable'; Write-Host ('  Detail: ' + $_.Exception.Message); Write-Host ''; Write-Host '  Possible causes:'; Write-Host '    1. Windows Firewall blocking outbound 8443'; Write-Host '    2. Server firewall blocking this machine'; Write-Host '    3. Docker/Cuebot container not running on the server' }"
 ) else (
     echo   Could not read cuebot_host from cuenimby.json
 )
