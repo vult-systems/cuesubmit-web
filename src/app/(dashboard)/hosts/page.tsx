@@ -220,7 +220,6 @@ export default function HostsPage() {
         if (!res.ok) return;
         const data = await res.json();
         if (data.count > 0) {
-          toast.success(`Auto-unlocked ${data.count} host${data.count !== 1 ? "s" : ""}`);
           fetchHosts();
         }
       } catch {
@@ -548,11 +547,15 @@ export default function HostsPage() {
               : <Unlock className="h-3.5 w-3.5" />}
             {autoUnlocking ? "Unlocking…" : `Unlock all${lockedCount > 0 ? ` (${lockedCount})` : ""}`}
           </Button>
-          {/* Refresh: re-fetch host list from OpenCue */}
+          {/* Refresh: run auto-unlock then re-fetch to show live state */}
           <Button
             variant="outline"
             size="sm"
-            onClick={() => { setLoading(true); fetchHosts(); }}
+            onClick={async () => {
+              setLoading(true);
+              try { await fetch("/api/admin/hosts/auto-unlock", { method: "POST" }); } catch { /* ignore */ }
+              fetchHosts();
+            }}
             disabled={loading}
             className="h-8 gap-1.5 text-xs"
           >
@@ -693,8 +696,8 @@ export default function HostsPage() {
                       const hostname = host.hostname ? host.hostname.toUpperCase() : "-";
                       // OpenCue's host.name is the IP address
                       const ipAddress = host.name;
-                      // All tags are displayed
-                      const displayTags = host.tags || [];
+                      // Tags sorted alphabetically, shown in a single row
+                      const displayTags = [...(host.tags || [])].sort((a, b) => a.localeCompare(b));
 
                       return (
                         <ResizableTableRow
@@ -783,7 +786,7 @@ export default function HostsPage() {
 
                           {/* Tags */}
                           <ResizableTableCell columnId="tags">
-                            <div className="flex flex-wrap gap-1 min-w-0">
+                            <div className="flex flex-nowrap gap-1 overflow-hidden min-w-0">
                               {displayTags.length === 0 ? (
                                 <span className="text-xs text-text-muted">-</span>
                               ) : displayTags.map((tag) => (
