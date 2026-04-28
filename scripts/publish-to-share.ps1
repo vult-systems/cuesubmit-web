@@ -38,8 +38,10 @@ $Files = @(
     @{ Src = "opencue\uiw3d_installers\OpenCue_Deploy\utils\config\StartCueNimby.vbs"; Dst = "source\config\StartCueNimby.vbs" }
     @{ Src = "opencue\uiw3d_installers\OpenCue_Deploy\utils\config\rqd.conf";       Dst = "source\config\rqd.conf" }
     @{ Src = "opencue\uiw3d_installers\OpenCue_Deploy\UPDATE.bat";                  Dst = "UPDATE.bat" }
-    @{ Src = "opencue\uiw3d_installers\OpenCue_Deploy\DEPLOY-AS-ADMIN.bat";         Dst = "DEPLOY-AS-ADMIN.bat" }
+    @{ Src = "opencue\uiw3d_installers\OpenCue_Deploy\REMOTE-UPDATE.bat";           Dst = "REMOTE-UPDATE.bat" }
+    @{ Src = "opencue\uiw3d_installers\OpenCue_Deploy\INSTALL.bat";                 Dst = "INSTALL.bat" }
     @{ Src = "opencue\uiw3d_installers\OpenCue_Deploy\DIAGNOSE.bat";               Dst = "DIAGNOSE.bat" }
+    @{ Src = "opencue\uiw3d_installers\OpenCue_Deploy\README.txt";                 Dst = "README.txt" }
     @{ Src = "opencue\uiw3d_installers\OpenCue_Deploy\LaunchCueNimby.bat";         Dst = "LaunchCueNimby.bat" }
     @{ Src = "opencue\uiw3d_installers\OpenCue_Deploy\post-update.ps1";             Dst = "post-update.ps1" }
     @{ Src = "opencue\uiw3d_installers\OpenCue_Deploy\TEST-CUEBOT.py";             Dst = "TEST-CUEBOT.py" }

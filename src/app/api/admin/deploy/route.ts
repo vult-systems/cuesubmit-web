@@ -32,7 +32,7 @@ function buildJobXml(tag: string, mode: "deploy" | "diagnose" = "deploy"): strin
   const shot = mode === "diagnose" ? SHOT_DIAGNOSE : SHOT;
   const cmd = mode === "diagnose"
     ? `cmd.exe /c ${UNC_SHARE}\\DIAGNOSE.bat`
-    : `cmd.exe /c ${UNC_SHARE}\\DEPLOY-AS-ADMIN.bat ${UNC_SHARE}`;
+    : `cmd.exe /c ${UNC_SHARE}\\REMOTE-UPDATE.bat ${UNC_SHARE}`;
   const timestamp = new Date().toISOString().slice(0, 16).replace(/[T:]/g, "-");
   const jobName = `${SHOW}-${shot}-${timestamp}-${tag}`;
   return (

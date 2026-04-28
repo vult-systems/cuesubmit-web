@@ -4,11 +4,12 @@ title OpenCue Update - %COMPUTERNAME%
 color 0A
 
 :: ============================================================================
-:: OpenCue Incremental Update Script
+:: UPDATE.bat  —  OpenCue Incremental Update
 ::
-:: IMPORTANT: Copy this file to C:\ before running. Do NOT run from a UNC path.
-::   copy \\10.40.14.25\RenderSourceRepository\Utility\OpenCue_Deploy\UPDATE.bat C:\UPDATE.bat
-::   C:\UPDATE.bat
+:: Run automatically by REMOTE-UPDATE.bat (triggered from the web admin page).
+:: Can also be run manually if needed.
+::
+:: For a FRESH INSTALL on a new/wiped machine, use INSTALL.bat instead.
 ::
 :: Must be run as Administrator.
 ::

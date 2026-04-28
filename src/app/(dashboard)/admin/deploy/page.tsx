@@ -337,7 +337,7 @@ export default function DeployPage() {
       .map((h) => h.name);
     setSelected(new Set(ips));
     setStatusFilter("all");
-    toast.success(`Selected ${ips.length} failed host${ips.length !== 1 ? "s" : ""} for re-deploy`);
+    toast.success(`Selected ${ips.length} failed host${ips.length !== 1 ? "s" : ""} for retry`);
   }
 
   async function handleDeploy() {
@@ -352,7 +352,7 @@ export default function DeployPage() {
       const data = await res.json();
       if (data.submitted?.length > 0) {
         const labels = data.submitted.map((s: { label: string }) => s.label).join(", ");
-        toast.success(`Deploy jobs submitted: ${labels}`);
+        toast.success(`Update jobs submitted: ${labels}`);
         setSelected(new Set());
         // Refresh status after a moment
         setTimeout(fetchStatus, 1500);
@@ -489,8 +489,8 @@ export default function DeployPage() {
             {deploying
               ? "Submitting…"
               : selected.size > 0
-                ? `Deploy ${selected.size} host${selected.size !== 1 ? "s" : ""}`
-                : "Deploy"}
+                ? `Update ${selected.size} host${selected.size !== 1 ? "s" : ""}`
+                : "Update"}
           </Button>
         </div>
       </div>
@@ -502,7 +502,7 @@ export default function DeployPage() {
             <XCircle className="h-4 w-4 text-danger shrink-0" />
             <span className="text-sm">
               <span className="font-medium text-text-primary">{latestBatchFailed.length} host{latestBatchFailed.length !== 1 ? "s" : ""}</span>
-              <span className="text-text-muted"> failed in the last deploy batch.</span>
+              <span className="text-text-muted"> failed in the last update batch.</span>
             </span>
           </div>
           <Button
@@ -512,7 +512,7 @@ export default function DeployPage() {
             className="gap-1.5 border-danger/30 text-danger hover:bg-danger/5 shrink-0"
           >
             <RotateCcw className="h-3.5 w-3.5" />
-            Re-deploy failed
+            Retry failed
           </Button>
         </div>
       )}

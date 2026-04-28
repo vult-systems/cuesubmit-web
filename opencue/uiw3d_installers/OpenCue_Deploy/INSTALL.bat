@@ -4,15 +4,18 @@ title OpenCue RQD Deployment
 color 0A
 
 :: ============================================================================
-:: OpenCue RQD Deployment
-:: - PS Remoting enabled
-:: - Lab-aware service account (csadmin###)
-:: - Machine-level lab tagging (UIW3D_LAB)
-:: - Perforce creds seeded for SYSTEM + service account
+:: INSTALL.bat — Full fresh install of OpenCue RQD + CueNIMBY
+::
+:: USE WHEN: Setting up a NEW machine, or fully reinstalling from scratch.
+:: FOR UPDATES to existing machines: use the web app Deploy page instead.
+::
+:: - Installs Python 3.9, OpenCue wheel packages, NSSM service wrapper
+:: - Configures OpenCueRQD Windows service + CueNIMBY auto-start
+:: - Lab-aware service account (csadmin###), PS Remoting enabled
 ::
 :: Usage:
-::   DEPLOY.bat                         Interactive (prompts for lab number)
-::   DEPLOY.bat /SILENT /LABNUM:404     Fully silent — no prompts, no pauses
+::   INSTALL.bat                         Interactive (prompts for lab number)
+::   INSTALL.bat /SILENT /LABNUM:404     Fully silent — no prompts, no pauses
 :: ============================================================================
 
 :: Parse arguments
@@ -41,7 +44,7 @@ echo.
 :: --- Admin check ---
 net session >nul 2>&1 || (
     echo [ERROR] Run as Administrator
-    echo         Right-click DEPLOY.bat ^> Run as administrator
+    echo         Right-click INSTALL.bat ^> Run as administrator
     if "!SILENT!"=="0" pause
     exit /b 1
 )
@@ -198,7 +201,7 @@ echo   OK
 echo [7/10] Setting up directories...
 mkdir C:\OpenCue\config >nul 2>&1
 mkdir C:\OpenCue\logs >nul 2>&1
-copy /y "%UTILS_DIR%config\*" "C:\OpenCue\config\" >nul
+copy /y "%SCRIPT_DIR%source\config\*" "C:\OpenCue\config\" >nul
 copy /y "%NSSM%" "C:\OpenCue\nssm.exe" >nul
 
 :: Replace __LAB_TAG__ placeholder in rqd.conf with actual lab tag
@@ -209,16 +212,16 @@ powershell -Command "(Get-Content 'C:\OpenCue\config\rqd.conf') -replace '__LAB_
 echo   Setting up pycue config...
 for /f "tokens=*" %%u in ('dir /b C:\Users ^| findstr /v /i "Public Default"') do (
     mkdir "C:\Users\%%u\.config\opencue" >nul 2>&1
-    copy /y "%UTILS_DIR%config\opencue.yaml" "C:\Users\%%u\.config\opencue\" >nul 2>&1
+    copy /y "%SCRIPT_DIR%source\config\opencue.yaml" "C:\Users\%%u\.config\opencue\" >nul 2>&1
 )
 :: Also set for Default profile (new users)
 mkdir "C:\Users\Default\.config\opencue" >nul 2>&1
-copy /y "%UTILS_DIR%config\opencue.yaml" "C:\Users\Default\.config\opencue\" >nul 2>&1
+copy /y "%SCRIPT_DIR%source\config\opencue.yaml" "C:\Users\Default\.config\opencue\" >nul 2>&1
 
 :: Setup CueNIMBY for user-session NIMBY control
 echo   Setting up CueNIMBY auto-start...
 set "STARTUP_FOLDER=C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Startup"
-copy /y "%UTILS_DIR%config\StartCueNimby.vbs" "%STARTUP_FOLDER%\" >nul
+copy /y "%SCRIPT_DIR%source\config\StartCueNimby.vbs" "%STARTUP_FOLDER%\" >nul
 echo   OK
 
 :: ============================================================================
