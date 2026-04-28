@@ -51,8 +51,10 @@ DIRECTORIES
                         opencue.yaml      — OpenCue client config
                         rqd.conf          — RQD config (contains __LAB_TAG__ placeholder)
                         StartCueNimby.vbs — Startup script for CueNimby tray app
-  utils\              Embedded installers: Python wheel packages, NSSM binary
-                      (used only by INSTALL.bat for a full fresh install)
+  utils\              Embedded installers: Python wheel packages, NSSM binary,
+                      used only by INSTALL.bat for a full fresh install.
+                      NOTE: these large binaries are stored on the share only
+                      and are NOT tracked in git (see utils\.gitignore)
 
 
 TYPICAL WORKFLOWS
