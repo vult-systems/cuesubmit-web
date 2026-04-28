@@ -547,15 +547,11 @@ export default function HostsPage() {
               : <Unlock className="h-3.5 w-3.5" />}
             {autoUnlocking ? "Unlocking…" : `Unlock all${lockedCount > 0 ? ` (${lockedCount})` : ""}`}
           </Button>
-          {/* Refresh: run auto-unlock then re-fetch to show live state */}
+          {/* Refresh: re-fetch live host state from OpenCue */}
           <Button
             variant="outline"
             size="sm"
-            onClick={async () => {
-              setLoading(true);
-              try { await fetch("/api/admin/hosts/auto-unlock", { method: "POST" }); } catch { /* ignore */ }
-              fetchHosts();
-            }}
+            onClick={() => { setLoading(true); fetchHosts(); }}
             disabled={loading}
             className="h-8 gap-1.5 text-xs"
           >
