@@ -171,5 +171,4 @@ echo  To fix: copy UPDATE.bat to C:\ and run as admin:
 echo    copy "%UNC%\UPDATE.bat" C:\UPDATE.bat
 echo    C:\UPDATE.bat
 echo.
-pause
 endlocal

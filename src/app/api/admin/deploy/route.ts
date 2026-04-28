@@ -31,7 +31,7 @@ function toLockState(v?: string | number): string {
 function buildJobXml(tag: string, mode: "deploy" | "diagnose" = "deploy"): string {
   const shot = mode === "diagnose" ? SHOT_DIAGNOSE : SHOT;
   const cmd = mode === "diagnose"
-    ? `cmd.exe /c ${UNC_SHARE}\\DIAGNOSE.bat`
+    ? `cmd.exe /c "${UNC_SHARE}\\DIAGNOSE.bat < nul"`
     : `cmd.exe /c ${UNC_SHARE}\\DEPLOY-AS-ADMIN.bat ${UNC_SHARE}`;
   const timestamp = new Date().toISOString().slice(0, 16).replace(/[T:]/g, "-");
   const jobName = `${SHOW}-${shot}-${timestamp}-${tag}`;
