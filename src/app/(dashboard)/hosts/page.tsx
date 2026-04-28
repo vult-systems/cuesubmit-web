@@ -212,29 +212,6 @@ export default function HostsPage() {
     return () => clearInterval(interval);
   }, [fetchHosts]);
 
-// Auto-unlock: periodically clear manually-locked idle hosts (NIMBY/student locks are left alone)
-  useEffect(() => {
-    const runAutoUnlock = async () => {
-      try {
-        const res = await fetch("/api/admin/hosts/auto-unlock", { method: "POST" });
-        if (!res.ok) return;
-        const data = await res.json();
-        if (data.count > 0) {
-          fetchHosts();
-        }
-      } catch {
-        // silently ignore
-      }
-    };
-    // Run quickly after page load, then every 5 min
-    const initial = setTimeout(runAutoUnlock, 3_000);
-    const interval = setInterval(runAutoUnlock, 5 * 60 * 1000);
-    return () => {
-      clearTimeout(initial);
-      clearInterval(interval);
-    };
-  }, [fetchHosts]);
-
   const handleHostAction = async (hostId: string, action: string, extraData?: Record<string, unknown>) => {
     try {
       const response = await fetch(`/api/hosts/${hostId}`, {
