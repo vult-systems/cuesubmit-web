@@ -81,8 +81,12 @@ export async function POST(request: Request) {
       const cores = toNum(h.cores);
       const idleCores = toNum(h.idleCores ?? h.idle_cores);
       if (!isStateUp(h.state) || cores === 0) return false;
-      if (isLockStateNimby(lockState)) return true; // always clear stale CueNimby locks
-      if (isLockStateLocked(lockState)) return force || idleCores >= cores; // force ignores idle check
+      // NIMBY_LOCKED = CueNimby is actively protecting a logged-in machine.
+      // Only clear on an explicit force request (admin post-class cleanup).
+      // Never clear automatically — CueNimby will keep re-locking active machines.
+      if (isLockStateNimby(lockState)) return force;
+      // LOCKED = manually locked. Clear when idle, or always on force.
+      if (isLockStateLocked(lockState)) return force || idleCores >= cores;
       return false;
     });
 

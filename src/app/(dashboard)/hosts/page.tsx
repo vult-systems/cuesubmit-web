@@ -212,7 +212,7 @@ export default function HostsPage() {
     return () => clearInterval(interval);
   }, [fetchHosts]);
 
-// Auto-unlock: clear locked idle hosts every 5 minutes
+// Auto-unlock: periodically clear manually-locked idle hosts (NIMBY/student locks are left alone)
   useEffect(() => {
     const runAutoUnlock = async () => {
       try {
@@ -220,7 +220,7 @@ export default function HostsPage() {
         if (!res.ok) return;
         const data = await res.json();
         if (data.count > 0) {
-          toast.success(`Auto-unlocked ${data.count} idle host${data.count !== 1 ? "s" : ""}`);
+          toast.success(`Auto-unlocked ${data.count} host${data.count !== 1 ? "s" : ""}`);
           fetchHosts();
         }
       } catch {
